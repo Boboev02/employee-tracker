@@ -14,7 +14,7 @@ export default function EmployeesPage() {
   const [loading, setLoading]   = useState(true);
   const [search, setSearch]     = useState('');
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm]         = useState({ name: '', email: '', role: 'EMPLOYEE' });
+  const [form, setForm]         = useState({ name: '', email: '', role: 'EMPLOYEE', password: '' });
   const [saving, setSaving]     = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const { connected, presence, getStatus } = useSocket(token);
@@ -46,11 +46,17 @@ export default function EmployeesPage() {
   const invite = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true);
     try {
+      // Register user with password
+      await fetch('https://employee-tracker.ru/api/v1/auth/register', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: form.name, email: form.email, password: form.password }),
+      });
+      // Then invite as employee with role
       await fetch('https://employee-tracker.ru/api/v1/employees/invite', {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ name: form.name, email: form.email, role: form.role }),
       });
-      setShowForm(false); setForm({ name: '', email: '', role: 'EMPLOYEE' });
+      setShowForm(false); setForm({ name: '', email: '', role: 'EMPLOYEE', password: '' });
       if (token) load(token);
     } finally { setSaving(false); }
   };
@@ -202,7 +208,7 @@ export default function EmployeesPage() {
           <div style={{ background: 'var(--bg-primary)', borderRadius: 'var(--radius)', padding: '24px', width: '400px', border: '0.5px solid var(--border)' }}>
             <h2 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '20px' }}>Добавить сотрудника</h2>
             <form onSubmit={invite} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {[{ label: 'Имя', key: 'name', type: 'text', placeholder: 'Иван Петров' }, { label: 'Email', key: 'email', type: 'email', placeholder: 'ivan@company.ru' }].map(f => (
+              {[{ label: 'Имя', key: 'name', type: 'text', placeholder: 'Иван Петров' }, { label: 'Email', key: 'email', type: 'email', placeholder: 'ivan@company.ru' }, { label: 'Пароль', key: 'password', type: 'password', placeholder: 'Минимум 8 символов' }].map(f => (
                 <div key={f.key}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '6px' }}>{f.label}</label>
                   <input type={f.type} value={(form as any)[f.key]} onChange={e => setForm({ ...form, [f.key]: e.target.value })} placeholder={f.placeholder} required
