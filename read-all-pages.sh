@@ -1,0 +1,9 @@
+echo "=== dashboard/page.tsx ===" && head -30 ~/employee-tracker/apps/frontend/app/dashboard/page.tsx
+echo "=== employees/page.tsx ===" && head -50 ~/employee-tracker/apps/frontend/app/dashboard/employees/page.tsx
+echo "=== tasks/page.tsx ===" && head -50 ~/employee-tracker/apps/frontend/app/dashboard/tasks/page.tsx
+echo "=== analytics/page.tsx ===" && head -50 ~/employee-tracker/apps/frontend/app/dashboard/analytics/page.tsx
+echo "=== teams/page.tsx ===" && head -50 ~/employee-tracker/apps/frontend/app/dashboard/teams/page.tsx
+echo "=== productivity/page.tsx ===" && head -50 ~/employee-tracker/apps/frontend/app/dashboard/productivity/page.tsx
+echo "=== timesheet/page.tsx ===" && head -50 ~/employee-tracker/apps/frontend/app/dashboard/timesheet/page.tsx
+echo "=== settings/page.tsx ===" && head -50 ~/employee-tracker/apps/frontend/app/dashboard/settings/page.tsx
+echo "=== export/page.tsx ===" && head -50 ~/employee-tracker/apps/frontend/app/dashboard/export/page.tsx

@@ -1,0 +1,210 @@
+const fs = require('fs');
+const path = require('path');
+
+function write(filePath, content) {
+  const dir = path.dirname(filePath);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(filePath, content);
+  console.log('✓', filePath);
+}
+
+// ─── Backend: Work session service ───────────────────────────
+write('src/tracking/work-session.service.ts', `import { Injectable } from '@nestjs/common';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
+import { PrismaService } from '../prisma/prisma.service';
+
+export type SessionStatus = 'working' | 'break' | 'finished' | null;
+
+export interface WorkSession {
+  userId:     string;
+  status:     SessionStatus;
+  startedAt:  number | null;  // timestamp ms
+  breakAt:    number | null;
+  finishedAt: number | null;
+  totalBreakMs: number;
+}
+
+@Injectable()
+export class WorkSessionService {
+  constructor(
+    @InjectRedis() private readonly redis: Redis,
+    private readonly prisma: PrismaService,
+  ) {}
+
+  private key(userId: string) { return 'worksession:' + userId; }
+
+  async getSession(userId: string): Promise<WorkSession> {
+    const val = await this.redis.get(this.key(userId));
+    if (!val) return { userId, status: null, startedAt: null, breakAt: null, finishedAt: null, totalBreakMs: 0 };
+    return JSON.parse(val);
+  }
+
+  async startWork(userId: string, orgId: string): Promise<WorkSession> {
+    const now = Date.now();
+    const session: WorkSession = {
+      userId, status: 'working',
+      startedAt: now, breakAt: null, finishedAt: null, totalBreakMs: 0,
+    };
+    await this.redis.setex(this.key(userId), 86400, JSON.stringify(session));
+    await this.logEvent(userId, orgId, 'work_start');
+    return session;
+  }
+
+  async startBreak(userId: string, orgId: string): Promise<WorkSession> {
+    const session = await this.getSession(userId);
+    if (session.status !== 'working') return session;
+    session.status  = 'break';
+    session.breakAt = Date.now();
+    await this.redis.setex(this.key(userId), 86400, JSON.stringify(session));
+    await this.logEvent(userId, orgId, 'work_break_start');
+    return session;
+  }
+
+  async endBreak(userId: string, orgId: string): Promise<WorkSession> {
+    const session = await this.getSession(userId);
+    if (session.status !== 'break') return session;
+    const breakDuration = Date.now() - (session.breakAt ?? Date.now());
+    session.totalBreakMs += breakDuration;
+    session.status  = 'working';
+    session.breakAt = null;
+    await this.redis.setex(this.key(userId), 86400, JSON.stringify(session));
+    await this.logEvent(userId, orgId, 'work_break_end');
+    return session;
+  }
+
+  async finishWork(userId: string, orgId: string): Promise<WorkSession> {
+    const session = await this.getSession(userId);
+    if (!session.startedAt) return session;
+    session.status     = 'finished';
+    session.finishedAt = Date.now();
+    if (session.breakAt) {
+      session.totalBreakMs += Date.now() - session.breakAt;
+      session.breakAt = null;
+    }
+    await this.redis.setex(this.key(userId), 86400, JSON.stringify(session));
+    await this.logEvent(userId, orgId, 'work_end');
+    return session;
+  }
+
+  async getOrgSessions(orgId: string): Promise<any[]> {
+    // Get today's work_start/end events for all users in org
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const events = await this.prisma.activityEvent.findMany({
+      where: {
+        orgId,
+        eventType: { in: ['work_start', 'work_break_start', 'work_break_end', 'work_end'] },
+        createdAt: { gte: today },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const users = await this.prisma.user.findMany({
+      where: { orgId, deletedAt: null },
+      select: { id: true, name: true, email: true },
+    });
+
+    return Promise.all(users.map(async user => {
+      const userEvents = events.filter(e => e.userId === user.id);
+      const session = await this.getSession(user.id);
+
+      const startEvent = userEvents.find(e => e.eventType === 'work_start');
+      const endEvent   = [...userEvents].reverse().find(e => e.eventType === 'work_end');
+
+      let workMinutes = 0;
+      if (session.startedAt) {
+        const end = session.finishedAt ?? Date.now();
+        workMinutes = Math.round((end - session.startedAt - session.totalBreakMs) / 60000);
+      }
+
+      return {
+        userId:      user.id,
+        name:        user.name,
+        email:       user.email,
+        status:      session.status,
+        startedAt:   startEvent ? new Date(startEvent.createdAt).toTimeString().slice(0,5) : null,
+        finishedAt:  endEvent   ? new Date(endEvent.createdAt).toTimeString().slice(0,5)   : null,
+        workMinutes: Math.max(0, workMinutes),
+        breakMinutes: Math.round(session.totalBreakMs / 60000),
+      };
+    }));
+  }
+
+  private async logEvent(userId: string, orgId: string, eventType: string) {
+    await this.prisma.activityEvent.create({
+      data: {
+        eventId:         require('crypto').randomUUID(),
+        batchId:         require('crypto').randomUUID(),
+        userId, orgId, eventType,
+        platform:        'OTHER',
+        clientTimestamp: new Date(),
+      },
+    });
+  }
+}
+`);
+
+// ─── Backend: Work session controller ────────────────────────
+write('src/tracking/work-session.controller.ts', `import { Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { WorkSessionService } from './work-session.service';
+import { CurrentUser, RequirePermissions } from '../auth/decorators/index';
+import { RbacGuard } from '../auth/guards/index';
+
+@Controller('api/v1/work-session')
+export class WorkSessionController {
+  constructor(private readonly sessions: WorkSessionService) {}
+
+  @Get('me')
+  getMySession(@CurrentUser() user: any) {
+    return this.sessions.getSession(user.id);
+  }
+
+  @Post('start')
+  startWork(@CurrentUser() user: any) {
+    return this.sessions.startWork(user.id, user.orgId);
+  }
+
+  @Post('break')
+  startBreak(@CurrentUser() user: any) {
+    return this.sessions.startBreak(user.id, user.orgId);
+  }
+
+  @Post('break-end')
+  endBreak(@CurrentUser() user: any) {
+    return this.sessions.endBreak(user.id, user.orgId);
+  }
+
+  @Post('finish')
+  finishWork(@CurrentUser() user: any) {
+    return this.sessions.finishWork(user.id, user.orgId);
+  }
+
+  @Get('org/today')
+  @UseGuards(RbacGuard)
+  @RequirePermissions('tracking:view:all', 'tracking:view:team')
+  getOrgSessions(@CurrentUser() user: any) {
+    return this.sessions.getOrgSessions(user.orgId);
+  }
+}
+`);
+
+// ─── Update tracking module ───────────────────────────────────
+write('src/tracking/tracking.module.ts', `import { Module } from '@nestjs/common';
+import { TrackingController }     from './tracking.controller';
+import { TrackingService }        from './tracking.service';
+import { WorkSessionService }     from './work-session.service';
+import { WorkSessionController }  from './work-session.controller';
+import { PrismaModule }           from '../prisma/prisma.module';
+
+@Module({
+  imports:     [PrismaModule],
+  controllers: [TrackingController, WorkSessionController],
+  providers:   [TrackingService, WorkSessionService],
+  exports:     [TrackingService, WorkSessionService],
+})
+export class TrackingModule {}
+`);
+
+console.log('\n✅ Work session backend created');

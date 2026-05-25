@@ -1,0 +1,55 @@
+{
+  "manifest_version": 3,
+  "name": "Employee Tracker — WB & Ozon",
+  "version": "1.0.0",
+  "description": "Корпоративный трекер активности для Wildberries и Ozon Seller",
+  "minimum_chrome_version": "116",
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://seller.wildberries.ru/*",
+        "https://seller-express.wildberries.ru/*",
+        "https://supplier.wildberries.ru/*",
+        "https://cmp.wildberries.ru/*"
+      ],
+      "js": [
+        "content/wb-tracker.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    },
+    {
+      "matches": [
+        "https://seller.ozon.ru/*",
+        "https://seller-portal.ozon.ru/*"
+      ],
+      "js": [
+        "content/ozon-tracker.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Employee Tracker"
+  },
+  "permissions": [
+    "storage",
+    "tabs",
+    "alarms",
+    "identity"
+  ],
+  "host_permissions": [
+    "https://seller.wildberries.ru/*",
+    "https://seller-express.wildberries.ru/*",
+    "https://supplier.wildberries.ru/*",
+    "https://seller.ozon.ru/*",
+    "http://localhost:3001/*",
+    "https://cmp.wildberries.ru/*"
+  ]
+}
