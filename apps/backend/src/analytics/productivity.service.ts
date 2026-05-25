@@ -82,7 +82,7 @@ export class ProductivityService {
       : 0;
 
     // Factor 4: Focus (time on productive sections)
-    const productiveSections = new Set(['orders', 'products', 'analytics', 'finance', 'supply', 'pricing']);
+    const productiveSections = new Set(['orders', 'products', 'analytics', 'finance', 'supplies', 'prices', 'feedbacks', 'questions', 'advertising', 'promotion', 'stocks', 'logistics']);
     const productiveEvents = events.filter(e => {
       const section = (e.platformData as any)?.section;
       return productiveSections.has(section);

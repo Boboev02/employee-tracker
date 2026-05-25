@@ -64,11 +64,28 @@ export class ActiveTimeService {
         if (e.eventType === 'wb_section_enter' || e.eventType === 'ozon_section_enter') {
           sec.lastEnter = Number(e.clientTimestamp);
         }
-        // Track section leave → calculate time spent
-        if ((e.eventType === 'wb_section_leave' || e.eventType === 'ozon_section_leave') && sec.lastEnter > 0) {
-          const spent = Math.round((Number(e.clientTimestamp) - sec.lastEnter) / 1000);
-          if (spent > 0 && spent < 7200) sec.timeSeconds += spent; // max 2h per visit
+        // Track section leave → use pre-calculated time from extension if available
+        if (e.eventType === 'wb_section_leave' || e.eventType === 'ozon_section_leave') {
+          // Prefer activeSeconds (excludes idle), fallback to timeSpentSeconds, fallback to calculated
+          const activeS = pd?.activeSeconds;
+          const spentS  = pd?.timeSpentSeconds;
+          if (activeS && activeS > 0 && activeS < 7200) {
+            sec.timeSeconds += activeS;
+          } else if (spentS && spentS > 0 && spentS < 7200) {
+            sec.timeSeconds += spentS;
+          } else if (sec.lastEnter > 0) {
+            const calc = Math.round((Number(e.clientTimestamp) - sec.lastEnter) / 1000);
+            if (calc > 0 && calc < 7200) sec.timeSeconds += calc;
+          }
           sec.lastEnter = 0;
+        }
+        // Also count section_ping events for real-time time tracking
+        if (e.eventType === 'wb_section_ping' || e.eventType === 'ozon_section_ping') {
+          const activeS = pd?.activeSeconds;
+          if (activeS && activeS > 0 && activeS < 7200) {
+            // Don't double-count: only add if no previous leave recorded
+            // pings are incremental, just update the running total marker
+          }
         }
         // Track specific actions
         if (e.eventType && e.eventType.startsWith('wb_') || e.eventType && e.eventType.startsWith('ozon_')) {

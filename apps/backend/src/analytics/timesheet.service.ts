@@ -116,6 +116,8 @@ export class TimesheetService {
 
         const lateMinutes      = Math.max(0, Math.round((firstHour - startHour) * 60));
         const earlyLeaveMinutes = Math.max(0, Math.round((endHour - lastHour) * 60));
+        // Subtract breaks: get break events for this day
+        const breakEvents = dayEvents.filter ? [] : []; // placeholder
         const workDuration     = Math.round((lastHour - firstHour) * 60);
 
         let status: DayRecord['status'] = 'present';

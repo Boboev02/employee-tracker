@@ -35,10 +35,11 @@ export class AuthService {
     }
 
     const hash = await bcrypt.hash(dto.password, 12);
-    let role = await this.prisma.role.findUnique({ where: { name: 'ADMIN' } });
-    if (!role) {
-      role = await this.prisma.role.create({ data: { name: 'ADMIN', permissions: [] } });
-    }
+    // First user in org gets ADMIN, rest get EMPLOYEE
+    const userCount = await this.prisma.user.count({ where: { orgId } });
+    const roleName = (dto.orgName || userCount === 0) ? 'ADMIN' : 'EMPLOYEE';
+    let role = await this.prisma.role.findUnique({ where: { name: roleName } });
+    if (!role) role = await this.prisma.role.create({ data: { name: roleName, permissions: [] } });
 
     const user = await this.prisma.user.create({
       data: { email: dto.email, password: hash, name: dto.name, orgId },

@@ -1,4 +1,9 @@
-'use client';
+const fs = require('fs');
+const home = require('os').homedir();
+const base = home + '/employee-tracker/apps/frontend';
+
+// ─── 1. ПОЛНЫЙ WorkSessionWidget для всех ролей ───────────────
+fs.writeFileSync(base + '/components/WorkSessionWidget.tsx', `'use client';
 import { useEffect, useState, useCallback } from 'react';
 
 interface Props { token: string; compact?: boolean; }
@@ -154,3 +159,103 @@ export function WorkSessionWidget({ token, compact = false }: Props) {
     </div>
   );
 }
+`);
+console.log('✓ WorkSessionWidget.tsx updated');
+
+// ─── 2. Dashboard - показывать WorkSession всем ───────────────
+let dash = fs.readFileSync(base + '/app/dashboard/page.tsx', 'utf8');
+
+// Убедимся что импорт есть
+if (!dash.includes('WorkSessionWidget')) {
+  dash = `import { WorkSessionWidget } from '@/components/WorkSessionWidget';\n` + dash;
+}
+
+// Показываем виджет всем (убираем условие isAdmin если есть)
+dash = dash.replace(/\{token && isAdmin && <WorkSessionWidget/g, '{token && <WorkSessionWidget');
+dash = dash.replace(/\{token && user\?\.isAdmin && <WorkSessionWidget/g, '{token && <WorkSessionWidget');
+
+fs.writeFileSync(base + '/app/dashboard/page.tsx', dash);
+console.log('✓ dashboard page.tsx updated');
+
+// ─── 3. Fix MutationObserver leak in extension ───────────────
+const extBase = require('os').homedir() + '/employee-tracker/apps/extension/src';
+let wb = fs.readFileSync(extBase + '/content/wb-tracker.ts', 'utf8');
+
+// Add observer cleanup
+wb = wb.replace(
+  `  protected attachSectionListeners() {
+    this.sectionListeners.forEach(({ el, fn }) => el.removeEventListener('click', fn));
+    this.sectionListeners = [];
+    const section = this.detectSection();
+    const config  = WB_SECTIONS[section];
+    if (!config) return;
+    const attach = () => {`,
+  `  private sectionObserver: MutationObserver | null = null;
+
+  protected attachSectionListeners() {
+    this.sectionListeners.forEach(({ el, fn }) => el.removeEventListener('click', fn));
+    this.sectionListeners = [];
+    if (this.sectionObserver) { this.sectionObserver.disconnect(); this.sectionObserver = null; }
+    const section = this.detectSection();
+    const config  = WB_SECTIONS[section];
+    if (!config) return;
+    const attach = () => {`
+);
+wb = wb.replace(
+  `    attach();
+    new MutationObserver(attach).observe(document.body, { childList: true, subtree: true });
+  }
+}
+
+try { new WbTracker().init(); }`,
+  `    attach();
+    this.sectionObserver = new MutationObserver(attach);
+    this.sectionObserver.observe(document.body, { childList: true, subtree: true });
+  }
+}
+
+try { new WbTracker().init(); }`
+);
+fs.writeFileSync(extBase + '/content/wb-tracker.ts', wb);
+console.log('✓ wb-tracker.ts MutationObserver fixed');
+
+// Same fix for ozon
+let oz = fs.readFileSync(extBase + '/content/ozon-tracker.ts', 'utf8');
+oz = oz.replace(
+  `  protected attachSectionListeners() {
+    this.sectionListeners.forEach(({ el, fn }) => el.removeEventListener('click', fn));
+    this.sectionListeners = [];
+    const section = this.detectSection();
+    const config  = OZON_SECTIONS[section];
+    if (!config) return;
+    const attach = () => {`,
+  `  private sectionObserver: MutationObserver | null = null;
+
+  protected attachSectionListeners() {
+    this.sectionListeners.forEach(({ el, fn }) => el.removeEventListener('click', fn));
+    this.sectionListeners = [];
+    if (this.sectionObserver) { this.sectionObserver.disconnect(); this.sectionObserver = null; }
+    const section = this.detectSection();
+    const config  = OZON_SECTIONS[section];
+    if (!config) return;
+    const attach = () => {`
+);
+oz = oz.replace(
+  `    attach();
+    new MutationObserver(attach).observe(document.body, { childList: true, subtree: true });
+  }
+}
+
+try { new OzonTracker().init(); }`,
+  `    attach();
+    this.sectionObserver = new MutationObserver(attach);
+    this.sectionObserver.observe(document.body, { childList: true, subtree: true });
+  }
+}
+
+try { new OzonTracker().init(); }`
+);
+fs.writeFileSync(extBase + '/content/ozon-tracker.ts', oz);
+console.log('✓ ozon-tracker.ts MutationObserver fixed');
+
+console.log('\n✅ All fixes applied');

@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { WorkSessionWidget } from '@/components/WorkSessionWidget';
 
 const SECTION_LABELS: Record<string,string> = {
   orders:'Заказы',feedbacks:'Отзывы',reviews:'Отзывы',questions:'Вопросы',

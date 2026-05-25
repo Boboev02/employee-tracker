@@ -123,9 +123,12 @@ class WbTracker extends BaseTracker {
     });
   }
 
+  private sectionObserver: MutationObserver | null = null;
+
   protected attachSectionListeners() {
     this.sectionListeners.forEach(({ el, fn }) => el.removeEventListener('click', fn));
     this.sectionListeners = [];
+    if (this.sectionObserver) { this.sectionObserver.disconnect(); this.sectionObserver = null; }
     const section = this.detectSection();
     const config  = WB_SECTIONS[section];
     if (!config) return;
@@ -140,7 +143,8 @@ class WbTracker extends BaseTracker {
       });
     };
     attach();
-    new MutationObserver(attach).observe(document.body, { childList: true, subtree: true });
+    this.sectionObserver = new MutationObserver(attach);
+    this.sectionObserver.observe(document.body, { childList: true, subtree: true });
   }
 }
 
