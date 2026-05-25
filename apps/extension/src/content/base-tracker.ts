@@ -123,6 +123,20 @@ export abstract class BaseTracker {
 
   protected scheduleFlush() {
     setInterval(() => this.flushNow(), 5000);
+    // Report active time in current section every 60 seconds
+    setInterval(() => this.reportActivePing(), 60000);
+  }
+
+  protected reportActivePing() {
+    if (!this.currentSection || this.sectionEnterTime === 0 || this.isIdle) return;
+    const activeTime = Math.round((Date.now() - this.sectionEnterTime) / 1000);
+    if (activeTime < 10) return;
+    const pingEvent = this.platform === 'WILDBERRIES' ? 'wb_section_ping' : 'ozon_section_ping';
+    this.sendEvent(pingEvent as any, {
+      section: this.currentSection,
+      sectionLabel: this.getSectionLabel(this.currentSection),
+      activeSeconds: activeTime,
+    });
   }
 
   protected sendEvent(eventType: any, extra: Record<string, any> = {}) {
