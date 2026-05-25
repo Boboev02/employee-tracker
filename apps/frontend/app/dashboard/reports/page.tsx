@@ -25,7 +25,7 @@ export default function ReportsPage() {
   const generate = async (days: string) => {
     setLoading(true); setPeriod(days);
     try {
-      const res = await fetch('http://localhost:3001/api/v1/analytics/full-report?days=' + days, {
+      const res = await fetch('https://employee-tracker.ru/api/v1/analytics/full-report?days=' + days, {
         headers: { Authorization: 'Bearer ' + token },
       });
       setReport(await res.json());

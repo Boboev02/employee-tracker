@@ -54,11 +54,11 @@ export default function DashboardPage() {
   const loadAll = async (t: string) => {
     try {
       const [s, emps, p, tk, sec] = await Promise.all([
-        fetch('http://localhost:3001/api/v1/analytics/stats',      { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
-        fetch('http://localhost:3001/api/v1/employees',            { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
-        fetch('http://localhost:3001/api/v1/presence',             { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
-        fetch('http://localhost:3001/api/v1/tasks',                { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
-        fetch('http://localhost:3001/api/v1/analytics/activity/summary?days=7', { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
+        fetch('https://employee-tracker.ru/api/v1/analytics/stats',      { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
+        fetch('https://employee-tracker.ru/api/v1/employees',            { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
+        fetch('https://employee-tracker.ru/api/v1/presence',             { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
+        fetch('https://employee-tracker.ru/api/v1/tasks',                { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
+        fetch('https://employee-tracker.ru/api/v1/analytics/activity/summary?days=7', { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
       ]);
 
       if (s && !s.error) setStats(s);

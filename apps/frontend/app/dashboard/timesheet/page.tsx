@@ -35,13 +35,13 @@ export default function TimesheetPage() {
   }, []);
 
   const loadEmployees = async (t: string) => {
-    const res = await fetch('http://localhost:3001/api/v1/employees', { headers: { Authorization: 'Bearer ' + t } });
+    const res = await fetch('https://employee-tracker.ru/api/v1/employees', { headers: { Authorization: 'Bearer ' + t } });
     const d = await res.json(); setEmployees(Array.isArray(d) ? d : []);
   };
 
   const loadTodaySessions = async (t: string) => {
     try {
-      const res = await fetch('http://localhost:3001/api/v1/work-session/org/today', { headers: { Authorization: 'Bearer ' + t } });
+      const res = await fetch('https://employee-tracker.ru/api/v1/work-session/org/today', { headers: { Authorization: 'Bearer ' + t } });
       const d = await res.json(); setTodaySessions(Array.isArray(d) ? d : []);
     } catch {}
   };
@@ -49,7 +49,7 @@ export default function TimesheetPage() {
   const load = async (t: string, days: string, uid: string) => {
     setLoading(true);
     const params = new URLSearchParams({ days }); if (uid) params.set('userId', uid);
-    const res = await fetch('http://localhost:3001/api/v1/timesheet?' + params, { headers: { Authorization: 'Bearer ' + t } });
+    const res = await fetch('https://employee-tracker.ru/api/v1/timesheet?' + params, { headers: { Authorization: 'Bearer ' + t } });
     const d = await res.json(); setData(Array.isArray(d) ? d : []);
     setLoading(false);
   };

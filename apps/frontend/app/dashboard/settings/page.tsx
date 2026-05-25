@@ -27,7 +27,7 @@ export default function SettingsPage() {
     const t = localStorage.getItem('access_token');
     if (!t) { router.push('/login'); return; }
     setToken(t);
-    fetch('http://localhost:3001/api/v1/settings/work-hours', { headers: { Authorization: 'Bearer ' + t } })
+    fetch('https://employee-tracker.ru/api/v1/settings/work-hours', { headers: { Authorization: 'Bearer ' + t } })
       .then(r => r.json()).then(d => { setSettings(d); setLoading(false); });
   }, []);
 
@@ -44,7 +44,7 @@ export default function SettingsPage() {
 
   const save = async () => {
     setSaving(true);
-    await fetch('http://localhost:3001/api/v1/settings/work-hours', {
+    await fetch('https://employee-tracker.ru/api/v1/settings/work-hours', {
       method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
       body: JSON.stringify(settings),
     });

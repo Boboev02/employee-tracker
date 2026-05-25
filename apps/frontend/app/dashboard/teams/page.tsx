@@ -25,8 +25,8 @@ export default function TeamsPage() {
   const loadAll = async (t: string) => {
     setLoading(true);
     const [tr, er] = await Promise.all([
-      fetch('http://localhost:3001/api/v1/teams',     { headers: { Authorization: 'Bearer ' + t } }).then(r => r.json()),
-      fetch('http://localhost:3001/api/v1/employees', { headers: { Authorization: 'Bearer ' + t } }).then(r => r.json()),
+      fetch('https://employee-tracker.ru/api/v1/teams',     { headers: { Authorization: 'Bearer ' + t } }).then(r => r.json()),
+      fetch('https://employee-tracker.ru/api/v1/employees', { headers: { Authorization: 'Bearer ' + t } }).then(r => r.json()),
     ]);
     setTeams(Array.isArray(tr) ? tr : []);
     setEmployees(Array.isArray(er) ? er : []);
@@ -35,24 +35,24 @@ export default function TeamsPage() {
 
   const createTeam = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true);
-    await fetch('http://localhost:3001/api/v1/teams', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ name: teamName }) });
+    await fetch('https://employee-tracker.ru/api/v1/teams', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ name: teamName }) });
     setTeamName(''); setShowForm(false); loadAll(token);
     setSaving(false);
   };
 
   const deleteTeam = async (id: string) => {
     if (!confirm('Удалить команду?')) return;
-    await fetch('http://localhost:3001/api/v1/teams/' + id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
+    await fetch('https://employee-tracker.ru/api/v1/teams/' + id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
     loadAll(token);
   };
 
   const addMember = async (teamId: string, userId: string) => {
-    await fetch('http://localhost:3001/api/v1/teams/' + teamId + '/members', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ userId }) });
+    await fetch('https://employee-tracker.ru/api/v1/teams/' + teamId + '/members', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ userId }) });
     loadAll(token);
   };
 
   const removeMember = async (teamId: string, userId: string) => {
-    await fetch('http://localhost:3001/api/v1/teams/' + teamId + '/members/' + userId, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
+    await fetch('https://employee-tracker.ru/api/v1/teams/' + teamId + '/members/' + userId, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
     loadAll(token);
   };
 

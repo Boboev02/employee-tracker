@@ -34,21 +34,21 @@ export default function TasksPage() {
     const t = localStorage.getItem('access_token');
     if (!t) { router.push('/login'); return; }
     setToken(t); loadKanban(t);
-    fetch('http://localhost:3001/api/v1/employees', { headers: { Authorization: 'Bearer ' + t } })
+    fetch('https://employee-tracker.ru/api/v1/employees', { headers: { Authorization: 'Bearer ' + t } })
       .then(r => r.json()).then(d => setEmployees(Array.isArray(d) ? d : [])).catch(() => {});
   }, []);
 
   const loadKanban = async (t: string) => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:3001/api/v1/tasks/kanban', { headers: { Authorization: 'Bearer ' + t } });
+      const res = await fetch('https://employee-tracker.ru/api/v1/tasks/kanban', { headers: { Authorization: 'Bearer ' + t } });
       const data = await res.json(); setColumns(data);
     } finally { setLoading(false); }
   };
 
   const createTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    await fetch('http://localhost:3001/api/v1/tasks', {
+    await fetch('https://employee-tracker.ru/api/v1/tasks', {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
       body: JSON.stringify({ ...newTask, assigneeId: newTask.assigneeId || undefined, dueDate: newTask.dueDate || undefined }),
     });
@@ -57,7 +57,7 @@ export default function TasksPage() {
   };
 
   const moveTask = async (id: string, status: string) => {
-    await fetch('http://localhost:3001/api/v1/tasks/' + id + '/move', {
+    await fetch('https://employee-tracker.ru/api/v1/tasks/' + id + '/move', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
       body: JSON.stringify({ status }),
     });

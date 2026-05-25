@@ -36,7 +36,7 @@ export default function EmployeesPage() {
 
   const load = async (t: string) => {
     try {
-      const res = await fetch('http://localhost:3001/api/v1/employees', { headers: { Authorization: 'Bearer ' + t } });
+      const res = await fetch('https://employee-tracker.ru/api/v1/employees', { headers: { Authorization: 'Bearer ' + t } });
       const data = await res.json();
       setEmployees(Array.isArray(data) ? data : []);
       setLastUpdated(new Date());
@@ -46,7 +46,7 @@ export default function EmployeesPage() {
   const invite = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true);
     try {
-      await fetch('http://localhost:3001/api/v1/employees/invite', {
+      await fetch('https://employee-tracker.ru/api/v1/employees/invite', {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
         body: JSON.stringify(form),
       });
@@ -56,7 +56,7 @@ export default function EmployeesPage() {
   };
 
   const updateRole = async (id: string, role: string) => {
-    await fetch('http://localhost:3001/api/v1/employees/' + id + '/role', {
+    await fetch('https://employee-tracker.ru/api/v1/employees/' + id + '/role', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
       body: JSON.stringify({ role }),
     });
@@ -65,7 +65,7 @@ export default function EmployeesPage() {
 
   const toggleStatus = async (emp: any) => {
     const endpoint = emp.status === 'ACTIVE' ? 'suspend' : 'activate';
-    await fetch('http://localhost:3001/api/v1/employees/' + emp.id + '/' + endpoint, {
+    await fetch('https://employee-tracker.ru/api/v1/employees/' + emp.id + '/' + endpoint, {
       method: 'PATCH', headers: { Authorization: 'Bearer ' + token },
     });
     if (token) load(token);
@@ -73,7 +73,7 @@ export default function EmployeesPage() {
 
   const deleteEmployee = async (emp: any) => {
     if (!confirm('Удалить сотрудника ' + emp.name + '?')) return;
-    await fetch('http://localhost:3001/api/v1/employees/' + emp.id, {
+    await fetch('https://employee-tracker.ru/api/v1/employees/' + emp.id, {
       method: 'DELETE', headers: { Authorization: 'Bearer ' + token },
     });
     if (token) load(token);

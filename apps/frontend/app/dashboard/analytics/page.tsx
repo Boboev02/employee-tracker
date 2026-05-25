@@ -46,7 +46,7 @@ export default function AnalyticsPage() {
     const t = localStorage.getItem('access_token');
     if (!t) { router.push('/login'); return; }
     setToken(t);
-    fetch('http://localhost:3001/api/v1/employees', { headers: { Authorization: 'Bearer ' + t } })
+    fetch('https://employee-tracker.ru/api/v1/employees', { headers: { Authorization: 'Bearer ' + t } })
       .then(r => r.json()).then(d => setAllEmployees(Array.isArray(d) ? d : []));
     loadAll(t, '7', '', '');
     const interval = setInterval(() => {
@@ -59,7 +59,7 @@ export default function AnalyticsPage() {
   const loadAll = useCallback(async (t: string, days: string, empId: string, platform: string) => {
     setLoading(true);
     const h = { Authorization: 'Bearer ' + t };
-    const base = 'http://localhost:3001/api/v1/analytics';
+    const base = 'https://employee-tracker.ru/api/v1/analytics';
     const params = new URLSearchParams({ days });
     if (empId) params.set('userId', empId);
     if (platform) params.set('platform', platform);

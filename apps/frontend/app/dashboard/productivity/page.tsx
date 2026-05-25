@@ -49,7 +49,7 @@ export default function ProductivityPage() {
   const load = async (t: string, days: string) => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:3001/api/v1/analytics/productivity?days=' + days, { headers: { Authorization: 'Bearer ' + t } });
+      const res = await fetch('https://employee-tracker.ru/api/v1/analytics/productivity?days=' + days, { headers: { Authorization: 'Bearer ' + t } });
       const data = await res.json();
       const arr = Array.isArray(data) ? data : [];
       setScores(arr);

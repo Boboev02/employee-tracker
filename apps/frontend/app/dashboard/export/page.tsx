@@ -29,7 +29,7 @@ export default function ExportPage() {
   const download = async (id: string) => {
     setLoading(id); setSuccess(null);
     try {
-      const res = await fetch('http://localhost:3001/api/v1/export/' + id + '?days=' + period, { headers: { Authorization: 'Bearer ' + token } });
+      const res = await fetch('https://employee-tracker.ru/api/v1/export/' + id + '?days=' + period, { headers: { Authorization: 'Bearer ' + token } });
       if (!res.ok) { alert('Ошибка ' + res.status); return; }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);

@@ -40,7 +40,7 @@ export default function OnboardingPage() {
     setInviteError('');
     setInviteSuccess('');
     try {
-      const res = await fetch('http://localhost:3001/api/v1/employees/invite', {
+      const res = await fetch('https://employee-tracker.ru/api/v1/employees/invite', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
         body:    JSON.stringify({ email: inviteEmail.trim(), role: inviteRole, name: inviteEmail.split('@')[0] }),

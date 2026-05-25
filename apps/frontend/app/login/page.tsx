@@ -13,7 +13,7 @@ export default function LoginPage() {
     e.preventDefault();
     setError(''); setLoading(true);
     try {
-      const res = await fetch('http://localhost:3001/api/v1/auth/login', {
+      const res = await fetch('https://employee-tracker.ru/api/v1/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),

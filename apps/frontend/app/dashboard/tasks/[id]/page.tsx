@@ -36,7 +36,7 @@ export default function TaskDetailPage() {
     if (!t) { router.push('/login'); return; }
     setToken(t); if (u) setUser(JSON.parse(u));
     loadTask(t);
-    fetch('http://localhost:3001/api/v1/employees', { headers: { Authorization: 'Bearer ' + t } })
+    fetch('https://employee-tracker.ru/api/v1/employees', { headers: { Authorization: 'Bearer ' + t } })
       .then(r => r.json()).then(data => {
         if (Array.isArray(data)) {
           const map: Record<string,string> = {};
@@ -49,7 +49,7 @@ export default function TaskDetailPage() {
   const loadTask = async (t: string) => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:3001/api/v1/tasks/' + id, { headers: { Authorization: 'Bearer ' + t } });
+      const res = await fetch('https://employee-tracker.ru/api/v1/tasks/' + id, { headers: { Authorization: 'Bearer ' + t } });
       const data = await res.json(); setTask(data);
       setComments(Array.isArray(data.comments) ? data.comments : []);
     } finally { setLoading(false); }
@@ -58,7 +58,7 @@ export default function TaskDetailPage() {
   const updateField = async (field: string, value: any) => {
     setSaving(true);
     try {
-      await fetch('http://localhost:3001/api/v1/tasks/' + id, {
+      await fetch('https://employee-tracker.ru/api/v1/tasks/' + id, {
         method:'PATCH', headers:{'Content-Type':'application/json', Authorization:'Bearer '+token},
         body: JSON.stringify({ [field]: value || null }),
       });
@@ -67,7 +67,7 @@ export default function TaskDetailPage() {
   };
 
   const moveTask = async (status: string) => {
-    await fetch('http://localhost:3001/api/v1/tasks/' + id + '/move', {
+    await fetch('https://employee-tracker.ru/api/v1/tasks/' + id + '/move', {
       method:'PATCH', headers:{'Content-Type':'application/json', Authorization:'Bearer '+token},
       body: JSON.stringify({ status }),
     });
@@ -78,7 +78,7 @@ export default function TaskDetailPage() {
     if (!comment.trim()) return;
     setPosting(true);
     try {
-      await fetch('http://localhost:3001/api/v1/tasks/' + id + '/comments', {
+      await fetch('https://employee-tracker.ru/api/v1/tasks/' + id + '/comments', {
         method:'POST', headers:{'Content-Type':'application/json', Authorization:'Bearer '+token},
         body: JSON.stringify({ content: comment.trim() }),
       });

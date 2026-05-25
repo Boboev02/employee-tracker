@@ -55,7 +55,7 @@ export default function SectionAnalyticsPage() {
     const t = localStorage.getItem('access_token');
     if (!t) { router.push('/login'); return; }
     setToken(t);
-    fetch('http://localhost:3001/api/v1/employees', { headers: { Authorization: 'Bearer ' + t } })
+    fetch('https://employee-tracker.ru/api/v1/employees', { headers: { Authorization: 'Bearer ' + t } })
       .then(r => r.json()).then(d => setEmployees(Array.isArray(d) ? d : []));
     load(t, '7', 'ALL', '');
   }, []);
@@ -66,7 +66,7 @@ export default function SectionAnalyticsPage() {
       const params = new URLSearchParams({ days, limit: '500' });
       if (plat !== 'ALL') params.set('platform', plat);
       if (empId) params.set('userId', empId);
-      const res = await fetch('http://localhost:3001/api/v1/analytics/activity/summary?' + params, {
+      const res = await fetch('https://employee-tracker.ru/api/v1/analytics/activity/summary?' + params, {
         headers: { Authorization: 'Bearer ' + t },
       });
       const data = await res.json();

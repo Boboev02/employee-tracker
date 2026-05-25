@@ -23,9 +23,9 @@ export default function EmployeeProfilePage() {
     if (!t) { router.push('/login'); return; }
     setToken(t);
     Promise.all([
-      fetch('http://localhost:3001/api/v1/employees/' + id, { headers: { Authorization: 'Bearer ' + t } }).then(r => r.json()),
-      fetch('http://localhost:3001/api/v1/analytics/employees', { headers: { Authorization: 'Bearer ' + t } }).then(r => r.json()),
-      fetch('http://localhost:3001/api/v1/analytics/activity/summary?userId=' + id, { headers: { Authorization: 'Bearer ' + t } }).then(r => r.json()),
+      fetch('https://employee-tracker.ru/api/v1/employees/' + id, { headers: { Authorization: 'Bearer ' + t } }).then(r => r.json()),
+      fetch('https://employee-tracker.ru/api/v1/analytics/employees', { headers: { Authorization: 'Bearer ' + t } }).then(r => r.json()),
+      fetch('https://employee-tracker.ru/api/v1/analytics/activity/summary?userId=' + id, { headers: { Authorization: 'Bearer ' + t } }).then(r => r.json()),
     ]).then(([e, empStats, activity]) => {
       setEmp(e);
       const my = Array.isArray(empStats) ? empStats.find((x: any) => x.id === id) : null;
