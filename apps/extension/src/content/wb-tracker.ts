@@ -4,18 +4,20 @@ interface ActionConfig { selector: string; event: string; label: string; }
 interface SectionConfig { name: string; label: string; actions: ActionConfig[]; }
 
 const WB_SECTIONS: Record<string, SectionConfig> = {
-  orders:      { name:'orders',      label:'Заказы',           actions:[{selector:'[class*="cancel"]',event:'wb_order_cancel',label:'Отменил заказ'},{selector:'[class*="filter"]',event:'wb_order_filter',label:'Фильтр'},{selector:'[class*="export"]',event:'wb_order_export',label:'Экспорт'}] },
-  feedbacks:   { name:'feedbacks',   label:'Отзывы',           actions:[{selector:'textarea,[contenteditable]',event:'wb_review_reply',label:'Ответил на отзыв'},{selector:'[class*="complaint"]',event:'wb_review_complain',label:'Жалоба'}] },
-  questions:   { name:'questions',   label:'Вопросы',          actions:[{selector:'textarea,[contenteditable]',event:'wb_question_reply',label:'Ответил на вопрос'}] },
-  products:    { name:'products',    label:'Товары',           actions:[{selector:'[class*="create"],[class*="add"]',event:'wb_product_create',label:'Создал товар'},{selector:'[class*="edit"]',event:'wb_product_edit',label:'Редактировал'},{selector:'[class*="delete"]',event:'wb_product_delete',label:'Удалил'}] },
-  prices:      { name:'prices',      label:'Цены',             actions:[{selector:'[class*="save"]',event:'wb_price_save',label:'Сохранил цены'},{selector:'input[type="number"]',event:'wb_price_edit',label:'Изменил цену'}] },
-  stocks:      { name:'stocks',      label:'Остатки',          actions:[{selector:'[class*="save"],[class*="update"]',event:'wb_stock_update',label:'Обновил остатки'},{selector:'[class*="upload"]',event:'wb_stock_upload',label:'Загрузил файл'}] },
-  supplies:    { name:'supplies',    label:'Поставки',         actions:[{selector:'[class*="create"]',event:'wb_supply_create',label:'Создал поставку'},{selector:'[class*="confirm"]',event:'wb_supply_confirm',label:'Подтвердил'},{selector:'[class*="print"]',event:'wb_supply_print',label:'Распечатал'}] },
-  advertising: { name:'advertising', label:'Реклама',          actions:[{selector:'[class*="create"]',event:'wb_ads_create',label:'Создал кампанию'},{selector:'[class*="pause"]',event:'wb_ads_pause',label:'Приостановил'},{selector:'[class*="budget"]',event:'wb_ads_budget',label:'Изменил бюджет'}] },
-  analytics:   { name:'analytics',   label:'Аналитика',        actions:[{selector:'[class*="export"]',event:'wb_analytics_export',label:'Экспорт отчёта'},{selector:'[class*="filter"]',event:'wb_analytics_filter',label:'Фильтр'}] },
-  finance:     { name:'finance',     label:'Финансы',          actions:[{selector:'[class*="export"]',event:'wb_finance_export',label:'Скачал документ'}] },
-  chat:        { name:'chat',        label:'Чат',              actions:[{selector:'button[type="submit"]',event:'wb_chat_send',label:'Отправил сообщение'}] },
-  promotions:  { name:'promotions',  label:'Акции',            actions:[{selector:'[class*="join"]',event:'wb_promo_join',label:'Вступил в акцию'}] },
+  orders:      { name:'orders',      label:'Заказы',     actions:[{selector:'[class*="cancel"]',event:'wb_order_cancel',label:'Отменил заказ'},{selector:'[class*="filter"]',event:'wb_order_filter',label:'Фильтр'},{selector:'[class*="export"]',event:'wb_order_export',label:'Экспорт'}] },
+  feedbacks:   { name:'feedbacks',   label:'Отзывы',     actions:[{selector:'textarea,[contenteditable]',event:'wb_review_reply',label:'Ответил на отзыв'},{selector:'[class*="complaint"]',event:'wb_review_complain',label:'Жалоба'}] },
+  questions:   { name:'questions',   label:'Вопросы',    actions:[{selector:'textarea,[contenteditable]',event:'wb_question_reply',label:'Ответил на вопрос'}] },
+  products:    { name:'products',    label:'Товары',     actions:[{selector:'[class*="create"],[class*="add"]',event:'wb_product_create',label:'Создал товар'},{selector:'[class*="edit"]',event:'wb_product_edit',label:'Редактировал'},{selector:'[class*="delete"]',event:'wb_product_delete',label:'Удалил'}] },
+  prices:      { name:'prices',      label:'Цены',       actions:[{selector:'[class*="save"]',event:'wb_price_save',label:'Сохранил цены'},{selector:'input[type="number"]',event:'wb_price_edit',label:'Изменил цену'}] },
+  stocks:      { name:'stocks',      label:'Остатки',    actions:[{selector:'[class*="save"],[class*="update"]',event:'wb_stock_update',label:'Обновил остатки'},{selector:'[class*="upload"]',event:'wb_stock_upload',label:'Загрузил файл'}] },
+  supplies:    { name:'supplies',    label:'Поставки',   actions:[{selector:'[class*="create"]',event:'wb_supply_create',label:'Создал поставку'},{selector:'[class*="confirm"]',event:'wb_supply_confirm',label:'Подтвердил'},{selector:'[class*="print"]',event:'wb_supply_print',label:'Распечатал'}] },
+  advertising: { name:'advertising', label:'Реклама',    actions:[{selector:'[class*="create"]',event:'wb_ads_create',label:'Создал кампанию'},{selector:'[class*="pause"]',event:'wb_ads_pause',label:'Приостановил'},{selector:'[class*="budget"]',event:'wb_ads_budget',label:'Изменил бюджет'}] },
+  analytics:   { name:'analytics',   label:'Аналитика',  actions:[{selector:'[class*="export"]',event:'wb_analytics_export',label:'Экспорт отчёта'},{selector:'[class*="filter"]',event:'wb_analytics_filter',label:'Фильтр'}] },
+  finance:     { name:'finance',     label:'Финансы',    actions:[{selector:'[class*="export"]',event:'wb_finance_export',label:'Скачал документ'}] },
+  chat:        { name:'chat',        label:'Чат',        actions:[{selector:'button[type="submit"]',event:'wb_chat_send',label:'Отправил сообщение'}] },
+  promotions:  { name:'promotions',  label:'Акции',      actions:[{selector:'[class*="join"]',event:'wb_promo_join',label:'Вступил в акцию'}] },
+  content:     { name:'content',     label:'Контент',    actions:[] },
+  knowledge:   { name:'knowledge',   label:'База знаний',actions:[] },
 };
 
 class WbTracker extends BaseTracker {
@@ -25,27 +27,30 @@ class WbTracker extends BaseTracker {
   init() {
     super.init();
     this.watchNavigation();
-    this.watchHashChange();
     this.attachSectionListeners();
   }
 
   protected detectSection(): string {
     const path = location.pathname;
     const host = location.hostname;
+    const hash = location.hash;
 
-    // Реклама
+    // Реклама (отдельный домен)
     if (host.includes('cmp.wildberries.ru')) return 'advertising';
     if (path.includes('/campaigns')) return 'advertising';
 
-    // Товары
+    // Товары / контент
     if (path.includes('/new-goods')) return 'products';
     if (path.includes('/product-card')) return 'products';
     if (path.includes('/suppliers-product-verification')) return 'products';
+    if (path.includes('/content-rating')) return 'content';
+    if (path.includes('/media-content')) return 'content';
 
     // Цены и скидки
     if (path.includes('/discount-and-prices')) return 'prices';
-    if (path.includes('/dp-promo-calendar')) return 'prices';
+    if (path.includes('/dp-promo-calendar')) return 'promotions';
     if (path.includes('/prices-index')) return 'prices';
+    if (path.includes('/price')) return 'prices';
 
     // Отзывы и вопросы
     if (path.includes('/feedbacks')) return 'feedbacks';
@@ -59,6 +64,7 @@ class WbTracker extends BaseTracker {
     if (path.includes('/suppliers-mutual-settlements')) return 'finance';
     if (path.includes('/payment-history')) return 'finance';
     if (path.includes('/income-analytics')) return 'finance';
+    if (path.includes('/finance')) return 'finance';
 
     // Аналитика
     if (path.includes('/content-analytics')) return 'analytics';
@@ -76,7 +82,10 @@ class WbTracker extends BaseTracker {
     if (path.includes('/orders') || path.includes('/sales')) return 'orders';
 
     // Акции
-    if (path.includes('/promotions') || path.includes('/actions')) return 'promotions';
+    if (path.includes('/promotions') || path.includes('/actions') || path.includes('/promo')) return 'promotions';
+
+    // База знаний
+    if (path.includes('/knowledge') || path.includes('/help')) return 'knowledge';
 
     return 'other';
   }
@@ -84,7 +93,6 @@ class WbTracker extends BaseTracker {
   protected getSectionLabel(s: string): string { return WB_SECTIONS[s]?.label ?? s; }
 
   private watchNavigation() {
-    // Watch full URL including hash and search params
     let lastUrl = location.href;
     setInterval(() => {
       if (location.href !== lastUrl) {
@@ -93,23 +101,21 @@ class WbTracker extends BaseTracker {
         this.attachSectionListeners();
       }
     }, 300);
-  }
 
-  private watchHashChange() {
-    // Also watch pushState for SPA navigation
+    // Hook pushState
     const orig = history.pushState.bind(history);
     history.pushState = (...args) => {
       orig(...args);
-      setTimeout(() => {
-        this.onSectionChange(this.detectSection());
-        this.attachSectionListeners();
-      }, 100);
+      setTimeout(() => { this.onSectionChange(this.detectSection()); this.attachSectionListeners(); }, 100);
+    };
+    // Hook replaceState
+    const origReplace = history.replaceState.bind(history);
+    history.replaceState = (...args) => {
+      origReplace(...args);
+      setTimeout(() => { this.onSectionChange(this.detectSection()); this.attachSectionListeners(); }, 100);
     };
     window.addEventListener('popstate', () => {
-      setTimeout(() => {
-        this.onSectionChange(this.detectSection());
-        this.attachSectionListeners();
-      }, 100);
+      setTimeout(() => { this.onSectionChange(this.detectSection()); this.attachSectionListeners(); }, 100);
     });
     window.addEventListener('hashchange', () => {
       this.onSectionChange(this.detectSection());

@@ -1,5 +1,5 @@
 export const API_BASE_URL = 'https://employee-tracker.ru';
-export const WS_URL       = 'ws://localhost:3001';
+export const WS_URL       = 'wss://employee-tracker.ru';
 
 export const FLUSH_INTERVAL_MS   = 5_000;
 export const MAX_BUFFER_SIZE     = 50;

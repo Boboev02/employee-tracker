@@ -49,7 +49,7 @@
     "https://seller-express.wildberries.ru/*",
     "https://supplier.wildberries.ru/*",
     "https://seller.ozon.ru/*",
-    "http://localhost:3001/*",
+    "https://employee-tracker.ru/**",
     "https://cmp.wildberries.ru/*"
   ]
 }

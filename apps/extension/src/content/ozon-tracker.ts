@@ -4,7 +4,7 @@ interface ActionConfig { selector: string; event: string; label: string; }
 interface SectionConfig { name: string; label: string; actions: ActionConfig[]; }
 
 const OZON_SECTIONS: Record<string, SectionConfig> = {
-  orders:    { name:'orders',    label:'Заказы',       actions:[{selector:'[class*="cancel"]',event:'ozon_order_cancel',label:'Отменил заказ'},{selector:'[class*="filter"]',event:'ozon_order_filter',label:'Фильтр'},{selector:'[class*="export"]',event:'ozon_order_export',label:'Экспорт'},{selector:'[class*="label"],[class*="barcode"]',event:'ozon_order_label',label:'Этикетка'}] },
+  orders:    { name:'orders',    label:'Заказы',       actions:[{selector:'[class*="cancel"]',event:'ozon_order_cancel',label:'Отменил заказ'},{selector:'[class*="filter"]',event:'ozon_order_filter',label:'Фильтр'},{selector:'[class*="export"]',event:'ozon_order_export',label:'Экспорт'}] },
   products:  { name:'products',  label:'Товары',       actions:[{selector:'[class*="create"],[class*="add"]',event:'ozon_product_create',label:'Создал товар'},{selector:'[class*="edit"]',event:'ozon_product_edit',label:'Редактировал'},{selector:'[class*="price"]',event:'ozon_product_price',label:'Цена'},{selector:'[class*="stock"]',event:'ozon_product_stock',label:'Остатки'}] },
   prices:    { name:'prices',    label:'Цены',         actions:[{selector:'[class*="save"]',event:'ozon_price_save',label:'Сохранил цены'},{selector:'[class*="discount"]',event:'ozon_price_discount',label:'Скидка'}] },
   stocks:    { name:'stocks',    label:'Остатки',      actions:[{selector:'[class*="update"],[class*="save"]',event:'ozon_stock_update',label:'Обновил остатки'},{selector:'[class*="upload"]',event:'ozon_stock_upload',label:'Загрузил'}] },
@@ -31,8 +31,14 @@ class OzonTracker extends BaseTracker {
   protected detectSection(): string {
     const path = location.pathname;
 
-    // Заказы
+    // Заказы — проверяем первыми т.к. /fbs /fbo специфичны
     if (path.includes('/orders') || path.includes('/fbs') || path.includes('/fbo')) return 'orders';
+
+    // Остатки — ВАЖНО: /supply/goods должно быть ДО /supply
+    if (path.includes('/supply/goods') || path.includes('/stocks') || path.includes('/remains')) return 'stocks';
+
+    // Логистика
+    if (path.includes('/logistics') || path.includes('/supply')) return 'logistics';
 
     // Товары
     if (path.includes('/products') || path.includes('/goods')) return 'products';
@@ -43,14 +49,8 @@ class OzonTracker extends BaseTracker {
     // Финансы / банк
     if (path.includes('/finances') || path.includes('/payments') || path.includes('/fintech')) return 'finance';
 
-    // Аналитика (все варианты)
-    if (path.includes('/analytics') || path.includes('/analytics-search')) return 'analytics';
-
-    // Остатки
-    if (path.includes('/stocks') || path.includes('/remains') || path.includes('/supply/goods')) return 'stocks';
-
-    // Логистика
-    if (path.includes('/logistics') || path.includes('/supply')) return 'logistics';
+    // Аналитика
+    if (path.includes('/analytics-search') || path.includes('/analytics')) return 'analytics';
 
     // Отзывы
     if (path.includes('/reviews') || path.includes('/feedbacks')) return 'reviews';
@@ -58,8 +58,14 @@ class OzonTracker extends BaseTracker {
     // Вопросы
     if (path.includes('/questions')) return 'questions';
 
-    // Продвижение и реклама (все варианты)
-    if (path.includes('/advertisement') || path.includes('/promotion') || path.includes('/promo')) return 'promotion';
+    // Продвижение и реклама — все варианты URL
+    if (
+      path.includes('/advertisement') ||
+      path.includes('/promotion-info') ||
+      path.includes('/promotion') ||
+      path.includes('/promo') ||
+      path.includes('/adv')
+    ) return 'promotion';
 
     // Рейтинг
     if (path.includes('/rating')) return 'rating';
@@ -85,6 +91,12 @@ class OzonTracker extends BaseTracker {
     const orig = history.pushState.bind(history);
     history.pushState = (...args) => {
       orig(...args);
+      setTimeout(() => { this.onSectionChange(this.detectSection()); this.attachSectionListeners(); }, 100);
+    };
+    // Fix: also hook replaceState
+    const origReplace = history.replaceState.bind(history);
+    history.replaceState = (...args) => {
+      origReplace(...args);
       setTimeout(() => { this.onSectionChange(this.detectSection()); this.attachSectionListeners(); }, 100);
     };
     window.addEventListener('popstate', () => {
