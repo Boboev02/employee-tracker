@@ -83,7 +83,7 @@ export default function EmployeesPage() {
     e.name?.toLowerCase().includes(search.toLowerCase()) ||
     e.email?.toLowerCase().includes(search.toLowerCase())
   );
-  const onlineCount = employees.filter(e => getStatus(e.id) === 'online').length;
+  const onlineCount = employees.filter(e => ['ONLINE','online','active'].includes(getStatus(e.id) as string)).length;
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-tertiary)' }}>
@@ -131,7 +131,7 @@ export default function EmployeesPage() {
               <tbody>
                 {filtered.map((emp, idx) => {
                   const status = getStatus(emp.id);
-                  const isOnline = status === 'online';
+                  const isOnline = ['ONLINE','online','active'].includes(status as string);
                   const role = emp.roles?.[0] ?? 'EMPLOYEE';
                   const rs = ROLE_STYLE[role] ?? { bg: '#f4f4f5', color: '#71717a' };
                   return (
@@ -159,7 +159,7 @@ export default function EmployeesPage() {
                         </span>
                       </td>
                       <td style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--border)', fontSize: '12px', color: 'var(--text-muted)' }}>
-                        {presence[emp.id]?.lastSeen ? new Date(presence[emp.id].lastSeen).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' }) + ' назад' : '—'}
+                        {(presence[emp.id] as any)?.lastSeen ? new Date((presence[emp.id] as any).lastSeen).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' }) + ' назад' : '—'}
                       </td>
                       <td style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--border)' }} onClick={e => e.stopPropagation()}>
                         {mounted && perms.canChangeRoles ? (
