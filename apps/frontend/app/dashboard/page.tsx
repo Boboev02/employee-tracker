@@ -54,7 +54,30 @@ export default function DashboardPage() {
 
   const loadAll = async (t: string) => {
     try {
-      const [s, emps, p, tk, sec] = await Promise.all([
+      // Auto-refresh token if expired
+    const checkToken = async () => {
+      const res = await fetch('https://employee-tracker.ru/api/v1/auth/me', {
+        headers: { Authorization: 'Bearer ' + t }
+      });
+      if (res.status === 401) {
+        const refresh = await fetch('https://employee-tracker.ru/api/v1/auth/refresh', {
+          method: 'POST', headers: { Authorization: 'Bearer ' + t }
+        });
+        if (refresh.ok) {
+          const data = await refresh.json();
+          localStorage.setItem('access_token', data.accessToken);
+          return data.accessToken;
+        } else {
+          router.push('/login'); return null;
+        }
+      }
+      return t;
+    };
+    const validToken = await checkToken();
+    if (!validToken) return;
+    t = validToken;
+
+    const [s, emps, p, tk, sec] = await Promise.all([
         fetch('https://employee-tracker.ru/api/v1/analytics/stats',      { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
         fetch('https://employee-tracker.ru/api/v1/employees',            { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
         fetch('https://employee-tracker.ru/api/v1/presence',             { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
