@@ -22,10 +22,10 @@ const NAV = [
 export function Sidebar() {
   const pathname = usePathname();
   const router   = useRouter();
-  const [user, setUser]     = useState<any>(null);
-  const [token, setToken]   = useState<string | null>(null);
-  const { connected }       = useSocket(token);
-  const perms               = usePermissions();
+  const [user, setUser]       = useState<any>(null);
+  const [token, setToken]     = useState<string | null>(null);
+  const { connected }         = useSocket(token);
+  const perms                 = usePermissions();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -36,12 +36,14 @@ export function Sidebar() {
     setToken(t); setUser(JSON.parse(u));
   }, []);
 
-  const items = mounted ? NAV.filter(n => !n.admin || perms.isAdmin || perms.isManager) : NAV.filter(n => !n.admin);
+  const items = mounted
+    ? NAV.filter(n => !n.admin || perms.isAdmin || perms.isManager)
+    : NAV.filter(n => !n.admin);
 
   return (
     <aside style={{ width:'220px', flexShrink:0, display:'flex', flexDirection:'column', height:'100vh', position:'sticky', top:0, background:'#13151c', borderRight:'0.5px solid rgba(255,255,255,0.06)' }}>
 
-      {/* Logo */}
+      {/* Logo + ThemeToggle */}
       <div style={{ padding:'16px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
         <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
           <div style={{ width:'30px', height:'30px', background:'#8b7cf6', borderRadius:'8px', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
@@ -49,6 +51,7 @@ export function Sidebar() {
           </div>
           <span style={{ color:'#e2e4ed', fontSize:'13px', fontWeight:500 }}>Employee Tracker</span>
         </div>
+        <ThemeToggle />
       </div>
 
       {/* Divider */}
@@ -70,7 +73,7 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Footer */}
+      {/* Footer — user only */}
       <div style={{ padding:'10px 8px', borderTop:'0.5px solid rgba(255,255,255,0.07)' }}>
         {user && (
           <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 10px', borderRadius:'8px', cursor:'pointer', transition:'background 0.15s' }}
@@ -86,7 +89,6 @@ export function Sidebar() {
               <p style={{ color:'#c8cad8', fontSize:'12px', fontWeight:500, margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{user.name}</p>
               <p style={{ color:'#4a4d5e', fontSize:'10px', margin:0 }}>{user.roles?.[0] ?? 'EMPLOYEE'}</p>
             </div>
-            <ThemeToggle />
           </div>
         )}
       </div>
