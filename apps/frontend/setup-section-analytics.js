@@ -1,0 +1,326 @@
+const fs = require('fs');
+const path = require('path');
+function write(p, c) { fs.mkdirSync(path.dirname(p),{recursive:true}); fs.writeFileSync(p,c); console.log('✓',p); }
+
+// ─── New analytics section page ───────────────────────────────
+write('app/dashboard/analytics/sections/page.tsx', `'use client';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+
+const WB_SECTIONS: Record<string, string> = {
+  orders:'Заказы', feedbacks:'Отзывы', questions:'Вопросы', products:'Товары',
+  prices:'Цены', stocks:'Остатки', supplies:'Поставки', advertising:'Реклама',
+  analytics:'Аналитика', finance:'Финансы', chat:'Чат', promotions:'Акции', other:'Прочее',
+};
+const OZON_SECTIONS: Record<string, string> = {
+  orders:'Заказы', products:'Товары', prices:'Цены', stocks:'Остатки',
+  analytics:'Аналитика', finance:'Финансы', logistics:'Логистика', reviews:'Отзывы',
+  questions:'Вопросы', promotion:'Продвижение', rating:'Рейтинг', chat:'Чат', other:'Прочее',
+};
+const ACTION_LABELS: Record<string, string> = {
+  wb_order_accept:'Принял заказ', wb_order_cancel:'Отменил заказ', wb_order_filter:'Фильтр заказов', wb_order_export:'Экспорт заказов',
+  wb_review_reply:'Ответил на отзыв', wb_review_complain:'Жалоба на отзыв', wb_question_reply:'Ответил на вопрос',
+  wb_product_create:'Создал товар', wb_product_edit:'Редактировал товар', wb_product_delete:'Удалил товар', wb_product_photo:'Загрузил фото',
+  wb_price_save:'Сохранил цены', wb_price_discount:'Установил скидку', wb_price_edit:'Изменил цену',
+  wb_stock_update:'Обновил остатки', wb_stock_upload:'Загрузил остатки',
+  wb_supply_create:'Создал поставку', wb_supply_confirm:'Подтвердил поставку', wb_supply_print:'Напечатал этикетки',
+  wb_ads_create:'Создал кампанию', wb_ads_pause:'Приостановил рекламу', wb_ads_start:'Запустил рекламу', wb_ads_budget:'Изменил бюджет',
+  wb_chat_send:'Отправил сообщение', wb_promo_join:'Вступил в акцию',
+  ozon_order_accept:'Принял заказ', ozon_order_cancel:'Отменил заказ', ozon_order_export:'Экспорт заказов', ozon_order_label:'Напечатал этикетку',
+  ozon_product_create:'Создал товар', ozon_product_edit:'Редактировал товар', ozon_product_price:'Изменил цену', ozon_product_stock:'Обновил остатки',
+  ozon_price_save:'Сохранил цены', ozon_price_discount:'Установил скидку',
+  ozon_stock_update:'Обновил остатки', ozon_logistics_create:'Создал отгрузку', ozon_logistics_print:'Напечатал документ',
+  ozon_review_reply:'Ответил на отзыв', ozon_question_reply:'Ответил на вопрос',
+  ozon_ads_create:'Создал кампанию', ozon_ads_start:'Запустил рекламу', ozon_ads_budget:'Изменил бюджет',
+  ozon_chat_send:'Отправил сообщение',
+  wb_section_enter:'Вошёл в раздел', ozon_section_enter:'Вошёл в раздел',
+  wb_section_leave:'Покинул раздел', ozon_section_leave:'Покинул раздел',
+  heartbeat:'Активность', click:'Клик', keydown:'Ввод', scroll:'Прокрутка',
+  page_load:'Открыл страницу', tab_focus:'Переключился на вкладку',
+};
+
+const PLATFORM_COLOR: Record<string, string> = { WILDBERRIES:'#a78bfa', OZON:'#4d9de0' };
+const tooltipStyle = { background:'var(--bg-primary)', border:'0.5px solid var(--border)', borderRadius:'8px', fontSize:'12px' };
+
+export default function SectionAnalyticsPage() {
+  const router = useRouter();
+  const [token, setToken]     = useState('');
+  const [events, setEvents]   = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [period, setPeriod]   = useState('7');
+  const [platform, setPlatform] = useState<'ALL'|'WILDBERRIES'|'OZON'>('ALL');
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [selectedEmp, setSelectedEmp] = useState('');
+  const [selectedSection, setSelectedSection] = useState('');
+
+  useEffect(() => {
+    const t = localStorage.getItem('access_token');
+    if (!t) { router.push('/login'); return; }
+    setToken(t);
+    fetch('http://localhost:3001/api/v1/employees', { headers: { Authorization: 'Bearer ' + t } })
+      .then(r => r.json()).then(d => setEmployees(Array.isArray(d) ? d : []));
+    load(t, '7', 'ALL', '');
+  }, []);
+
+  const load = async (t: string, days: string, plat: string, empId: string) => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ days, limit: '500' });
+      if (plat !== 'ALL') params.set('platform', plat);
+      if (empId) params.set('userId', empId);
+      const res = await fetch('http://localhost:3001/api/v1/analytics/activity/summary?' + params, {
+        headers: { Authorization: 'Bearer ' + t },
+      });
+      const data = await res.json();
+      setEvents(Array.isArray(data) ? data : []);
+    } finally { setLoading(false); }
+  };
+
+  // Build section stats from events
+  const buildSectionStats = () => {
+    const stats: Record<string, { section: string; label: string; platform: string; events: number; timeSeconds: number; actions: Record<string, number> }> = {};
+    
+    events.forEach((emp: any) => {
+      if (!emp.sections) return;
+      Object.entries(emp.sections as Record<string, any>).forEach(([key, val]: [string, any]) => {
+        const [plat, section] = key.split(':');
+        if (platform !== 'ALL' && plat !== platform) return;
+        if (selectedSection && section !== selectedSection) return;
+        const id = plat + ':' + section;
+        if (!stats[id]) {
+          const label = plat === 'WILDBERRIES' ? (WB_SECTIONS[section] ?? section) : (OZON_SECTIONS[section] ?? section);
+          stats[id] = { section, label, platform: plat, events: 0, timeSeconds: 0, actions: {} };
+        }
+        stats[id].events += val.events ?? 0;
+        stats[id].timeSeconds += val.timeSeconds ?? 0;
+        if (val.actions) {
+          Object.entries(val.actions as Record<string, number>).forEach(([action, count]) => {
+            stats[id].actions[action] = (stats[id].actions[action] ?? 0) + count;
+          });
+        }
+      });
+    });
+    return Object.values(stats).sort((a, b) => b.events - a.events);
+  };
+
+  // Build employee section breakdown
+  const buildEmployeeStats = () => {
+    return events.map((emp: any) => {
+      let totalEvents = 0;
+      let topSection = '';
+      let topEvents = 0;
+      if (emp.sections) {
+        Object.entries(emp.sections as Record<string, any>).forEach(([key, val]: [string, any]) => {
+          const [, section] = key.split(':');
+          const ev = (val as any).events ?? 0;
+          totalEvents += ev;
+          if (ev > topEvents) { topEvents = ev; topSection = section; }
+        });
+      }
+      return { ...emp, totalEvents, topSection };
+    }).sort((a: any, b: any) => b.totalEvents - a.totalEvents);
+  };
+
+  const sectionStats = buildSectionStats();
+  const employeeStats = buildEmployeeStats();
+  const maxEvents = Math.max(...sectionStats.map(s => s.events), 1);
+
+  const fmtTime = (sec: number) => {
+    if (sec < 60) return sec + 'с';
+    if (sec < 3600) return Math.floor(sec/60) + 'м';
+    return Math.floor(sec/3600) + 'ч ' + Math.floor((sec%3600)/60) + 'м';
+  };
+
+  const allSections = platform === 'OZON' ? OZON_SECTIONS : platform === 'WILDBERRIES' ? WB_SECTIONS : { ...WB_SECTIONS, ...OZON_SECTIONS };
+
+  return (
+    <div style={{ minHeight:'100vh', background:'var(--bg-tertiary)' }}>
+      {/* Header */}
+      <div style={{ background:'var(--bg-primary)', borderBottom:'0.5px solid var(--border)', padding:'14px 24px', position:'sticky', top:0, zIndex:10 }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'12px' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
+            <button onClick={() => router.push('/dashboard/analytics')} style={{ background:'none', border:'none', cursor:'pointer', fontSize:'13px', color:'var(--text-muted)', padding:'4px 8px', borderRadius:'6px' }}>← Назад</button>
+            <h1 style={{ fontSize:'16px', fontWeight:600, color:'var(--text-primary)', margin:0 }}>Активность по разделам</h1>
+          </div>
+        </div>
+        <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
+          {/* Period */}
+          <div style={{ display:'flex', gap:'3px', background:'var(--bg-secondary)', borderRadius:'8px', padding:'3px' }}>
+            {[{l:'Сегодня',v:'1'},{l:'7 дней',v:'7'},{l:'14 дней',v:'14'},{l:'30 дней',v:'30'}].map(opt => (
+              <button key={opt.v} onClick={() => { setPeriod(opt.v); load(token, opt.v, platform, selectedEmp); }}
+                style={{ padding:'4px 10px', borderRadius:'6px', fontSize:'12px', border:'none', cursor:'pointer', background: period===opt.v ? 'var(--bg-primary)' : 'transparent', color: period===opt.v ? 'var(--text-primary)' : 'var(--text-muted)', fontWeight: period===opt.v ? 500 : 400 }}>
+                {opt.l}
+              </button>
+            ))}
+          </div>
+          {/* Platform */}
+          <div style={{ display:'flex', gap:'3px', background:'var(--bg-secondary)', borderRadius:'8px', padding:'3px' }}>
+            {[{l:'Все',v:'ALL'},{l:'Wildberries',v:'WILDBERRIES'},{l:'Ozon',v:'OZON'}].map(opt => (
+              <button key={opt.v} onClick={() => { setPlatform(opt.v as any); load(token, period, opt.v, selectedEmp); }}
+                style={{ padding:'4px 10px', borderRadius:'6px', fontSize:'12px', border:'none', cursor:'pointer', background: platform===opt.v ? 'var(--bg-primary)' : 'transparent', color: platform===opt.v ? 'var(--text-primary)' : 'var(--text-muted)', fontWeight: platform===opt.v ? 500 : 400 }}>
+                {opt.l}
+              </button>
+            ))}
+          </div>
+          {/* Employee */}
+          <select value={selectedEmp} onChange={e => { setSelectedEmp(e.target.value); load(token, period, platform, e.target.value); }}
+            style={{ background:'var(--bg-primary)', border:'0.5px solid var(--border)', borderRadius:'8px', padding:'6px 10px', fontSize:'12px', color:'var(--text-primary)', outline:'none' }}>
+            <option value="">Все сотрудники</option>
+            {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+          {/* Section */}
+          <select value={selectedSection} onChange={e => setSelectedSection(e.target.value)}
+            style={{ background:'var(--bg-primary)', border:'0.5px solid var(--border)', borderRadius:'8px', padding:'6px 10px', fontSize:'12px', color:'var(--text-primary)', outline:'none' }}>
+            <option value="">Все разделы</option>
+            {Object.entries(allSections).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'200px', color:'var(--text-muted)', fontSize:'13px' }}>Загрузка...</div>
+      ) : (
+        <div style={{ padding:'20px 24px', display:'flex', flexDirection:'column', gap:'16px' }}>
+
+          {sectionStats.length === 0 ? (
+            <div style={{ background:'var(--bg-primary)', border:'0.5px solid var(--border)', borderRadius:'var(--radius)', padding:'48px', textAlign:'center' }}>
+              <p style={{ fontSize:'36px', marginBottom:'12px' }}>📊</p>
+              <p style={{ fontSize:'15px', fontWeight:500, color:'var(--text-primary)', marginBottom:'6px' }}>Нет данных по разделам</p>
+              <p style={{ fontSize:'13px', color:'var(--text-muted)' }}>Переустановите расширение и откройте WB или Ozon</p>
+            </div>
+          ) : (
+            <>
+              {/* Section bars */}
+              <div style={{ background:'var(--bg-primary)', border:'0.5px solid var(--border)', borderRadius:'var(--radius)', padding:'18px' }}>
+                <p style={{ fontSize:'13px', fontWeight:500, color:'var(--text-primary)', margin:'0 0 16px' }}>Активность по разделам</p>
+                <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+                  {sectionStats.slice(0, 12).map(s => {
+                    const pct = Math.round(s.events / maxEvents * 100);
+                    const color = PLATFORM_COLOR[s.platform] ?? '#a78bfa';
+                    return (
+                      <div key={s.platform+':'+s.section}>
+                        <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'4px' }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                            <span style={{ fontSize:'10px', fontWeight:600, padding:'2px 6px', borderRadius:'4px', background: s.platform==='WILDBERRIES' ? 'rgba(167,139,250,0.15)' : 'rgba(77,157,224,0.15)', color }}>
+                              {s.platform === 'WILDBERRIES' ? 'WB' : 'OZ'}
+                            </span>
+                            <span style={{ fontSize:'13px', fontWeight:500, color:'var(--text-primary)' }}>{s.label}</span>
+                          </div>
+                          <div style={{ display:'flex', gap:'12px', fontSize:'12px' }}>
+                            <span style={{ color }}>{s.events} событий</span>
+                            {s.timeSeconds > 0 && <span style={{ color:'var(--text-muted)' }}>{fmtTime(s.timeSeconds)}</span>}
+                          </div>
+                        </div>
+                        <div style={{ height:'6px', background:'var(--bg-secondary)', borderRadius:'3px', overflow:'hidden' }}>
+                          <div style={{ height:'6px', width: pct+'%', background: color, borderRadius:'3px', transition:'width 0.5s' }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Actions breakdown */}
+              {sectionStats.some(s => Object.keys(s.actions).length > 0) && (
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
+                  {sectionStats.filter(s => Object.keys(s.actions).length > 0).slice(0,4).map(s => {
+                    const color = PLATFORM_COLOR[s.platform] ?? '#a78bfa';
+                    const actions = Object.entries(s.actions).sort(([,a],[,b]) => b-a).slice(0,6);
+                    return (
+                      <div key={s.platform+':'+s.section} style={{ background:'var(--bg-primary)', border:'0.5px solid var(--border)', borderRadius:'var(--radius)', padding:'16px' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'12px' }}>
+                          <span style={{ fontSize:'10px', fontWeight:600, padding:'2px 6px', borderRadius:'4px', background: s.platform==='WILDBERRIES' ? 'rgba(167,139,250,0.15)' : 'rgba(77,157,224,0.15)', color }}>
+                            {s.platform === 'WILDBERRIES' ? 'WB' : 'OZ'}
+                          </span>
+                          <p style={{ fontSize:'13px', fontWeight:500, color:'var(--text-primary)', margin:0 }}>{s.label}</p>
+                        </div>
+                        <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                          {actions.map(([action, count]) => (
+                            <div key={action} style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                              <span style={{ fontSize:'12px', color:'var(--text-secondary)' }}>{ACTION_LABELS[action] ?? action}</span>
+                              <span style={{ fontSize:'12px', fontWeight:600, color, background: s.platform==='WILDBERRIES' ? 'rgba(167,139,250,0.1)' : 'rgba(77,157,224,0.1)', padding:'2px 8px', borderRadius:'10px' }}>{count}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Employee table */}
+              <div style={{ background:'var(--bg-primary)', border:'0.5px solid var(--border)', borderRadius:'var(--radius)', overflow:'hidden' }}>
+                <div style={{ padding:'12px 16px', borderBottom:'0.5px solid var(--border)', background:'var(--bg-secondary)' }}>
+                  <p style={{ fontSize:'12px', fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', margin:0 }}>По сотрудникам</p>
+                </div>
+                <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                  <thead>
+                    <tr>
+                      {['Сотрудник','Топ-раздел','Событий','Разделов','Время'].map(h => (
+                        <th key={h} style={{ padding:'10px 16px', fontSize:'11px', fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', background:'var(--bg-secondary)', borderBottom:'0.5px solid var(--border)', textAlign: h==='Сотрудник' ? 'left' : 'center' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {employeeStats.map((emp: any) => {
+                      const topLabel = WB_SECTIONS[emp.topSection] ?? OZON_SECTIONS[emp.topSection] ?? emp.topSection;
+                      const sectionCount = emp.sections ? Object.keys(emp.sections).length : 0;
+                      const totalTime = emp.sections ? Object.values(emp.sections as any).reduce((s: number, v: any) => s + (v.timeSeconds ?? 0), 0) : 0;
+                      return (
+                        <tr key={emp.userId}
+                          onMouseEnter={e => (e.currentTarget as HTMLElement).style.background='var(--bg-secondary)'}
+                          onMouseLeave={e => (e.currentTarget as HTMLElement).style.background='transparent'}>
+                          <td style={{ padding:'12px 16px', borderBottom:'0.5px solid var(--border)' }}>
+                            <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                              <div style={{ width:'28px', height:'28px', borderRadius:'50%', background:'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                                <span style={{ color:'white', fontSize:'11px', fontWeight:600 }}>{emp.name?.charAt(0)}</span>
+                              </div>
+                              <span style={{ fontSize:'13px', fontWeight:500, color:'var(--text-primary)' }}>{emp.name}</span>
+                            </div>
+                          </td>
+                          <td style={{ padding:'12px 16px', borderBottom:'0.5px solid var(--border)', textAlign:'center' }}>
+                            {topLabel ? <span style={{ fontSize:'12px', padding:'3px 8px', borderRadius:'12px', background:'var(--accent-bg)', color:'var(--accent)' }}>{topLabel}</span> : <span style={{ color:'var(--text-muted)', fontSize:'12px' }}>—</span>}
+                          </td>
+                          <td style={{ padding:'12px 16px', borderBottom:'0.5px solid var(--border)', textAlign:'center', fontSize:'13px', fontWeight:500, color:'var(--accent)' }}>{emp.totalEvents}</td>
+                          <td style={{ padding:'12px 16px', borderBottom:'0.5px solid var(--border)', textAlign:'center', fontSize:'13px', color:'var(--text-secondary)' }}>{sectionCount}</td>
+                          <td style={{ padding:'12px 16px', borderBottom:'0.5px solid var(--border)', textAlign:'center', fontSize:'13px', color:'var(--text-muted)' }}>{totalTime > 0 ? fmtTime(totalTime as number) : '—'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+`);
+
+// ─── Add link to section analytics from analytics page ────────
+const analyticsPage = 'app/dashboard/analytics/page.tsx';
+let ap = fs.readFileSync(analyticsPage, 'utf8');
+if (!ap.includes('sections')) {
+  ap = ap.replace(
+    `<div style={{ display:'flex', gap:'3px', background:'var(--bg-secondary)', borderRadius:'8px', padding:'3px', width:'fit-content' }}>
+          <button style={tabBtnStyle(activeTab === 'tasks')}    onClick={() => setActiveTab('tasks')}>✓ Задачи</button>
+          <button style={tabBtnStyle(activeTab === 'activity')} onClick={() => setActiveTab('activity')}>⏱ Активность</button>
+        </div>`,
+    `<div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div style={{ display:'flex', gap:'3px', background:'var(--bg-secondary)', borderRadius:'8px', padding:'3px' }}>
+            <button style={tabBtnStyle(activeTab === 'tasks')}    onClick={() => setActiveTab('tasks')}>✓ Задачи</button>
+            <button style={tabBtnStyle(activeTab === 'activity')} onClick={() => setActiveTab('activity')}>⏱ Активность</button>
+          </div>
+          <a href="/dashboard/analytics/sections" style={{ fontSize:'12px', color:'var(--accent)', textDecoration:'none', display:'flex', alignItems:'center', gap:'4px', padding:'6px 12px', borderRadius:'8px', background:'var(--accent-bg)' }}>
+            📊 По разделам →
+          </a>
+        </div>`
+  );
+  fs.writeFileSync(analyticsPage, ap);
+  console.log('✓ analytics page updated with sections link');
+}
+
+console.log('\n✅ Section analytics page created');
