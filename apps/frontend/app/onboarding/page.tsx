@@ -53,7 +53,7 @@ export default function OnboardingPage() {
     } finally { setInviting(false); }
   };
 
-  const finish = () => { localStorage.setItem('onboarded', '1'); router.push('/dashboard'); };
+  const finish = () => { const u = JSON.parse(localStorage.getItem('user') || '{}'); localStorage.setItem('onboarded_' + u.id, 'true'); router.push('/dashboard'); };
   const next   = () => setStep(s => Math.min(s + 1, STEPS.length - 1));
   const prev   = () => setStep(s => Math.max(s - 1, 0));
 

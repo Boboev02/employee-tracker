@@ -22,9 +22,8 @@ export default function LoginPage() {
       if (!res.ok) { setError(data.message ?? 'Ошибка входа'); return; }
       localStorage.setItem('access_token', data.accessToken);
       localStorage.setItem('user', JSON.stringify(data.user));
-      const isAdmin   = data.user.roles?.some((r: string) => ['ADMIN','OWNER','SUPER_ADMIN'].includes(r));
-      const onboarded = localStorage.getItem('onboarded');
-      router.push(isAdmin && !onboarded ? '/onboarding' : '/dashboard');
+      const onboarded = localStorage.getItem('onboarded_' + data.user.id);
+      router.push(!onboarded ? '/onboarding' : '/dashboard');
     } catch { setError('Ошибка подключения к серверу'); }
     finally { setLoading(false); }
   };
