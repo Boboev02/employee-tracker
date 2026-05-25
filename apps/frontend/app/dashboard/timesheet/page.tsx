@@ -17,6 +17,12 @@ function fmt(mins: number) {
   return h > 0 ? h + 'ч ' + m + 'м' : m + 'м';
 }
 
+function fmtTime(timeStr: string | null) {
+  if (!timeStr) return '—';
+  return timeStr;
+}
+
+
 export default function TimesheetPage() {
   const router = useRouter();
   const [token, setToken]   = useState('');

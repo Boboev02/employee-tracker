@@ -66,6 +66,15 @@ export default function ProductivityPage() {
 
   const COLORS = ['#a78bfa','#378add','#22c55e','#f97316','#eab308','#ef4444'];
 
+  const FACTOR_INFO = [
+    { key: 'activity',    label: 'Активность',   max: 25, desc: 'События трекинга относительно среднего по команде' },
+    { key: 'consistency', label: 'Стабильность', max: 25, desc: 'Процент рабочих дней с активностью' },
+    { key: 'tasks',       label: 'Задачи',        max: 25, desc: 'Выполненные задачи с учётом приоритета' },
+    { key: 'focus',       label: 'Фокус',         max: 25, desc: 'Доля времени в продуктивных разделах' },
+  ];
+
+  
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-tertiary)' }}>
       <div style={{ background: 'var(--bg-primary)', borderBottom: '0.5px solid var(--border)', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 10 }}>

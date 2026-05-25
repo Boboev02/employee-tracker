@@ -64,24 +64,27 @@ export class TimesheetService {
       // Get all events for this user in range
       const events = await this.prisma.activityEvent.findMany({
         where: { userId: user.id, orgId, createdAt: { gte: from } },
-        select: { clientTimestamp: true },
+        select: { clientTimestamp: true, eventType: true, platformData: true },
         orderBy: { clientTimestamp: 'asc' },
       });
 
       // Group by local date
-      const byDate: Record<string, Date[]> = {};
+      const byDate: Record<string, any[]> = {};
       for (const e of events) {
         const local = new Date(e.clientTimestamp.toLocaleString('en-US', { timeZone: timezone }));
         const dateStr = local.toISOString().slice(0, 10);
         if (!byDate[dateStr]) byDate[dateStr] = [];
-        byDate[dateStr].push(local);
+        byDate[dateStr].push({ ...e, _localDate: local });
       }
+      // For existing code that expects Date[]
+      const byDateDates: Record<string, Date[]> = {};
+      for (const [k, v] of Object.entries(byDate)) byDateDates[k] = v.map((e: any) => e._localDate);
 
       const dayRecords: DayRecord[] = dates.map(dateStr => {
         const date     = new Date(dateStr + 'T12:00:00');
         const dayOfWeek = DAY_NAMES[date.getDay()];
         const isWorkDay = workHours.enabled ? workHours.workDays.includes(date.getDay()) : true;
-        const dayEvents = byDate[dateStr] ?? [];
+        const dayEvents = byDateDates[dateStr] ?? [];
 
         if (!isWorkDay) {
           return {
@@ -118,7 +121,16 @@ export class TimesheetService {
         const earlyLeaveMinutes = Math.max(0, Math.round((endHour - lastHour) * 60));
         // Subtract breaks: get break events for this day
         const breakEvents = dayEvents.filter ? [] : []; // placeholder
-        const workDuration     = Math.round((lastHour - firstHour) * 60);
+        // Get break time from work_session_summary if available
+        const summaryEvent = dayEvents.find ? null : null;
+        const breakMins = (() => {
+          const allEventsForDay = (byDate[dateStr] ?? []) as any[];
+          const summary = allEventsForDay.find((e: any) => (e as any).eventType === 'work_session_summary');
+          if (summary) return (summary as any).platformData?.breakMinutes ?? 0;
+          return 0;
+        })();
+        const rawDuration  = Math.round((lastHour - firstHour) * 60);
+        const workDuration = Math.max(0, rawDuration - breakMins);
 
         let status: DayRecord['status'] = 'present';
         if (lateMinutes > 15)       status = 'late';

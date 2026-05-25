@@ -73,6 +73,27 @@ export class WorkSessionService {
     }
     await this.redis.setex(this.key(userId), 86400, JSON.stringify(session));
     await this.logEvent(userId, orgId, 'work_end');
+
+    // Save history to DB
+    const workMs = session.finishedAt - session.startedAt - session.totalBreakMs;
+    await this.prisma.activityEvent.create({
+      data: {
+        eventId: require('crypto').randomUUID(),
+        batchId: require('crypto').randomUUID(),
+        userId, orgId,
+        eventType: 'work_session_summary',
+        platform: 'OTHER',
+        clientTimestamp: new Date(),
+        platformData: {
+          startedAt:    session.startedAt,
+          finishedAt:   session.finishedAt,
+          workMinutes:  Math.round(workMs / 60000),
+          breakMinutes: Math.round(session.totalBreakMs / 60000),
+          totalMinutes: Math.round((session.finishedAt - session.startedAt) / 60000),
+        },
+      },
+    });
+
     return session;
   }
 

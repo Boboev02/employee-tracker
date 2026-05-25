@@ -207,6 +207,7 @@ export abstract class BaseTracker {
     try {
       const token = await this.getValidToken();
       if (!token) { this.buffer.unshift(...events); return; }
+
       const res = await fetch(API_BASE_URL + '/api/v1/events/batch', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
@@ -215,11 +216,23 @@ export abstract class BaseTracker {
           extensionVersion: '1.0.0', sessionToken: this.sessionToken, events,
         }),
       });
-      if (res.ok) console.log('[ET] Flushed', (await res.json()).received ?? events.length, 'events');
-      else this.buffer.unshift(...events); // put back on error
+
+      if (res.ok) {
+        console.log('[ET] Flushed', (await res.json()).received ?? events.length, 'events');
+      } else if (res.status === 401) {
+        // Token expired, don't retry these events
+        console.warn('[ET] Auth expired, dropping', events.length, 'events');
+      } else {
+        // Server error - put back with limit to avoid infinite growth
+        if (this.buffer.length < 200) this.buffer.unshift(...events);
+        else console.warn('[ET] Buffer full, dropping', events.length, 'events');
+      }
     } catch(e) {
-      console.error('[ET] Flush error:', e);
-      this.buffer.unshift(...events);
+      // Network error - put back with limit
+      console.error('[ET] Flush error (network):', e);
+      if (this.buffer.length < 200) this.buffer.unshift(...events);
+      // Retry after 30s if offline
+      setTimeout(() => this.flushNow(), 30000);
     }
   }
 
