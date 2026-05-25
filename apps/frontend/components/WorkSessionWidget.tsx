@@ -10,7 +10,7 @@ export function WorkSessionWidget({ token }: Props) {
 
   const load = async () => {
     try {
-      const res = await fetch('http://localhost:3001/api/v1/work-session/me', { headers: { Authorization: 'Bearer ' + token } });
+      const res = await fetch('https://employee-tracker.ru/api/v1/work-session/me', { headers: { Authorization: 'Bearer ' + token } });
       if (res.ok) setSession(await res.json());
     } catch {}
   };
@@ -32,7 +32,7 @@ export function WorkSessionWidget({ token }: Props) {
   const action = async (endpoint: string) => {
     setLoading(true);
     try {
-      await fetch('http://localhost:3001/api/v1/work-session/' + endpoint, { method: 'POST', headers: { Authorization: 'Bearer ' + token } });
+      await fetch('https://employee-tracker.ru/api/v1/work-session/' + endpoint, { method: 'POST', headers: { Authorization: 'Bearer ' + token } });
       await load();
     } finally { setLoading(false); }
   };
