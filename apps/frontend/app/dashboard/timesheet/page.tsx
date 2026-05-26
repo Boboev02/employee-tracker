@@ -192,7 +192,7 @@ export default function TimesheetPage() {
                             <div style={{ fontSize: '11px' }}>
                               <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{day.firstEvent}</div>
                               <div style={{ color: 'var(--text-muted)' }}>{day.lastEvent}</div>
-                              {day.lateMinutes > 15 && <div style={{ color: '#eab308', fontWeight: 600 }}>+{day.lateMinutes}м</div>}
+                              {day.lateMinutes > 15 && <div style={{ color: '#eab308', fontWeight: 600 }}>⏰ опозд. {day.lateMinutes}м</div>}
                             </div>
                           )}
                         </td>
