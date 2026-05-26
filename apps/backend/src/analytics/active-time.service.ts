@@ -66,16 +66,15 @@ export class ActiveTimeService {
         }
         // Track section leave → use pre-calculated time from extension if available
         if (e.eventType === 'wb_section_leave' || e.eventType === 'ozon_section_leave') {
-          // Prefer activeSeconds (excludes idle), fallback to timeSpentSeconds, fallback to calculated
           const activeS = pd?.activeSeconds;
           const spentS  = pd?.timeSpentSeconds;
-          if (activeS && activeS > 0 && activeS < 7200) {
-            sec.timeSeconds += activeS;
-          } else if (spentS && spentS > 0 && spentS < 7200) {
-            sec.timeSeconds += spentS;
-          } else if (sec.lastEnter > 0) {
+          const leaveTime = activeS || spentS || 0;
+          // Only add leave time if it's greater than what ping already recorded
+          if (leaveTime > 0 && leaveTime < 7200 && leaveTime > sec.timeSeconds) {
+            sec.timeSeconds = leaveTime;
+          } else if (leaveTime === 0 && sec.lastEnter > 0) {
             const calc = Math.round((Number(e.clientTimestamp) - sec.lastEnter) / 1000);
-            if (calc > 0 && calc < 7200) sec.timeSeconds += calc;
+            if (calc > 0 && calc < 7200 && calc > sec.timeSeconds) sec.timeSeconds = calc;
           }
           sec.lastEnter = 0;
         }
