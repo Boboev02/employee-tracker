@@ -156,6 +156,7 @@ export abstract class BaseTracker {
   }
 
   protected async getValidToken(): Promise<string | null> {
+    if (!chrome.runtime?.id) return null; // Extension context invalidated
     try {
       const stored = await new Promise<any>(resolve => {
         chrome.storage.local.get(STORAGE_KEYS.AUTH_STATE, resolve);
