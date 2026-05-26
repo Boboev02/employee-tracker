@@ -264,7 +264,7 @@ export default function SectionAnalyticsPage() {
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
                   {sectionStats.filter(s => Object.keys(s.actions).length > 0).slice(0,4).map(s => {
                     const color = PLATFORM_COLOR[s.platform] ?? '#a78bfa';
-                    const actions = Object.entries(s.actions).sort(([,a],[,b]) => b-a).slice(0,6);
+                    const actions = Object.entries(s.actions).filter(([k]) => !k.includes('ping') && !k.includes('section_enter') && !k.includes('section_leave')).sort(([,a],[,b]) => (b as number)-(a as number)).slice(0,6);
                     return (
                       <div key={s.platform+':'+s.section} style={{ background:'var(--bg-primary)', border:'0.5px solid var(--border)', borderRadius:'var(--radius)', padding:'16px' }}>
                         <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'12px' }}>
