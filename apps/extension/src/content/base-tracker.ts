@@ -171,7 +171,7 @@ export abstract class BaseTracker {
           });
           if (res.ok) {
             const data = await res.json();
-            const newAuth = { ...auth, accessToken: data.accessToken, expiresAt: Date.now() + 900_000 };
+            const newAuth = { ...auth, accessToken: data.accessToken, expiresAt: Date.now() + 86_400_000 };
             await new Promise<void>(r => chrome.storage.local.set({ [STORAGE_KEYS.AUTH_STATE]: newAuth }, r));
             return data.accessToken;
           }
