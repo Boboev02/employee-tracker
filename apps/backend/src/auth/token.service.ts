@@ -10,7 +10,7 @@ export class TokenService {
   generateAccessToken(payload: Omit<JwtPayload, 'jti'> & { roles?: string[] }): string {
     return this.jwt.sign(
       { ...payload, jti: randomUUID() },
-      { secret: process.env.JWT_ACCESS_SECRET, expiresIn: '15m' },
+      { secret: process.env.JWT_ACCESS_SECRET, expiresIn: '24h' },
     );
   }
 
