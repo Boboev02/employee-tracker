@@ -3,7 +3,7 @@ export const WS_URL       = 'wss://employee-tracker.ru';
 
 export const FLUSH_INTERVAL_MS   = 5_000;
 export const MAX_BUFFER_SIZE     = 50;
-export const IDLE_THRESHOLD_MS   = 60_000;
+export const IDLE_THRESHOLD_MS   = 30_000;
 export const HEARTBEAT_MS        = 30_000;
 export const MAX_RETRY_ATTEMPTS  = 3;
 export const RETRY_DELAY_MS      = 2_000;
