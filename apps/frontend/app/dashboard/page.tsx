@@ -177,6 +177,7 @@ export default function DashboardPage() {
       </div>
 
       <div style={{ padding:'20px 24px', display:'flex', flexDirection:'column', gap:'14px' }}>
+        {token && <WorkSessionWidget token={token} />}
 
         {/* Alerts */}
         {alerts.map((a,i) => (

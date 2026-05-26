@@ -25,13 +25,22 @@ export class AuthController {
     return res.json(result);
   }
 
+  // Old refresh (requires valid access token)
   @Post('refresh')
   @HttpCode(200)
   async refresh(@CurrentUser() user: any) {
     const accessToken = this.tokens.generateAccessToken({
-      sub: user.id ?? user.sub, email: user.email, orgId: user.orgId,
+      sub: user.id ?? user.sub, email: user.email, orgId: user.orgId, roles: user.roles,
     });
     return { accessToken, expiresIn: 900 };
+  }
+
+  // New refresh (uses refresh token from body — for extension)
+  @Public()
+  @Post('refresh-token')
+  @HttpCode(200)
+  async refreshWithToken(@Body() body: { refreshToken: string }) {
+    return this.auth.refreshWithToken(body.refreshToken);
   }
 
   @Post('logout')
