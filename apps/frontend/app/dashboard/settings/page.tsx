@@ -178,6 +178,31 @@ export default function SettingsPage() {
         )}
         {!canEdit && <p style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>Только администратор может изменять настройки</p>}
       </div>
+      {/* Reset Section */}
+      <div style={{ background:'var(--bg-primary)', border:'1px solid #fee2e2', borderRadius:'var(--radius)', padding:'20px', marginTop:'16px' }}>
+        <h2 style={{ fontSize:'14px', fontWeight:600, color:'#ef4444', margin:'0 0 8px' }}>⚠️ Опасная зона — Сброс данных</h2>
+        <p style={{ fontSize:'12px', color:'var(--text-muted)', margin:'0 0 16px' }}>
+          Удаляет все данные активности, задачи, аналитику и статистику. Структура системы сохраняется. Используется только для тестирования.
+        </p>
+        <button
+          onClick={async () => {
+            if (!confirm('Вы уверены? Это удалит ВСЕ данные: активность, задачи, аналитику, время работы. Действие необратимо!')) return;
+            if (!confirm('Подтвердите ещё раз — все данные будут удалены безвозвратно.')) return;
+            const t = localStorage.getItem('access_token');
+            const res = await fetch('https://employee-tracker.ru/api/v1/reset', {
+              method: 'POST',
+              headers: { Authorization: 'Bearer ' + t },
+            });
+            const data = await res.json();
+            if (data.success) alert('✅ Все данные успешно очищены!');
+            else alert('Ошибка: ' + JSON.stringify(data));
+          }}
+          style={{ background:'#ef4444', color:'white', border:'none', padding:'10px 20px', borderRadius:'8px', fontSize:'13px', fontWeight:600, cursor:'pointer' }}
+        >
+          🗑️ Очистить все данные
+        </button>
+      </div>
+
     </div>
   );
 }

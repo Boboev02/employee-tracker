@@ -35,14 +35,6 @@ export class AuthController {
     return { accessToken, expiresIn: 900 };
   }
 
-  // New refresh (uses refresh token from body — for extension)
-  @Public()
-  @Post('refresh-token')
-  @HttpCode(200)
-  async refreshWithToken(@Body() body: { refreshToken: string }) {
-    return this.auth.refreshWithToken(body.refreshToken);
-  }
-
   @Post('logout')
   @HttpCode(204)
   async logout(@Req() req: Request, @Res() res: Response) {
