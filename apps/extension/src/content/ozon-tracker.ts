@@ -5,49 +5,88 @@ interface SectionConfig { name: string; label: string; actions: ActionConfig[]; 
 
 const OZON_SECTIONS: Record<string, SectionConfig> = {
   // Товары
-  products:      { name:'products',      label:'Товары',              actions:[] },
+  products:      { name:'products',      label:'Товары',              actions:[
+    {selector:'[class*="create"],[class*="add"]', event:'ozon_product_create', label:'Создал товар'},
+    {selector:'[class*="edit"]',                  event:'ozon_product_edit',   label:'Редактировал товар'},
+    {selector:'[class*="upload"]',                event:'ozon_product_upload', label:'Загрузил файл'},
+  ]},
   certificates:  { name:'certificates',  label:'Сертификаты',         actions:[] },
   merge:         { name:'merge',         label:'Объединение товаров', actions:[] },
 
   // Заказы
-  orders_fbo:    { name:'orders_fbo',    label:'Заказы FBO',          actions:[] },
-  orders_fbs:    { name:'orders_fbs',    label:'Заказы FBS',          actions:[] },
+  orders_fbo:    { name:'orders_fbo',    label:'Заказы FBO',          actions:[
+    {selector:'[class*="filter"]', event:'ozon_fbo_filter', label:'Применил фильтр'},
+    {selector:'[class*="export"]', event:'ozon_fbo_export', label:'Экспорт'},
+  ]},
+  orders_fbs:    { name:'orders_fbs',    label:'Заказы FBS',          actions:[
+    {selector:'[class*="filter"]', event:'ozon_fbs_filter', label:'Применил фильтр'},
+    {selector:'[class*="export"]', event:'ozon_fbs_export', label:'Экспорт'},
+  ]},
   returns:       { name:'returns',       label:'Возвраты',            actions:[] },
 
   // Склад и остатки
-  stocks:        { name:'stocks',        label:'Остатки',             actions:[] },
+  stocks:        { name:'stocks',        label:'Остатки',             actions:[
+    {selector:'[class*="upload"]', event:'ozon_stock_upload', label:'Загрузил файл'},
+    {selector:'[class*="update"]', event:'ozon_stock_update', label:'Обновил остатки'},
+  ]},
   warehouse:     { name:'warehouse',     label:'Склад',               actions:[] },
-  supplies:      { name:'supplies',      label:'Поставки',            actions:[] },
+  supplies:      { name:'supplies',      label:'Поставки',            actions:[
+    {selector:'[class*="create"]',  event:'ozon_supply_create',  label:'Создал поставку'},
+    {selector:'[class*="confirm"]', event:'ozon_supply_confirm', label:'Подтвердил'},
+  ]},
   logistics:     { name:'logistics',     label:'Логистика',           actions:[] },
 
   // Цены
-  prices:        { name:'prices',        label:'Цены',                actions:[] },
-  highlights:    { name:'highlights',    label:'Акции и хайлайты',    actions:[] },
+  prices:        { name:'prices',        label:'Цены',                actions:[
+    {selector:'[class*="save"],[class*="apply"]', event:'ozon_price_save',   label:'Сохранил цены'},
+    {selector:'input[type="number"]',             event:'ozon_price_edit',   label:'Изменил цену'},
+    {selector:'[class*="upload"]',                event:'ozon_price_upload', label:'Загрузил файл'},
+  ]},
+  highlights:    { name:'highlights',    label:'Акции и хайлайты',    actions:[
+    {selector:'[class*="join"],[class*="participate"]', event:'ozon_promo_join', label:'Вступил в акцию'},
+  ]},
 
   // Отзывы и вопросы
-  reviews:       { name:'reviews',       label:'Отзывы',              actions:[] },
-  questions:     { name:'questions',     label:'Вопросы',             actions:[] },
+  reviews:       { name:'reviews',       label:'Отзывы',              actions:[
+    {selector:'textarea,[contenteditable]', event:'ozon_review_reply',    label:'Ответил на отзыв'},
+    {selector:'[class*="complaint"]',       event:'ozon_review_complain', label:'Пожаловался'},
+  ]},
+  questions:     { name:'questions',     label:'Вопросы',             actions:[
+    {selector:'textarea,[contenteditable]', event:'ozon_question_reply', label:'Ответил на вопрос'},
+  ]},
   complaints:    { name:'complaints',    label:'Жалобы',              actions:[] },
 
   // Аналитика
-  analytics:     { name:'analytics',     label:'Аналитика',           actions:[] },
+  analytics:     { name:'analytics',     label:'Аналитика',           actions:[
+    {selector:'[class*="export"]', event:'ozon_analytics_export', label:'Экспорт'},
+    {selector:'[class*="filter"]', event:'ozon_analytics_filter', label:'Применил фильтр'},
+  ]},
   analytics_search: { name:'analytics_search', label:'Поисковая аналитика', actions:[] },
 
   // Финансы
-  finance:       { name:'finance',       label:'Финансы',             actions:[] },
+  finance:       { name:'finance',       label:'Финансы',             actions:[
+    {selector:'[class*="export"],[class*="download"]', event:'ozon_finance_export', label:'Скачал документ'},
+  ]},
 
   // Продвижение
-  promotion:     { name:'promotion',     label:'Продвижение',         actions:[] },
+  promotion:     { name:'promotion',     label:'Продвижение',         actions:[
+    {selector:'[class*="create"]', event:'ozon_ads_create', label:'Создал кампанию'},
+    {selector:'[class*="pause"]',  event:'ozon_ads_pause',  label:'Приостановил'},
+    {selector:'[class*="budget"]', event:'ozon_ads_budget', label:'Изменил бюджет'},
+  ]},
 
   // Рейтинг
   rating:        { name:'rating',        label:'Рейтинг',             actions:[] },
 
   // Чат
-  chat:          { name:'chat',          label:'Чат',                 actions:[] },
+  chat:          { name:'chat',          label:'Чат',                 actions:[
+    {selector:'button[type="submit"],[class*="send"]', event:'ozon_chat_send', label:'Отправил сообщение'},
+  ]},
 
   // Дашборд
   dashboard:     { name:'dashboard',     label:'Дашборд',             actions:[] },
 };
+
 
 
 class OzonTracker extends BaseTracker {

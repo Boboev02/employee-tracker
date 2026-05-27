@@ -5,7 +5,12 @@ interface SectionConfig { name: string; label: string; actions: ActionConfig[]; 
 
 const WB_SECTIONS: Record<string, SectionConfig> = {
   // Товары
-  products:      { name:'products',      label:'Товары',              actions:[] },
+  products:      { name:'products',      label:'Товары',              actions:[
+    {selector:'[class*="create"],[class*="add"]', event:'wb_product_create', label:'Создал товар'},
+    {selector:'[class*="edit"]',                  event:'wb_product_edit',   label:'Редактировал товар'},
+    {selector:'[class*="delete"]',                event:'wb_product_delete', label:'Удалил товар'},
+    {selector:'[class*="upload"]',                event:'wb_product_upload', label:'Загрузил файл'},
+  ]},
   brands:        { name:'brands',        label:'Бренды',              actions:[] },
   content:       { name:'content',       label:'Контент',             actions:[] },
   abtest:        { name:'abtest',        label:'A/B тест карточки',   actions:[] },
@@ -13,36 +18,70 @@ const WB_SECTIONS: Record<string, SectionConfig> = {
   substitution:  { name:'substitution',  label:'Подмена артикула',    actions:[] },
 
   // Цены
-  prices:        { name:'prices',        label:'Цены и скидки',       actions:[] },
+  prices:        { name:'prices',        label:'Цены и скидки',       actions:[
+    {selector:'[class*="save"],[class*="apply"]',  event:'wb_price_save',   label:'Сохранил цены'},
+    {selector:'input[type="number"]',              event:'wb_price_edit',   label:'Изменил цену'},
+    {selector:'[class*="upload"]',                 event:'wb_price_upload', label:'Загрузил файл'},
+  ]},
   cashback:      { name:'cashback',      label:'Кэшбэк',              actions:[] },
-  promotions:    { name:'promotions',    label:'Акции',               actions:[] },
+  promotions:    { name:'promotions',    label:'Акции',               actions:[
+    {selector:'[class*="join"],[class*="participate"]', event:'wb_promo_join', label:'Вступил в акцию'},
+  ]},
 
   // Отзывы и вопросы
-  feedbacks:     { name:'feedbacks',     label:'Отзывы',              actions:[] },
-  questions:     { name:'questions',     label:'Вопросы',             actions:[] },
+  feedbacks:     { name:'feedbacks',     label:'Отзывы',              actions:[
+    {selector:'textarea,[contenteditable]', event:'wb_review_reply',    label:'Ответил на отзыв'},
+    {selector:'[class*="complaint"]',       event:'wb_review_complain', label:'Пожаловался'},
+  ]},
+  questions:     { name:'questions',     label:'Вопросы',             actions:[
+    {selector:'textarea,[contenteditable]', event:'wb_question_reply', label:'Ответил на вопрос'},
+  ]},
   claims:        { name:'claims',        label:'Претензии покупателей', actions:[] },
-  chat:          { name:'chat',          label:'Чат с покупателями',  actions:[] },
+  chat:          { name:'chat',          label:'Чат с покупателями',  actions:[
+    {selector:'button[type="submit"],[class*="send"]', event:'wb_chat_send', label:'Отправил сообщение'},
+  ]},
 
   // Поставки и склад
-  supplies:      { name:'supplies',      label:'Поставки',            actions:[] },
-  stocks:        { name:'stocks',        label:'Остатки',             actions:[] },
-  orders:        { name:'orders',        label:'Заказы (FBS)',        actions:[] },
+  supplies:      { name:'supplies',      label:'Поставки',            actions:[
+    {selector:'[class*="create"]',  event:'wb_supply_create',  label:'Создал поставку'},
+    {selector:'[class*="confirm"]', event:'wb_supply_confirm', label:'Подтвердил поставку'},
+    {selector:'[class*="print"]',   event:'wb_supply_print',   label:'Распечатал'},
+  ]},
+  stocks:        { name:'stocks',        label:'Остатки',             actions:[
+    {selector:'[class*="save"],[class*="update"]', event:'wb_stock_update', label:'Обновил остатки'},
+    {selector:'[class*="upload"]',                 event:'wb_stock_upload', label:'Загрузил файл'},
+  ]},
+  orders:        { name:'orders',        label:'Заказы (FBS)',        actions:[
+    {selector:'[class*="cancel"]',  event:'wb_order_cancel', label:'Отменил заказ'},
+    {selector:'[class*="filter"]',  event:'wb_order_filter', label:'Применил фильтр'},
+    {selector:'[class*="export"]',  event:'wb_order_export', label:'Экспорт'},
+  ]},
   returns:       { name:'returns',       label:'Возвраты',            actions:[] },
   logistics:     { name:'logistics',     label:'Логистика',           actions:[] },
 
   // Аналитика
-  analytics:     { name:'analytics',     label:'Аналитика',           actions:[] },
-  content_analytics: { name:'content_analytics', label:'Аналитика контента', actions:[] },
-  search_analytics:  { name:'search_analytics',  label:'Поисковая аналитика', actions:[] },
-  platform_analytics:{ name:'platform_analytics',label:'Аналитика платформы', actions:[] },
+  analytics:     { name:'analytics',     label:'Аналитика',           actions:[
+    {selector:'[class*="export"]', event:'wb_analytics_export', label:'Экспорт отчёта'},
+    {selector:'[class*="filter"]', event:'wb_analytics_filter', label:'Применил фильтр'},
+  ]},
+  content_analytics:  { name:'content_analytics',  label:'Аналитика контента',  actions:[] },
+  search_analytics:   { name:'search_analytics',   label:'Поисковая аналитика', actions:[] },
+  platform_analytics: { name:'platform_analytics', label:'Аналитика платформы', actions:[] },
 
   // Финансы
-  finance:       { name:'finance',       label:'Финансы',             actions:[] },
+  finance:       { name:'finance',       label:'Финансы',             actions:[
+    {selector:'[class*="export"],[class*="download"]', event:'wb_finance_export', label:'Скачал документ'},
+  ]},
   income:        { name:'income',        label:'Доходы и расходы',    actions:[] },
   calculator:    { name:'calculator',    label:'Калькулятор прибыли', actions:[] },
 
   // Реклама
-  advertising:   { name:'advertising',   label:'Реклама',             actions:[] },
+  advertising:   { name:'advertising',   label:'Реклама',             actions:[
+    {selector:'[class*="create"]', event:'wb_ads_create',  label:'Создал кампанию'},
+    {selector:'[class*="pause"]',  event:'wb_ads_pause',   label:'Приостановил'},
+    {selector:'[class*="budget"]', event:'wb_ads_budget',  label:'Изменил бюджет'},
+    {selector:'[class*="filter"]', event:'wb_ads_filter',  label:'Применил фильтр'},
+  ]},
 
   // Прочее
   tariffs:       { name:'tariffs',       label:'Тарифы',              actions:[] },
@@ -52,6 +91,7 @@ const WB_SECTIONS: Record<string, SectionConfig> = {
   support:       { name:'support',       label:'Поддержка',           actions:[] },
   knowledge:     { name:'knowledge',     label:'База знаний',         actions:[] },
 };
+
 
 
 class WbTracker extends BaseTracker {
