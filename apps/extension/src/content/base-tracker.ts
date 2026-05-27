@@ -4,7 +4,7 @@ import type { RawEvent, Platform } from '../shared/types';
 const MAX_DAILY_ACTIVE_SECONDS   = 10 * 60 * 60; // 10 часов максимум в день
 const MAX_CONTINUOUS_SECONDS     = 2 * 60 * 60;  // 2 часа непрерывной активности
 const MIN_SECTION_SECONDS        = 3;             // минимум 3 секунды в разделе
-const MIN_SECTION_STAY_MS        = 5_000;         // минимум 5 секунд в разделе (защита от быстрых переходов)
+const MIN_SECTION_STAY_MS        = 1_000;         // минимум 1 секунда в разделе (защита от быстрых переходов)
 
 export abstract class BaseTracker {
   protected sessionToken   = crypto.randomUUID();
