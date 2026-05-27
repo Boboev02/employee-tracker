@@ -63,7 +63,6 @@ export abstract class BaseTracker {
 
   protected attachListeners() {
     document.addEventListener('click', () => this.handleActivity(), { passive: true });
-    document.addEventListener('mousemove', () => this.handleActivity(), { passive: true });
     document.addEventListener('keydown', () => this.handleActivity(), { passive: true });
     document.addEventListener('scroll', () => this.handleActivity(), { passive: true });
 
