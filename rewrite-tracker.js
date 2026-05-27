@@ -1,4 +1,7 @@
-import { API_BASE_URL, STORAGE_KEYS, IDLE_THRESHOLD_MS } from '../shared/constants';
+const fs = require('fs');
+const path = require('os').homedir() + '/employee-tracker/apps/extension/src/content/base-tracker.ts';
+
+const newContent = `import { API_BASE_URL, STORAGE_KEYS, IDLE_THRESHOLD_MS } from '../shared/constants';
 import type { RawEvent, Platform } from '../shared/types';
 
 const MAX_DAILY_ACTIVE_SECONDS   = 10 * 60 * 60; // 10 часов максимум в день
@@ -354,3 +357,7 @@ export abstract class BaseTracker {
 
   protected detectSection(): string { return 'unknown'; }
 }
+`;
+
+fs.writeFileSync(path, newContent);
+console.log('✅ base-tracker.ts rewritten');

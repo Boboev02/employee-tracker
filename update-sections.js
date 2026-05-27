@@ -1,8 +1,10 @@
-import { BaseTracker } from './base-tracker';
+const fs = require('fs');
+const os = require('os');
+const home = os.homedir();
 
-interface ActionConfig { selector: string; event: string; label: string; }
-interface SectionConfig { name: string; label: string; actions: ActionConfig[]; }
+// ─── WB TRACKER ───────────────────────────────────────────────────────────────
 
+const wbSections = `
 const WB_SECTIONS: Record<string, SectionConfig> = {
   // Товары
   products:      { name:'products',      label:'Товары',              actions:[] },
@@ -51,19 +53,9 @@ const WB_SECTIONS: Record<string, SectionConfig> = {
   monetization:  { name:'monetization',  label:'Монетизация данных',  actions:[] },
   support:       { name:'support',       label:'Поддержка',           actions:[] },
   knowledge:     { name:'knowledge',     label:'База знаний',         actions:[] },
-};
+};`;
 
-
-class WbTracker extends BaseTracker {
-  platform = 'WILDBERRIES' as const;
-  protected sectionListeners: { el: Element; fn: EventListener }[] = [];
-
-  init() {
-    super.init();
-    this.watchNavigation();
-    this.attachSectionListeners();
-  }
-
+const wbDetectSection = `
   protected detectSection(): string {
     const path = location.pathname;
     const host = location.hostname;
@@ -150,64 +142,149 @@ class WbTracker extends BaseTracker {
     if (path.includes('/help')) return 'knowledge';
 
     return 'other';
-  }
+  }`;
 
-  protected getSectionLabel(s: string): string { return WB_SECTIONS[s]?.label ?? s; }
+// ─── OZON TRACKER ─────────────────────────────────────────────────────────────
 
-  private watchNavigation() {
-    let lastUrl = location.href;
-    setInterval(() => {
-      if (location.href !== lastUrl) {
-        lastUrl = location.href;
-        this.onSectionChange(this.detectSection());
-        this.attachSectionListeners();
-      }
-    }, 300);
+const ozonSections = `
+const OZON_SECTIONS: Record<string, SectionConfig> = {
+  // Товары
+  products:      { name:'products',      label:'Товары',              actions:[] },
+  certificates:  { name:'certificates',  label:'Сертификаты',         actions:[] },
+  merge:         { name:'merge',         label:'Объединение товаров', actions:[] },
 
-    // Hook pushState
-    const orig = history.pushState.bind(history);
-    history.pushState = (...args) => {
-      orig(...args);
-      setTimeout(() => { this.onSectionChange(this.detectSection()); this.attachSectionListeners(); }, 100);
-    };
-    // Hook replaceState
-    const origReplace = history.replaceState.bind(history);
-    history.replaceState = (...args) => {
-      origReplace(...args);
-      setTimeout(() => { this.onSectionChange(this.detectSection()); this.attachSectionListeners(); }, 100);
-    };
-    window.addEventListener('popstate', () => {
-      setTimeout(() => { this.onSectionChange(this.detectSection()); this.attachSectionListeners(); }, 100);
-    });
-    window.addEventListener('hashchange', () => {
-      this.onSectionChange(this.detectSection());
-      this.attachSectionListeners();
-    });
-  }
+  // Заказы
+  orders_fbo:    { name:'orders_fbo',    label:'Заказы FBO',          actions:[] },
+  orders_fbs:    { name:'orders_fbs',    label:'Заказы FBS',          actions:[] },
+  returns:       { name:'returns',       label:'Возвраты',            actions:[] },
 
-  private sectionObserver: MutationObserver | null = null;
+  // Склад и остатки
+  stocks:        { name:'stocks',        label:'Остатки',             actions:[] },
+  warehouse:     { name:'warehouse',     label:'Склад',               actions:[] },
+  supplies:      { name:'supplies',      label:'Поставки',            actions:[] },
+  logistics:     { name:'logistics',     label:'Логистика',           actions:[] },
 
-  protected attachSectionListeners() {
-    this.sectionListeners.forEach(({ el, fn }) => el.removeEventListener('click', fn));
-    this.sectionListeners = [];
-    if (this.sectionObserver) { this.sectionObserver.disconnect(); this.sectionObserver = null; }
-    const section = this.detectSection();
-    const config  = WB_SECTIONS[section];
-    if (!config) return;
-    const attach = () => {
-      config.actions.forEach(action => {
-        document.querySelectorAll(action.selector).forEach(el => {
-          if (this.sectionListeners.find(l => l.el === el)) return;
-          const fn: EventListener = () => this.sendEvent(action.event as any, { section, sectionLabel: config.label, actionLabel: action.label });
-          el.addEventListener('click', fn);
-          this.sectionListeners.push({ el, fn });
-        });
-      });
-    };
-    attach();
-    this.sectionObserver = new MutationObserver(attach);
-    this.sectionObserver.observe(document.body, { childList: true, subtree: true });
-  }
-}
+  // Цены
+  prices:        { name:'prices',        label:'Цены',                actions:[] },
+  highlights:    { name:'highlights',    label:'Акции и хайлайты',    actions:[] },
 
-try { new WbTracker().init(); } catch(e) { console.error('[ET] WbTracker error:', e); }
+  // Отзывы и вопросы
+  reviews:       { name:'reviews',       label:'Отзывы',              actions:[] },
+  questions:     { name:'questions',     label:'Вопросы',             actions:[] },
+  complaints:    { name:'complaints',    label:'Жалобы',              actions:[] },
+
+  // Аналитика
+  analytics:     { name:'analytics',     label:'Аналитика',           actions:[] },
+  analytics_search: { name:'analytics_search', label:'Поисковая аналитика', actions:[] },
+
+  // Финансы
+  finance:       { name:'finance',       label:'Финансы',             actions:[] },
+
+  // Продвижение
+  promotion:     { name:'promotion',     label:'Продвижение',         actions:[] },
+
+  // Рейтинг
+  rating:        { name:'rating',        label:'Рейтинг',             actions:[] },
+
+  // Чат
+  chat:          { name:'chat',          label:'Чат',                 actions:[] },
+
+  // Дашборд
+  dashboard:     { name:'dashboard',     label:'Дашборд',             actions:[] },
+};`;
+
+const ozonDetectSection = `
+  protected detectSection(): string {
+    const path = location.pathname;
+
+    // Дашборд
+    if (path.includes('/dashboard')) return 'dashboard';
+
+    // Товары
+    if (path.includes('/products/certificates')) return 'certificates';
+    if (path.includes('/products-merge')) return 'merge';
+    if (path.includes('/items/transfer')) return 'products';
+    if (path.includes('/products')) return 'products';
+
+    // Заказы
+    if (path.includes('/postings/fbo')) return 'orders_fbo';
+    if (path.includes('/postings/fbs')) return 'orders_fbs';
+    if (path.includes('/fbo-operations/returns')) return 'returns';
+    if (path.includes('/returns')) return 'returns';
+
+    // Склад и остатки — ВАЖНО: /supply/goods ДО /supply
+    if (path.includes('/supply/goods')) return 'stocks';
+    if (path.includes('/fbo-stocks')) return 'stocks';
+    if (path.includes('/fbo-operations/my-warehouses')) return 'stocks';
+    if (path.includes('/stocks')) return 'stocks';
+    if (path.includes('/warehouse')) return 'warehouse';
+
+    // Поставки
+    if (path.includes('/fbo-operations/replenishment-orders')) return 'supplies';
+    if (path.includes('/supply/orders')) return 'logistics';
+    if (path.includes('/supply')) return 'logistics';
+    if (path.includes('/logistics')) return 'logistics';
+
+    // Цены
+    if (path.includes('/prices/discount-requests')) return 'prices';
+    if (path.includes('/prices')) return 'prices';
+    if (path.includes('/highlights')) return 'highlights';
+
+    // Отзывы и вопросы
+    if (path.includes('/reviews/analytics')) return 'reviews';
+    if (path.includes('/reviews/questions')) return 'questions';
+    if (path.includes('/reviews')) return 'reviews';
+    if (path.includes('/complaints')) return 'complaints';
+    if (path.includes('/questions')) return 'questions';
+
+    // Аналитика
+    if (path.includes('/analytics-search')) return 'analytics_search';
+    if (path.includes('/analytics')) return 'analytics';
+
+    // Финансы
+    if (path.includes('/finances')) return 'finance';
+    if (path.includes('/fintech')) return 'finance';
+    if (path.includes('/payments')) return 'finance';
+
+    // Продвижение
+    if (path.includes('/advertisement')) return 'promotion';
+    if (path.includes('/promotion-info')) return 'promotion';
+    if (path.includes('/promotion')) return 'promotion';
+
+    // Рейтинг
+    if (path.includes('/rating')) return 'rating';
+
+    // Чат
+    if (path.includes('/messenger')) return 'chat';
+    if (path.includes('/chat')) return 'chat';
+
+    return 'other';
+  }`;
+
+// ─── Обновляем wb-tracker.ts ──────────────────────────────────────────────────
+
+let wb = fs.readFileSync(home + '/employee-tracker/apps/extension/src/content/wb-tracker.ts', 'utf8');
+
+// Заменяем WB_SECTIONS
+wb = wb.replace(/const WB_SECTIONS[\s\S]*?^};/m, wbSections.trim() + '\n');
+
+// Заменяем detectSection
+wb = wb.replace(/protected detectSection\(\): string \{[\s\S]*?\n  \}/m, wbDetectSection.trim());
+
+// Убираем SectionConfig если не используется actions напрямую
+fs.writeFileSync(home + '/employee-tracker/apps/extension/src/content/wb-tracker.ts', wb);
+console.log('✅ wb-tracker.ts updated');
+
+// ─── Обновляем ozon-tracker.ts ────────────────────────────────────────────────
+
+let oz = fs.readFileSync(home + '/employee-tracker/apps/extension/src/content/ozon-tracker.ts', 'utf8');
+
+// Заменяем OZON_SECTIONS
+oz = oz.replace(/const OZON_SECTIONS[\s\S]*?^};/m, ozonSections.trim() + '\n');
+
+// Заменяем detectSection
+oz = oz.replace(/protected detectSection\(\): string \{[\s\S]*?\n  \}/m, ozonDetectSection.trim());
+
+fs.writeFileSync(home + '/employee-tracker/apps/extension/src/content/ozon-tracker.ts', oz);
+console.log('✅ ozon-tracker.ts updated');
+console.log('✅ Done');
