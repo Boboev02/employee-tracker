@@ -178,7 +178,7 @@ export default function SettingsPage() {
         )}
         {!canEdit && <p style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>Только администратор может изменять настройки</p>}
       </div>
-      {/* Reset Section */}
+      {canEdit && (
       <div style={{ background:'var(--bg-primary)', border:'1px solid #fee2e2', borderRadius:'var(--radius)', padding:'20px', marginTop:'16px' }}>
         <h2 style={{ fontSize:'14px', fontWeight:600, color:'#ef4444', margin:'0 0 8px' }}>⚠️ Опасная зона — Сброс данных</h2>
         <p style={{ fontSize:'12px', color:'var(--text-muted)', margin:'0 0 16px' }}>
@@ -202,6 +202,7 @@ export default function SettingsPage() {
           🗑️ Очистить все данные
         </button>
       </div>
+      )}
 
     </div>
   );
