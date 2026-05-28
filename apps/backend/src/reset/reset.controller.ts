@@ -35,12 +35,22 @@ export class ResetController {
     await this.prisma.taskComment.deleteMany({ where: { task: { orgId } } }).catch(() => {});
     await this.prisma.task.deleteMany({ where: { orgId } }).catch(() => {});
 
-    // Clear work sessions from redis
-    const keys = await this.redis.keys(`work:session:*`);
-    if (keys.length > 0) await this.redis.del(...keys);
+    // Clear work sessions from redis (using SCAN to avoid blocking)
+    const scanKeys = async (pattern: string): Promise<string[]> => {
+      const keys: string[] = [];
+      let cursor = '0';
+      do {
+        const [next, batch] = await this.redis.scan(cursor, 'MATCH', pattern, 'COUNT', '100');
+        cursor = next;
+        keys.push(...batch);
+      } while (cursor !== '0');
+      return keys;
+    };
 
-    // Clear presence from redis
-    const presenceKeys = await this.redis.keys(`presence:*`);
+    const sessionKeys = await scanKeys('work:session:*');
+    if (sessionKeys.length > 0) await this.redis.del(...sessionKeys);
+
+    const presenceKeys = await scanKeys('presence:*');
     if (presenceKeys.length > 0) await this.redis.del(...presenceKeys);
 
     return {

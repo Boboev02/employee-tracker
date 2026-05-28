@@ -40,8 +40,8 @@ export class TrackingService {
   }
 
   async heartbeat(user: any, body: any) {
-    // Update realtime status
-    return { ok: true };
+    // TODO: update presence via PresenceService
+    return { ok: true, ts: Date.now() };
   }
 
   async getRecentEvents(userId: string, orgId: string, limit = 100) {

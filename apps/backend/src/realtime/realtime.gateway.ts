@@ -7,7 +7,7 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { PresenceService } from './presence.service';
 
-@WebSocketGateway({ cors: { origin: '*' }, namespace: '/realtime' })
+@WebSocketGateway({ cors: { origin: ['https://employee-tracker.ru', 'http://localhost:3000'], credentials: true }, namespace: '/realtime' })
 export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server: Server;
 
@@ -51,9 +51,9 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   async handleDisconnect(socket: Socket) {
     const user = this.socketToUser.get(socket.id);
+    this.socketToUser.delete(socket.id); // всегда удаляем даже если user не найден
     if (!user) return;
 
-    this.socketToUser.delete(socket.id);
     await this.presence.setOffline(user.userId, user.orgId);
 
     this.server.to('org:' + user.orgId).emit('presence:update', {

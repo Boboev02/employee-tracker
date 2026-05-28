@@ -92,6 +92,8 @@ model ActivityEvent {
   createdAt       DateTime @default(now())
   @@index([userId, createdAt])
   @@index([orgId, createdAt])
+  @@index([orgId, eventType, createdAt])
+  @@index([orgId, platform, createdAt])
 }
 
 model AnalyticsHourly {

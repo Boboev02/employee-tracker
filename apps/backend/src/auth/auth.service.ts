@@ -69,6 +69,11 @@ export class AuthService {
       sub: user.id, email: user.email, orgId: user.orgId, roles,
     });
 
+    // Очищаем истёкшие сессии перед созданием новой
+    await this.prisma.session.deleteMany({
+      where: { userId: user.id, expiresAt: { lt: new Date() } }
+    });
+
     await this.prisma.session.create({
       data: {
         userId: user.id,
