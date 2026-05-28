@@ -1,4 +1,4 @@
-import { Controller, Post, UseGuards } from '@nestjs/common';
+import { Controller, Post, UseGuards, ForbiddenException } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/index';
 import { CurrentUser } from '../auth/decorators/index';
 import { PrismaService } from '../prisma/prisma.service';
@@ -16,7 +16,7 @@ export class ResetController {
   @Post()
   async resetAll(@CurrentUser() user: any) {
     if (!user?.roles?.includes('ADMIN') && !user?.roles?.includes('SUPER_ADMIN')) {
-      return { error: 'Forbidden' };
+      throw new ForbiddenException('Access denied');
     }
 
     const orgId = user.orgId;
