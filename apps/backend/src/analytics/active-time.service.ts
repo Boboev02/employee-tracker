@@ -87,9 +87,17 @@ export class ActiveTimeService {
         if (e.eventType === 'wb_section_ping' || e.eventType === 'ozon_section_ping') {
           const activeS = pd?.activeSeconds;
           if (activeS && activeS > 0 && activeS < 7200) {
-            // Накапливаем время: берём максимум из текущего и нового ping
-            // Это корректно т.к. activeSeconds = накопленное время с начала текущей активной сессии
-            sec.timeSeconds = Math.max(sec.timeSeconds, activeS);
+            if (sec.lastEnter === 0) {
+              // Новая сессия после section_leave — суммируем
+              sec.timeSeconds += activeS;
+              sec.lastEnter = -1;
+            } else if (sec.lastEnter === -1) {
+              // Продолжение той же новой сессии — максимум
+              sec.timeSeconds = Math.max(sec.timeSeconds, sec.timeSeconds - activeS + activeS);
+            } else {
+              // Первый ping, section_leave ещё не было — максимум
+              sec.timeSeconds = Math.max(sec.timeSeconds, activeS);
+            }
           }
         }
         // Track specific actions
