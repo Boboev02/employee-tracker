@@ -4,12 +4,31 @@ import { useRouter } from 'next/navigation';
 import { WorkSessionWidget } from '@/components/WorkSessionWidget';
 
 const SECTION_LABELS: Record<string,string> = {
-  orders:'Заказы',feedbacks:'Отзывы',reviews:'Отзывы',questions:'Вопросы',
-  products:'Товары',prices:'Цены',stocks:'Остатки',remains:'Остатки',
-  supplies:'Поставки',supply:'Поставки',advertising:'Реклама',
-  analytics:'Аналитика',finance:'Финансы',chat:'Чат',fintech:'Финансы',
-  promotions:'Акции',promotion:'Продвижение',logistics:'Логистика',
-  rating:'Рейтинг',other:'Прочее',
+  // Товары
+  orders:'Заказы', feedbacks:'Отзывы', reviews:'Отзывы', questions:'Вопросы',
+  products:'Товары', brands:'Бренды', content:'Контент', abtest:'A/B тест карточки',
+  recommendations:'Рекомендации', substitution:'Подмена артикула',
+  // Цены
+  prices:'Цены и скидки', cashback:'Кэшбэк', promotions:'Акции', promotion:'Продвижение',
+  // Отзывы
+  claims:'Претензии покупателей', chat:'Чат с покупателями',
+  // Склад
+  supplies:'Поставки', supply:'Поставки', stocks:'Остатки', remains:'Остатки',
+  orders_fbo:'Заказы FBO', orders_fbs:'Заказы FBS', returns:'Возвраты', logistics:'Логистика',
+  // Аналитика
+  analytics:'Аналитика', content_analytics:'Аналитика контента',
+  search_analytics:'Поисковая аналитика', platform_analytics:'Аналитика платформы',
+  analytics_search:'Поисковая аналитика',
+  // Финансы
+  finance:'Финансы', fintech:'Финансы', income:'Доходы и расходы', calculator:'Калькулятор прибыли',
+  // Реклама
+  advertising:'Реклама',
+  // Ozon
+  highlights:'Акции и хайлайты', complaints:'Жалобы', warehouse:'Склад',
+  certificates:'Сертификаты', merge:'Объединение товаров', dashboard:'Дашборд',
+  // Прочее
+  rating:'Рейтинг', tariffs:'Тарифы', levels:'Уровни продавца', showcase:'Витрина продавца',
+  monetization:'Монетизация данных', support:'Поддержка', knowledge:'База знаний', other:'Прочее',
 };
 
 const TASK_STATUS: Record<string,{color:string;label:string}> = {
