@@ -24,6 +24,8 @@ export abstract class BaseTracker {
   private clickCount = 0; // количество кликов в разделе
   private lastSectionEnterTime = 0; // для защиты от быстрых переходов
   private tabId = crypto.randomUUID(); // уникальный ID вкладки
+  // Накопленное время за день по каждому разделу (не сбрасывается при смене раздела)
+  private sectionDailySeconds: Record<string, number> = {};
 
   abstract platform: Platform;
 
@@ -298,11 +300,14 @@ export abstract class BaseTracker {
     if (activeSeconds < MIN_SECTION_SECONDS) return;
 
     const section = this.currentSection;
+    // Накапливаем дневное время для этого раздела
+    if (!this.sectionDailySeconds[section]) this.sectionDailySeconds[section] = 0;
+    this.sectionDailySeconds[section] += activeSeconds;
     const leaveEvent = this.platform === 'WILDBERRIES' ? 'wb_section_leave' : 'ozon_section_leave';
     this.sendEvent(leaveEvent as any, {
       section,
       sectionLabel:  this.getSectionLabel(section),
-      activeSeconds,
+      activeSeconds: this.sectionDailySeconds[section], // отправляем суммарное дневное время
     });
     // Очищаем storage после отправки
     this.clearStorage(section);
@@ -332,10 +337,11 @@ export abstract class BaseTracker {
     const msUntilMidnight = midnight.getTime() - now.getTime();
     setTimeout(() => {
       this.dailyActiveSeconds = 0;
+      this.sectionDailySeconds = {};
       console.log('[ET] Daily counter reset at midnight');
-      // Повторяем каждые 24 часа
       setInterval(() => {
         this.dailyActiveSeconds = 0;
+        this.sectionDailySeconds = {};
         console.log('[ET] Daily counter reset');
       }, 24 * 60 * 60 * 1000);
     }, msUntilMidnight);
