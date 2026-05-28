@@ -110,6 +110,11 @@ export default function SectionAnalyticsPage() {
     fetch('https://employee-tracker.ru/api/v1/employees', { headers: { Authorization: 'Bearer ' + t } })
       .then(r => r.json()).then(d => setEmployees(Array.isArray(d) ? d : []));
     load(t, '7', 'ALL', '');
+    const interval = setInterval(() => {
+      const tk = localStorage.getItem('access_token');
+      if (tk) load(tk, '7', 'ALL', '');
+    }, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const load = async (t: string, days: string, plat: string, empId: string) => {
