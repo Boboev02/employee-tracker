@@ -314,7 +314,7 @@ export abstract class BaseTracker {
 
   protected scheduleFlush() {
     setInterval(() => this.flushNow(), 5000);
-    setInterval(() => this.reportActivePing(), 60000);
+    setInterval(() => this.reportActivePing(), 15000);
     // Сохраняем время в storage каждые 5 секунд
     setInterval(() => {
       if (!this.isIdle && this.getTotalActiveSeconds() > 0) {
