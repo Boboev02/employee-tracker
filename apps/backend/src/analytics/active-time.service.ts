@@ -32,6 +32,7 @@ export class ActiveTimeService {
       sections: Record<string, {
         events: number;
         timeSeconds: number;
+        lastPingSeconds: number;
         actions: Record<string, number>;
         lastEnter: number;
       }>;
@@ -59,7 +60,7 @@ export class ActiveTimeService {
       if (pd?.section && pd.section !== 'other' && pd.section !== 'unknown') {
         const sectionKey = plat + ':' + pd.section;
         if (!user.sections[sectionKey]) {
-          user.sections[sectionKey] = { events: 0, timeSeconds: 0, actions: {}, lastEnter: 0 };
+          user.sections[sectionKey] = { events: 0, timeSeconds: 0, actions: {}, lastEnter: 0, lastPingSeconds: 0 };
         }
         const sec = user.sections[sectionKey];
         sec.events++;
@@ -87,7 +88,11 @@ export class ActiveTimeService {
         if (e.eventType === 'wb_section_ping' || e.eventType === 'ozon_section_ping') {
           const activeS = pd?.activeSeconds;
           if (activeS && activeS > 0 && activeS < 7200) {
-            sec.timeSeconds = Math.max(sec.timeSeconds, activeS);
+            const diff = activeS - (sec.lastPingSeconds ?? 0);
+            if (diff > 0) {
+              sec.timeSeconds += diff;
+            }
+            sec.lastPingSeconds = activeS;
           }
         }
         // Track specific actions
