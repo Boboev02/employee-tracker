@@ -116,7 +116,7 @@ export default function SectionAnalyticsPage() {
   const load = async (t: string, days: string, plat: string, empId: string) => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ days, limit: '500' });
+      const params = new URLSearchParams({ days, limit: '50000' });
       if (plat !== 'ALL') params.set('platform', plat);
       if (empId) params.set('userId', empId);
       const res = await fetch('https://employee-tracker.ru/api/v1/analytics/activity/summary?' + params, {

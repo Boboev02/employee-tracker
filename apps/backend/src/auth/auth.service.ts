@@ -24,8 +24,10 @@ export class AuthService {
     if (dto.orgName) {
       const org = await this.prisma.organisation.create({ data: { name: dto.orgName } });
       orgId = org.id;
+    } else if ((dto as any).orgId) {
+      orgId = (dto as any).orgId;
     } else {
-      const org = await this.prisma.organisation.findFirst();
+      const org = await this.prisma.organisation.findFirst({ orderBy: { createdAt: 'asc' } });
       if (!org) {
         const newOrg = await this.prisma.organisation.create({ data: { name: 'Default' } });
         orgId = newOrg.id;

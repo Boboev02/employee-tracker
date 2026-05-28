@@ -321,6 +321,24 @@ export abstract class BaseTracker {
         this.saveToStorage();
       }
     }, 5000);
+    // Сбрасываем дневной счётчик в полночь
+    this.scheduleMidnightReset();
+  }
+
+  private scheduleMidnightReset() {
+    const now = new Date();
+    const midnight = new Date();
+    midnight.setHours(24, 0, 0, 0);
+    const msUntilMidnight = midnight.getTime() - now.getTime();
+    setTimeout(() => {
+      this.dailyActiveSeconds = 0;
+      console.log('[ET] Daily counter reset at midnight');
+      // Повторяем каждые 24 часа
+      setInterval(() => {
+        this.dailyActiveSeconds = 0;
+        console.log('[ET] Daily counter reset');
+      }, 24 * 60 * 60 * 1000);
+    }, msUntilMidnight);
   }
 
   protected reportActivePing() {

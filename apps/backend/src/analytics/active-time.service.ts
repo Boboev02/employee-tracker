@@ -8,12 +8,11 @@ export class ActiveTimeService {
   async getActivitySummary(orgId: string, days = 7, targetUserId?: string) {
     const from = new Date();
     if (days === 1) {
-      // Сегодня = с 00:00 текущего дня
       from.setHours(0, 0, 0, 0);
     } else {
       from.setDate(from.getDate() - days);
+      from.setHours(0, 0, 0, 0);
     }
-    from.setHours(0, 0, 0, 0);
 
     const events = await this.prisma.activityEvent.findMany({
       where: { orgId, createdAt: { gte: from }, ...(targetUserId ? { userId: targetUserId } : {}) },
