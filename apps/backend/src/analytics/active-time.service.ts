@@ -82,15 +82,15 @@ export class ActiveTimeService {
             if (calc > 0 && calc < 7200 && calc > sec.timeSeconds) sec.timeSeconds = calc;
           }
           sec.lastEnter = 0;
+          sec.timeSeconds = 0; // сбрасываем после leave — новые ping будут накапливать заново
         }
         // Use section_ping to track time for sessions without navigation
         if (e.eventType === 'wb_section_ping' || e.eventType === 'ozon_section_ping') {
           const activeS = pd?.activeSeconds;
           if (activeS && activeS > 0 && activeS < 7200) {
-            // Only update if current recorded time is less (avoid double-counting with section_leave)
-            if (sec.timeSeconds < activeS) {
-              sec.timeSeconds = activeS;
-            }
+            // Накапливаем время: берём максимум из текущего и нового ping
+            // Это корректно т.к. activeSeconds = накопленное время с начала текущей активной сессии
+            sec.timeSeconds = Math.max(sec.timeSeconds, activeS);
           }
         }
         // Track specific actions
