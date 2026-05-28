@@ -112,7 +112,7 @@ export default function SectionAnalyticsPage() {
     load(t, '7', 'ALL', '');
     const interval = setInterval(() => {
       const tk = localStorage.getItem('access_token');
-      if (tk) load(tk, '7', 'ALL', '');
+      if (tk) load(tk, period, platform, selectedEmp);
     }, 30000);
     return () => clearInterval(interval);
   }, []);
