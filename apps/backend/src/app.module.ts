@@ -12,6 +12,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { TrackingModule }  from './tracking/tracking.module';
 import { TeamsModule }     from './teams/teams.module';
 import { SettingsModule }  from './settings/settings.module';
+import { NotificationModule } from './notifications/notification.module';
 import { JwtAuthGuard }    from './auth/guards/index';
 
 @Module({
@@ -20,7 +21,7 @@ import { JwtAuthGuard }    from './auth/guards/index';
     HealthModule,
     TasksModule, EmployeesModule, RealtimeModule,
     AnalyticsModule, TrackingModule, TeamsModule,
-    SettingsModule,
+    SettingsModule, NotificationModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
 })

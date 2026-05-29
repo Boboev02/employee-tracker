@@ -3,6 +3,7 @@ import { TaskRepository } from './task.repository';
 import { TASK_TRANSITIONS } from './task.types';
 import { TelegramService } from '../telegram/telegram.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationService } from '../notifications/notification.service';
 
 @Injectable()
 export class TaskService {
@@ -10,6 +11,7 @@ export class TaskService {
     private readonly repo: TaskRepository,
     private readonly telegram: TelegramService,
     private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async getKanban(orgId: string, filters: any) {
@@ -47,6 +49,12 @@ export class TaskService {
       if (assignee?.telegramChatId) {
         await this.telegram.notifyTaskAssigned(assignee.telegramChatId, task.title, creator?.name ?? 'Менеджер');
       }
+      await this.notificationService.create(
+        dto.assigneeId, orgId, 'task_assigned',
+        '📋 Новая задача',
+        `Вам назначена задача: "${task.title}" от ${creator?.name ?? 'Менеджер'}`,
+        task.id
+      );
     }
     return task;
   }
@@ -89,6 +97,13 @@ export class TaskService {
       if (assignee?.telegramChatId) {
         await this.telegram.notifyTaskStatusChanged(assignee.telegramChatId, task.title, newStatus, actor?.name ?? 'Менеджер');
       }
+      const statusLabels: Record<string, string> = { NEW: 'Новая', IN_PROGRESS: 'В работе', REVIEW: 'Проверка', BLOCKED: 'Заблокировано', DONE: 'Готово' };
+      await this.notificationService.create(
+        task.assigneeId, task.orgId, 'task_status',
+        '🔄 Статус задачи изменён',
+        `Задача "${task.title}" → ${statusLabels[newStatus] ?? newStatus}`,
+        task.id
+      );
     }
     return moved;
   }
@@ -112,6 +127,12 @@ export class TaskService {
       if (assignee?.telegramChatId) {
         await this.telegram.notifyTaskComment(assignee.telegramChatId, task.title, author?.name ?? 'Менеджер', content);
       }
+      await this.notificationService.create(
+        task.assigneeId, task.orgId, 'task_comment',
+        '💬 Новый комментарий',
+        `${author?.name ?? 'Менеджер'} прокомментировал задачу "${task.title}": ${content.slice(0, 100)}`,
+        task.id
+      );
     }
     return comment;
   }
