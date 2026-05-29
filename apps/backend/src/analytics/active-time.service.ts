@@ -83,7 +83,7 @@ export class ActiveTimeService {
             if (calc > 0 && calc < 7200 && calc > sec.timeSeconds) sec.timeSeconds = calc;
           }
           sec.lastEnter = 0;
-          sec.timeSeconds = 0; // сбрасываем после leave — новые ping будут накапливать заново
+          sec.lastPingSeconds = 0; // сбрасываем ping счётчик — новые ping считаются с нуля
         }
         // Use section_ping to track time for sessions without navigation
         if (e.eventType === 'wb_section_ping' || e.eventType === 'ozon_section_ping') {
