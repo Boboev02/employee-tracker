@@ -68,6 +68,7 @@ export class ActiveTimeService {
         // Track section enter time
         if (e.eventType === 'wb_section_enter' || e.eventType === 'ozon_section_enter') {
           sec.lastEnter = Number(e.clientTimestamp);
+          sec.lastPingSeconds = 0; // сбрасываем при входе в раздел
         }
         // Track section leave → use pre-calculated time from extension if available
         if (e.eventType === 'wb_section_leave' || e.eventType === 'ozon_section_leave') {
