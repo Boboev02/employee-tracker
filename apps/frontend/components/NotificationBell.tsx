@@ -78,66 +78,113 @@ export function NotificationBell() {
     return `${Math.floor(hours / 24)}д назад`;
   };
 
+  const typeIcon: Record<string, string> = {
+    task_assigned: '📋',
+    task_comment: '💬',
+    task_status: '🔄',
+  };
+
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
+    <div ref={ref} style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 9999 }}>
+      {/* FAB кнопка */}
       <button
         onClick={() => { setOpen(!open); if (!open) load(); }}
-        style={{ background: 'none', border: 'none', cursor: 'pointer', position: 'relative', padding: '4px', borderRadius: '8px', color: 'var(--text-secondary)' }}
+        style={{
+          width: '52px', height: '52px', borderRadius: '50%',
+          background: '#8b7cf6', border: 'none', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 4px 16px rgba(139,124,246,0.5)',
+          transition: 'transform 0.15s, box-shadow 0.15s',
+          position: 'relative',
+        }}
+        onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.08)')}
+        onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
           <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
         </svg>
         {unreadCount > 0 && (
           <span style={{
-            position: 'absolute', top: '0', right: '0',
+            position: 'absolute', top: '2px', right: '2px',
             background: '#ef4444', color: 'white',
-            borderRadius: '50%', width: '16px', height: '16px',
+            borderRadius: '50%', width: '18px', height: '18px',
             fontSize: '10px', fontWeight: 700,
-            display: 'flex', alignItems: 'center', justifyContent: 'center'
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: '2px solid #8b7cf6',
           }}>
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
+      {/* Панель уведомлений */}
       {open && (
         <div style={{
-          position: 'absolute', right: 0, top: '36px', width: '320px',
+          position: 'absolute', bottom: '64px', right: '0',
+          width: '340px', maxHeight: '480px',
           background: 'var(--bg-primary)', border: '1px solid var(--border)',
-          borderRadius: '12px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-          zIndex: 1000, overflow: 'hidden'
+          borderRadius: '16px', boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+          overflow: 'hidden', display: 'flex', flexDirection: 'column',
         }}>
-          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontWeight: 600, fontSize: '14px' }}>Уведомления</span>
+          {/* Заголовок */}
+          <div style={{
+            padding: '14px 16px', borderBottom: '1px solid var(--border)',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            background: 'var(--bg-primary)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)' }}>Уведомления</span>
+              {unreadCount > 0 && (
+                <span style={{
+                  background: '#8b7cf6', color: 'white',
+                  borderRadius: '10px', padding: '1px 7px', fontSize: '11px', fontWeight: 600
+                }}>{unreadCount}</span>
+              )}
+            </div>
             {unreadCount > 0 && (
-              <button onClick={markAllRead} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--accent)' }}>
+              <button onClick={markAllRead} style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: '12px', color: '#8b7cf6', fontWeight: 500
+              }}>
                 Прочитать все
               </button>
             )}
           </div>
-          <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+
+          {/* Список */}
+          <div style={{ overflowY: 'auto', flex: 1 }}>
             {notifications.length === 0 ? (
-              <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
-                Нет уведомлений
+              <div style={{ padding: '32px 16px', textAlign: 'center' }}>
+                <div style={{ fontSize: '28px', marginBottom: '8px' }}>🔔</div>
+                <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Нет уведомлений</div>
               </div>
-            ) : (
-              notifications.map(n => (
-                <div
-                  key={n.id}
-                  onClick={() => markRead(n.id)}
-                  style={{
-                    padding: '12px 16px', borderBottom: '1px solid var(--border)',
-                    background: n.isRead ? 'transparent' : 'var(--bg-secondary)',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <div style={{ fontWeight: 600, fontSize: '13px', marginBottom: '2px' }}>{n.title}</div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>{n.body}</div>
+            ) : notifications.map(n => (
+              <div
+                key={n.id}
+                onClick={() => markRead(n.id)}
+                style={{
+                  padding: '12px 16px',
+                  borderBottom: '1px solid var(--border)',
+                  background: n.isRead ? 'transparent' : 'rgba(139,124,246,0.06)',
+                  cursor: 'pointer',
+                  display: 'flex', gap: '10px', alignItems: 'flex-start',
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-secondary)')}
+                onMouseLeave={e => (e.currentTarget.style.background = n.isRead ? 'transparent' : 'rgba(139,124,246,0.06)')}
+              >
+                <span style={{ fontSize: '18px', flexShrink: 0 }}>{typeIcon[n.type] ?? '📌'}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary)', marginBottom: '2px' }}>{n.title}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.body}</div>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{timeAgo(n.createdAt)}</div>
                 </div>
-              ))
-            )}
+                {!n.isRead && (
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#8b7cf6', flexShrink: 0, marginTop: '4px' }} />
+                )}
+              </div>
+            ))}
           </div>
         </div>
       )}
