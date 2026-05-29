@@ -23,6 +23,7 @@ export class TaskRepository {
     const tasks = await this.prisma.task.findMany({
       where,
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+      include: { assignee: { select: { id: true, name: true, avatarUrl: true } } },
     });
 
     const columns: Record<string, any[]> = {
