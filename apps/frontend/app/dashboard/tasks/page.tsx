@@ -87,7 +87,7 @@ export default function TasksPage() {
           {STATUS_COLS.map(col => {
             const tasks = columns[col.id] ?? [];
             return (
-              <div key={col.id} style={{ minWidth: '260px', flex: '1', borderRight: '0.5px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
+              <div key={col.id} style={{ minWidth: '320px', flex: '0 0 320px', borderRight: '0.5px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
                 {/* Column header */}
                 <div style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--border)', background: 'var(--bg-primary)', display: 'flex', alignItems: 'center', gap: '8px', position: 'sticky', top: '49px', zIndex: 9 }}>
                   <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: col.dot, flexShrink: 0 }} />

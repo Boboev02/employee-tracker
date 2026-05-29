@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface Notification {
   id: string;
@@ -16,6 +17,7 @@ export function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   const load = async () => {
     const t = localStorage.getItem('access_token');
@@ -57,7 +59,7 @@ export function NotificationBell() {
     setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
   };
 
-  const markRead = async (id: string) => {
+  const markRead = async (id: string, taskId?: string) => {
     const t = localStorage.getItem('access_token');
     if (!t) return;
     await fetch(`https://employee-tracker.ru/api/v1/notifications/${id}/read`, {
@@ -66,6 +68,10 @@ export function NotificationBell() {
     });
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
     setUnreadCount(prev => Math.max(0, prev - 1));
+    if (taskId) {
+      setOpen(false);
+      router.push('/dashboard/tasks/' + taskId);
+    }
   };
 
   const timeAgo = (date: string) => {
@@ -162,7 +168,7 @@ export function NotificationBell() {
             ) : notifications.map(n => (
               <div
                 key={n.id}
-                onClick={() => markRead(n.id)}
+                onClick={() => markRead(n.id, n.taskId)}
                 style={{
                   padding: '12px 16px',
                   borderBottom: '1px solid var(--border)',
