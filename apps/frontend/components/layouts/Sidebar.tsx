@@ -1,4 +1,5 @@
 'use client';
+import { NotificationBell } from '../NotificationBell';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
