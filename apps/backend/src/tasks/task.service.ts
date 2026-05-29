@@ -1,10 +1,16 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { TaskRepository } from './task.repository';
 import { TASK_TRANSITIONS } from './task.types';
+import { TelegramService } from '../telegram/telegram.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class TaskService {
-  constructor(private readonly repo: TaskRepository) {}
+  constructor(
+    private readonly repo: TaskRepository,
+    private readonly telegram: TelegramService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async getKanban(orgId: string, filters: any) {
     return this.repo.findKanban(orgId, filters);
@@ -21,7 +27,7 @@ export class TaskService {
   }
 
   async create(orgId: string, userId: string, dto: any) {
-    return this.repo.create({
+    const task = await this.repo.create({
       orgId,
       createdById: userId,
       title:        dto.title,
@@ -33,6 +39,16 @@ export class TaskService {
       status:       'NEW',
       tags:         dto.tags ?? [],
     });
+
+    // Уведомление исполнителю
+    if (dto.assigneeId && dto.assigneeId !== userId) {
+      const assignee = await this.prisma.user.findUnique({ where: { id: dto.assigneeId } });
+      const creator = await this.prisma.user.findUnique({ where: { id: userId } });
+      if (assignee?.telegramChatId) {
+        await this.telegram.notifyTaskAssigned(assignee.telegramChatId, task.title, creator?.name ?? 'Менеджер');
+      }
+    }
+    return task;
   }
 
   async update(id: string, orgId: string, userId: string, dto: any) {
@@ -64,7 +80,17 @@ export class TaskService {
     }
 
     await this.repo.addHistory(id, userId, 'status', task.status, newStatus);
-    return this.repo.move(id, newStatus);
+    const moved = await this.repo.move(id, newStatus);
+
+    // Уведомление исполнителю
+    if (task.assigneeId && task.assigneeId !== userId) {
+      const assignee = await this.prisma.user.findUnique({ where: { id: task.assigneeId } });
+      const actor = await this.prisma.user.findUnique({ where: { id: userId } });
+      if (assignee?.telegramChatId) {
+        await this.telegram.notifyTaskStatusChanged(assignee.telegramChatId, task.title, newStatus, actor?.name ?? 'Менеджер');
+      }
+    }
+    return moved;
   }
 
   async delete(id: string, orgId: string, userId: string) {
@@ -77,6 +103,16 @@ export class TaskService {
   async addComment(taskId: string, orgId: string, userId: string, content: string) {
     const task = await this.repo.findById(taskId, orgId);
     if (!task) throw new NotFoundException('Task not found');
-    return this.repo.addComment(taskId, userId, content);
+    const comment = await this.repo.addComment(taskId, userId, content);
+
+    // Уведомление исполнителю
+    if (task.assigneeId && task.assigneeId !== userId) {
+      const assignee = await this.prisma.user.findUnique({ where: { id: task.assigneeId } });
+      const author = await this.prisma.user.findUnique({ where: { id: userId } });
+      if (assignee?.telegramChatId) {
+        await this.telegram.notifyTaskComment(assignee.telegramChatId, task.title, author?.name ?? 'Менеджер', content);
+      }
+    }
+    return comment;
   }
 }
