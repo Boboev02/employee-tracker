@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { usePermissions } from '@/lib/usePermissions';
 
 const API = 'https://employee-tracker.ru/api/v1/knowledge';
 
@@ -9,7 +10,9 @@ const COLORS = ['#8b7cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899'
 
 export default function KnowledgePage() {
   const router = useRouter();
+  const perms = usePermissions();
   const [token, setToken] = useState('');
+  const [viewingArticle, setViewingArticle] = useState<any>(null);
   const [categories, setCategories] = useState<any[]>([]);
   const [articles, setArticles] = useState<any[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -81,15 +84,21 @@ export default function KnowledgePage() {
 
   const saveArticle = async () => {
     if (!editArticle?.title) return;
+    const t = localStorage.getItem('access_token') || token;
+    if (!t) return;
     setLoading(true);
-    if (editArticle.id) {
-      await fetch(API + '/articles/' + editArticle.id, { method: 'PUT', headers: h(token), body: JSON.stringify(editArticle) });
-    } else {
-      await fetch(API + '/articles', { method: 'POST', headers: h(token), body: JSON.stringify(editArticle) });
+    try {
+      if (editArticle.id) {
+        await fetch(API + '/articles/' + editArticle.id, { method: 'PUT', headers: h(t), body: JSON.stringify(editArticle) });
+      } else {
+        await fetch(API + '/articles', { method: 'POST', headers: h(t), body: JSON.stringify(editArticle) });
+      }
+      setView('articles');
+      loadArticles(selectedCategory ?? undefined);
+    } catch(e) {
+      console.error('Save error:', e);
     }
     setLoading(false);
-    setView('articles');
-    loadArticles(selectedCategory ?? undefined);
   };
 
   const deleteArticle = async (id: string) => {
@@ -116,6 +125,15 @@ export default function KnowledgePage() {
       }
     } catch {}
     setUploading(false);
+  };
+
+  const openArticle = async (art: any) => {
+    const t = localStorage.getItem('access_token') || token;
+    if (!t) return;
+    const res = await fetch(`${API}/articles/${art.id}`, { headers: h(t) });
+    const data = await res.json();
+    setViewingArticle(data);
+    setView('view' as any);
   };
 
   const inputStyle: any = {
@@ -146,13 +164,13 @@ export default function KnowledgePage() {
           onChange={e => handleSearch(e.target.value)}
           style={{ ...inputStyle, width: '280px' }}
         />
-        {view === 'categories' && (
+        {view === 'categories' && perms.isAdmin && (
           <button onClick={() => setShowCatModal(true)}
             style={{ background: '#8b7cf6', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 16px', fontSize: '13px', cursor: 'pointer', fontWeight: 500 }}>
             + Категория
           </button>
         )}
-        {view === 'articles' && (
+        {view === 'articles' && perms.isAdmin && (
           <button onClick={() => { setEditArticle({ title: '', content: '', categoryId: selectedCategory }); setView('editor'); }}
             style={{ background: '#8b7cf6', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 16px', fontSize: '13px', cursor: 'pointer', fontWeight: 500 }}>
             + Статья
@@ -221,10 +239,76 @@ export default function KnowledgePage() {
                     <span>{new Date(art.updatedAt).toLocaleDateString('ru')}</span>
                   </div>
                 </div>
-                <button onClick={() => deleteArticle(art.id)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '16px' }}>🗑</button>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  {art.fileUrl && (
+                    <a href={art.fileUrl} download={art.fileName} target="_blank" rel="noreferrer"
+                      onClick={e => e.stopPropagation()}
+                      style={{ background: 'var(--bg-secondary)', border: '0.5px solid var(--border)', borderRadius: '6px', padding: '4px 10px', fontSize: '12px', color: 'var(--text-primary)', textDecoration: 'none', cursor: 'pointer' }}>
+                      ⬇ Скачать
+                    </a>
+                  )}
+                  {perms.isAdmin && (
+                    <>
+                      <button onClick={e => { e.stopPropagation(); setEditArticle(art); setView('editor'); }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '16px' }}>✏️</button>
+                      <button onClick={e => { e.stopPropagation(); deleteArticle(art.id); }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '16px' }}>🗑</button>
+                    </>
+                  )}
+                </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* VIEW ARTICLE */}
+        {(view as any) === 'view' && viewingArticle && (
+          <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+            <div style={{ background: 'var(--bg-primary)', border: '0.5px solid var(--border)', borderRadius: '12px', padding: '32px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
+                <div>
+                  <h1 style={{ fontSize: '24px', fontWeight: 600, margin: '0 0 8px', color: 'var(--text-primary)' }}>{viewingArticle.title}</h1>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', gap: '12px' }}>
+                    <span>{viewingArticle.category?.icon} {viewingArticle.category?.name}</span>
+                    <span>👁 {viewingArticle.views} просмотров</span>
+                    <span>{new Date(viewingArticle.updatedAt).toLocaleDateString('ru')}</span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {viewingArticle.fileUrl && (
+                    <a href={viewingArticle.fileUrl} download={viewingArticle.fileName} target="_blank" rel="noreferrer"
+                      style={{ background: '#8b7cf6', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 16px', fontSize: '13px', cursor: 'pointer', textDecoration: 'none', fontWeight: 500 }}>
+                      ⬇ Скачать файл
+                    </a>
+                  )}
+                  {perms.isAdmin && (
+                    <button onClick={() => { setEditArticle(viewingArticle); setView('editor'); }}
+                      style={{ background: 'var(--bg-secondary)', border: '0.5px solid var(--border)', borderRadius: '8px', padding: '8px 16px', fontSize: '13px', cursor: 'pointer', color: 'var(--text-primary)' }}>
+                      ✏️ Редактировать
+                    </button>
+                  )}
+                </div>
+              </div>
+              {viewingArticle.fileUrl && (
+                <div style={{ marginBottom: '24px', padding: '12px 16px', background: 'var(--bg-secondary)', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '24px' }}>
+                    {viewingArticle.fileType === 'pdf' ? '📄' : viewingArticle.fileType === 'docx' || viewingArticle.fileType === 'doc' ? '📝' : '📎'}
+                  </span>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>{viewingArticle.fileName}</div>
+                    <a href={viewingArticle.fileUrl} target="_blank" rel="noreferrer"
+                      style={{ fontSize: '12px', color: '#8b7cf6', textDecoration: 'none' }}>
+                      Открыть файл →
+                    </a>
+                  </div>
+                </div>
+              )}
+              {viewingArticle.content && (
+                <div style={{ fontSize: '14px', lineHeight: 1.8, color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
+                  {viewingArticle.content}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
