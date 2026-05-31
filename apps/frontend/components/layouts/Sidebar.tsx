@@ -16,6 +16,7 @@ const NAV = [
   { href: '/dashboard/timesheet',    icon: 'ti-calendar',         label: 'Табель',         admin: false },
   { href: '/dashboard/reports',      icon: 'ti-file-report',      label: 'Отчёты',         admin: true  },
   { href: '/dashboard/export',       icon: 'ti-download',         label: 'Экспорт',        admin: true  },
+  { href: '/dashboard/knowledge',     icon: 'ti-book',             label: 'База знаний',    admin: false },
   { href: '/dashboard/settings',     icon: 'ti-settings',         label: 'Настройки',      admin: true  },
 ];
 
