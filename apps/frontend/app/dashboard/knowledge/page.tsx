@@ -204,8 +204,10 @@ export default function KnowledgePage() {
                         <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)' }}>{cat.name}</div>
                         <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{cat._count?.articles ?? 0} статей</div>
                       </div>
-                      <button onClick={e => { e.stopPropagation(); deleteCategory(cat.id); }}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '16px', opacity: 0.5 }}>🗑</button>
+                      {perms.isAdmin && (
+                        <button onClick={e => { e.stopPropagation(); deleteCategory(cat.id); }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '16px', opacity: 0.5 }}>🗑</button>
+                      )}
                     </div>
                     {cat.description && <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.5 }}>{cat.description}</div>}
                     <div style={{ position: 'absolute', bottom: 0, left: '20px', right: '20px', height: '3px', background: cat.color, borderRadius: '0 0 4px 4px', opacity: 0.6 }} />
