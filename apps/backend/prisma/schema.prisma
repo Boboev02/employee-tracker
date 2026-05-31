@@ -209,3 +209,34 @@ model Notification {
   taskId    String?
   createdAt DateTime @default(now())
 }
+
+model KnowledgeCategory {
+  id          String             @id @default(uuid())
+  orgId       String
+  name        String
+  description String?
+  icon        String?
+  color       String?
+  sortOrder   Int                @default(0)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  articles    KnowledgeArticle[]
+}
+
+model KnowledgeArticle {
+  id          String              @id @default(uuid())
+  orgId       String
+  categoryId  String
+  title       String
+  content     String              @db.Text
+  fileUrl     String?
+  fileName    String?
+  fileType    String?
+  authorId    String
+  isPinned    Boolean             @default(false)
+  views       Int                 @default(0)
+  deletedAt   DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  category    KnowledgeCategory   @relation(fields: [categoryId], references: [id])
+}
