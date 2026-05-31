@@ -34,7 +34,7 @@ export class UploadController {
     if (!file) throw new BadRequestException('Файл не загружен');
     return {
       url: 'https://employee-tracker.ru/uploads/' + file.filename,
-      fileName: file.originalname,
+      fileName: Buffer.from(file.originalname, 'latin1').toString('utf8'),
       fileType: path.extname(file.originalname).toLowerCase().replace('.', ''),
       size: file.size,
     };

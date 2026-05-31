@@ -290,17 +290,34 @@ export default function KnowledgePage() {
                 </div>
               </div>
               {viewingArticle.fileUrl && (
-                <div style={{ marginBottom: '24px', padding: '12px 16px', background: 'var(--bg-secondary)', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ fontSize: '24px' }}>
-                    {viewingArticle.fileType === 'pdf' ? '📄' : viewingArticle.fileType === 'docx' || viewingArticle.fileType === 'doc' ? '📝' : '📎'}
-                  </span>
-                  <div>
-                    <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>{viewingArticle.fileName}</div>
-                    <a href={viewingArticle.fileUrl} target="_blank" rel="noreferrer"
-                      style={{ fontSize: '12px', color: '#8b7cf6', textDecoration: 'none' }}>
-                      Открыть файл →
+                <div style={{ marginBottom: '24px' }}>
+                  <div style={{ padding: '12px 16px', background: 'var(--bg-secondary)', borderRadius: '8px 8px 0 0', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '0.5px solid var(--border)' }}>
+                    <span style={{ fontSize: '20px' }}>
+                      {viewingArticle.fileType === 'pdf' ? '📄' : ['docx','doc'].includes(viewingArticle.fileType) ? '📝' : ['xlsx','xls'].includes(viewingArticle.fileType) ? '📊' : '📎'}
+                    </span>
+                    <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', flex: 1 }}>{viewingArticle.fileName}</span>
+                    <a href={viewingArticle.fileUrl} download={viewingArticle.fileName} target="_blank" rel="noreferrer"
+                      style={{ fontSize: '12px', color: '#8b7cf6', textDecoration: 'none', padding: '4px 10px', background: 'rgba(139,124,246,0.1)', borderRadius: '6px' }}>
+                      ⬇ Скачать
                     </a>
                   </div>
+                  {viewingArticle.fileType === 'pdf' ? (
+                    <iframe
+                      src={viewingArticle.fileUrl}
+                      style={{ width: '100%', height: '600px', border: '0.5px solid var(--border)', borderRadius: '0 0 8px 8px' }}
+                      title={viewingArticle.fileName}
+                    />
+                  ) : ['docx','doc','xlsx','xls'].includes(viewingArticle.fileType) ? (
+                    <iframe
+                      src={`https://docs.google.com/viewer?url=${encodeURIComponent(viewingArticle.fileUrl)}&embedded=true`}
+                      style={{ width: '100%', height: '600px', border: '0.5px solid var(--border)', borderRadius: '0 0 8px 8px' }}
+                      title={viewingArticle.fileName}
+                    />
+                  ) : (
+                    <div style={{ padding: '24px', textAlign: 'center', background: 'var(--bg-secondary)', borderRadius: '0 0 8px 8px' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Предпросмотр недоступен для этого типа файла</div>
+                    </div>
+                  )}
                 </div>
               )}
               {viewingArticle.content && (
