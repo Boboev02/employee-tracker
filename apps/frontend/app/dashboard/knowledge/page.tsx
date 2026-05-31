@@ -19,6 +19,7 @@ export default function KnowledgePage() {
   const [showCatModal, setShowCatModal] = useState(false);
   const [newCat, setNewCat] = useState({ name: '', description: '', icon: '📁', color: '#8b7cf6' });
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     const t = localStorage.getItem('access_token');
@@ -98,6 +99,24 @@ export default function KnowledgePage() {
   };
 
   const selectedCat = categories.find(c => c.id === selectedCategory);
+
+  const uploadFile = async (file: File) => {
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await fetch('https://employee-tracker.ru/api/v1/upload/file', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token },
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.url) {
+        setEditArticle((prev: any) => ({ ...prev, fileUrl: data.url, fileName: data.fileName, fileType: data.fileType }));
+      }
+    } catch {}
+    setUploading(false);
+  };
 
   const inputStyle: any = {
     width: '100%', background: 'var(--bg-secondary)', border: '0.5px solid var(--border)',
@@ -234,12 +253,23 @@ export default function KnowledgePage() {
                 rows={16}
                 style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.7 }}
               />
-              <input
-                placeholder="Ссылка на файл (необязательно)"
-                value={editArticle.fileUrl ?? ''}
-                onChange={e => setEditArticle({ ...editArticle, fileUrl: e.target.value })}
-                style={inputStyle}
-              />
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <input
+                  placeholder="Ссылка на файл (необязательно)"
+                  value={editArticle.fileUrl ?? ''}
+                  onChange={e => setEditArticle({ ...editArticle, fileUrl: e.target.value })}
+                  style={{ ...inputStyle, flex: 1 }}
+                />
+                <label style={{ background: 'var(--bg-secondary)', border: '0.5px solid var(--border)', borderRadius: '8px', padding: '8px 16px', fontSize: '13px', cursor: 'pointer', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                  {uploading ? '⏳ Загрузка...' : '📎 Загрузить файл'}
+                  <input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt" style={{ display: 'none' }} onChange={e => e.target.files?.[0] && uploadFile(e.target.files[0])} />
+                </label>
+              </div>
+              {editArticle.fileName && (
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '6px 10px', background: 'var(--bg-secondary)', borderRadius: '6px' }}>
+                  📎 {editArticle.fileName}
+                </div>
+              )}
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                 <button onClick={() => setView('articles')}
                   style={{ background: 'var(--bg-secondary)', border: '0.5px solid var(--border)', borderRadius: '8px', padding: '8px 20px', fontSize: '13px', cursor: 'pointer', color: 'var(--text-primary)' }}>
