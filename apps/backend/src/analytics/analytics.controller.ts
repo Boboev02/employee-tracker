@@ -88,6 +88,6 @@ export class AnalyticsController {
 
   @Get('activity/feed')
   async getFeed(@CurrentUser() user: any, @Query('limit') limit?: string) {
-    return this.analyticsService.getActivityFeed(user.orgId, parseInt(limit||'50'));
+    return this.analytics.getActivityFeed(user.orgId, parseInt(limit||'50'));
   }
 }

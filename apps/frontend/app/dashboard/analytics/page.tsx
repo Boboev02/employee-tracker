@@ -36,11 +36,13 @@ export default function AnalyticsPage() {
   const [hourly, setHourly]         = useState<any[]>([]);
   const [totalEvents, setTotalEvents] = useState(0);
   const [loading, setLoading]       = useState(true);
-  const [activeTab, setActiveTab]   = useState<'tasks' | 'activity'>('tasks');
+  const [activeTab, setActiveTab]   = useState<'tasks' | 'activity' | 'feed'>('tasks');
   const [period, setPeriod]         = useState('7');
   const [selectedEmployee, setSelectedEmployee] = useState('');
   const [selectedPlatform, setSelectedPlatform] = useState('');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [feed, setFeed] = useState<any[]>([]);
+  const [feedLoading, setFeedLoading] = useState(false);
 
   useEffect(() => {
     const t = localStorage.getItem('access_token');
@@ -85,6 +87,14 @@ export default function AnalyticsPage() {
     } finally { setLoading(false); }
   }, []);
 
+  const loadFeed = async (t: string) => {
+    setFeedLoading(true);
+    try {
+      const res = await fetch('https://employee-tracker.ru/api/v1/analytics/activity/feed?limit=100', { headers: { Authorization: 'Bearer ' + t } });
+      const data = await res.json();
+      if (Array.isArray(data)) setFeed(data);
+    } catch(e) {} finally { setFeedLoading(false); }
+  };
   const applyFilters = (p = period, e = selectedEmployee, pl = selectedPlatform) => loadAll(token, p, e, pl);
   const hasFilters = period !== '7' || selectedEmployee !== '' || selectedPlatform !== '';
   const hasActivity = totalEvents > 0;
@@ -140,6 +150,7 @@ export default function AnalyticsPage() {
           <div style={{ display:'flex', gap:'3px', background:'var(--bg-secondary)', borderRadius:'8px', padding:'3px' }}>
             <button style={tabBtnStyle(activeTab === 'tasks')}    onClick={() => setActiveTab('tasks')}>✓ Задачи</button>
             <button style={tabBtnStyle(activeTab === 'activity')} onClick={() => setActiveTab('activity')}>⏱ Активность</button>
+            <button style={tabBtnStyle(activeTab === 'feed')} onClick={() => { setActiveTab('feed' as any); loadFeed(token); }}>🔴 Живой фид</button>
           </div>
           <a href="/dashboard/analytics/sections" style={{ fontSize:'12px', color:'var(--accent)', textDecoration:'none', padding:'6px 12px', borderRadius:'8px', background:'var(--accent-bg)', fontWeight:500 }}>
             📊 По разделам →
@@ -348,6 +359,65 @@ export default function AnalyticsPage() {
               </>
             )}
           </>
+        )}
+
+        {(activeTab as any) === 'feed' && (
+          <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <p style={{ fontSize:'13px', color:'var(--text-muted)', margin:0 }}>
+                {feedLoading ? 'Загрузка...' : feed.length + ' последних событий'}
+              </p>
+              <button onClick={()=>loadFeed(token)} style={{ fontSize:'12px', color:'var(--accent)', background:'var(--accent-bg)', border:'none', borderRadius:'7px', padding:'5px 12px', cursor:'pointer', fontWeight:500 }}>
+                ↻ Обновить
+              </button>
+            </div>
+            {feed.length===0 && !feedLoading ? (
+              <div style={{ background:'var(--bg-primary)', border:'0.5px solid var(--border)', borderRadius:'var(--radius)', padding:'48px', textAlign:'center' }}>
+                <p style={{ fontSize:'36px', marginBottom:'12px' }}>📡</p>
+                <p style={{ fontSize:'15px', fontWeight:500, color:'var(--text-primary)', marginBottom:'6px' }}>Нет событий</p>
+                <p style={{ fontSize:'13px', color:'var(--text-muted)' }}>Откройте WB или Ozon с установленным расширением</p>
+              </div>
+            ) : (
+              <div style={{ background:'var(--bg-primary)', border:'0.5px solid var(--border)', borderRadius:'var(--radius)', overflow:'hidden' }}>
+                {feed.map((event:any, i:number) => {
+                  const isWB = event.platform==='WILDBERRIES';
+                  const pd = event.platformData as any;
+                  const section = pd?.section && pd.section!=='other' ? pd.section : null;
+                  const evtType = event.eventType as string;
+                  const isPing = evtType.includes('ping');
+                  const isEnter = evtType.includes('enter');
+                  const isLeave = evtType.includes('leave');
+                  const color = isPing?'var(--text-muted)':isEnter?'var(--green)':isLeave?'var(--orange)':'var(--accent)';
+                  const icon = isPing?'⏱':isEnter?'▶':isLeave?'⏸':'⚡';
+                  const ago = Math.floor((Date.now()-new Date(event.createdAt).getTime())/60000);
+                  const agoStr = ago<1?'только что':ago<60?ago+'м назад':Math.floor(ago/60)+'ч назад';
+                  const avatarColors = ['#8b7cf6','#4d9de0','#22c55e','#f97316','#ef4444','#14b8a6'];
+                  const avatarBg = avatarColors[(event.userName?.charCodeAt(0)??0)%avatarColors.length];
+                  const actionLabels: Record<string,string> = { wb_review_reply:'Ответил на отзыв', wb_review_complaint:'Жалоба на отзыв', ozon_review_reply:'Ответил на отзыв', wb_price_save:'Сохранил цены', wb_price_edit:'Изменил цену', ozon_price_save:'Сохранил цены', wb_stock_update:'Обновил остатки', ozon_stock_update:'Обновил остатки', wb_product_edit:'Редактировал товар', ozon_product_edit:'Редактировал товар' };
+                  const sectionLabels: Record<string,string> = { feedbacks:'Отзывы', reviews:'Отзывы', products:'Товары', prices:'Цены', advertising:'Реклама', analytics:'Аналитика', stocks:'Остатки', chat:'Чат', orders:'Заказы', finance:'Финансы', dashboard:'Дашборд' };
+                  const label = actionLabels[evtType] ?? (isEnter?'Зашёл в раздел':isLeave?'Вышел из раздела':isPing?'Активен':evtType.replace(/^(wb_|ozon_)/,'').replace(/_/g,' '));
+                  return (
+                    <div key={event.id} style={{ display:'flex', alignItems:'center', gap:'12px', padding:'10px 16px', borderBottom:i<feed.length-1?'0.5px solid var(--border)':'none', opacity:isPing?0.5:1 }}
+                      onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background='var(--bg-secondary)'}
+                      onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background='transparent'}>
+                      <div style={{ width:'30px', height:'30px', borderRadius:'50%', background:avatarBg, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                        <span style={{ color:'white', fontSize:'11px', fontWeight:600 }}>{event.userName?.charAt(0)}</span>
+                      </div>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap' }}>
+                          <span style={{ fontSize:'13px', fontWeight:500, color:'var(--text-primary)' }}>{event.userName}</span>
+                          <span style={{ fontSize:'11px', fontWeight:700, color:isWB?'var(--accent)':'var(--blue)', background:isWB?'var(--accent-bg)':'rgba(77,157,224,0.1)', padding:'1px 6px', borderRadius:'4px' }}>{isWB?'WB':'OZ'}</span>
+                          {section && <span style={{ fontSize:'11px', color:'var(--text-muted)' }}>{sectionLabels[section]??section}</span>}
+                        </div>
+                        <p style={{ fontSize:'12px', color, margin:'1px 0 0' }}>{icon} {label}</p>
+                      </div>
+                      <span style={{ fontSize:'11px', color:'var(--text-muted)', flexShrink:0 }}>{agoStr}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>
