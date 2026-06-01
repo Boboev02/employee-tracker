@@ -39,7 +39,7 @@ export default function TimesheetPage() {
   const load = async (token: string, d: number, uid: string) => {
     setLoading(true);
     try {
-      let url = `https://employee-tracker.ru/api/v1/analytics/timesheet?days=${d}`;
+      let url = `https://employee-tracker.ru/api/v1/timesheet?days=${d}`;
       if (uid) url += `&userId=${uid}`;
       const res = await fetch(url, { headers:{ Authorization:'Bearer '+token } });
       const json = await res.json();
