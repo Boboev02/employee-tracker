@@ -85,9 +85,9 @@ export class AnalyticsController {
   getProductivity(@CurrentUser() user: any, @Query('days') days?: string) {
     return this.productivity.getOrgProductivity(user.orgId, days ? parseInt(days) : 7);
   }
-}
 
   @Get('activity/feed')
   async getFeed(@CurrentUser() user: any, @Query('limit') limit?: string) {
     return this.analyticsService.getActivityFeed(user.orgId, parseInt(limit||'50'));
   }
+}
