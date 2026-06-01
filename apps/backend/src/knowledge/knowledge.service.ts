@@ -24,6 +24,8 @@ export class KnowledgeService {
   }
 
   async deleteCategory(id: string) {
+    // Сначала удаляем все статьи категории
+    await this.prisma.knowledgeArticle.deleteMany({ where: { categoryId: id } });
     return this.prisma.knowledgeCategory.delete({ where: { id } });
   }
 
