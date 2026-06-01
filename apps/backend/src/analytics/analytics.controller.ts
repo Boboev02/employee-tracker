@@ -57,16 +57,16 @@ export class AnalyticsController {
 
   @Get('activity/platforms')
   @RequirePermissions('analytics:view:org', 'analytics:view:team', 'analytics:view:self')
-  getPlatformBreakdown(@CurrentUser() user: any, @Query('days') days?: string) {
+  getPlatformBreakdown(@CurrentUser() user: any, @Query('days') days?: string, @Query('platform') platform?: string) {
     return this.activeTime.getPlatformBreakdown(user.orgId, days ? parseInt(days) : 7);
   }
 
   @Get('activity/hourly')
   @RequirePermissions('analytics:view:org', 'analytics:view:team', 'analytics:view:self')
-  getHourlyActivity(@CurrentUser() user: any, @Query('userId') userId?: string) {
+  getHourlyActivity(@CurrentUser() user: any, @Query('userId') userId?: string, @Query('days') days?: string) {
     const hasOrgView = user.permissions?.has('analytics:view:org') || user.permissions?.has('analytics:view:team');
     const targetUserId = hasOrgView ? userId : user.id;
-    return this.activeTime.getHourlyActivity(user.orgId, targetUserId);
+    return this.activeTime.getHourlyActivity(user.orgId, targetUserId, days ? parseInt(days) : 7);
   }
 
   @Get('activity/total')

@@ -149,9 +149,14 @@ export class ActiveTimeService {
     }));
   }
 
-  async getHourlyActivity(orgId: string, userId?: string) {
+  async getHourlyActivity(orgId: string, userId?: string, days = 7) {
     const from = new Date();
-    from.setDate(from.getDate() - 7);
+    if (days === 1) {
+      from.setHours(0, 0, 0, 0);
+    } else {
+      from.setDate(from.getDate() - days);
+      from.setHours(0, 0, 0, 0);
+    }
 
     const where: any = { orgId, createdAt: { gte: from } };
     if (userId) where.userId = userId;

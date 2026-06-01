@@ -74,7 +74,7 @@ export default function AnalyticsPage() {
         fetch(base + '/employees', { headers: h }).then(r => r.json()),
         fetch(base + '/activity/summary?' + params, { headers: h }).then(r => r.json()),
         fetch(base + '/activity/platforms?' + params, { headers: h }).then(r => r.json()),
-        fetch(base + '/activity/hourly?' + params, { headers: h }).then(r => r.json()),
+        fetch(base + '/activity/hourly?days=' + days + (empId ? '&userId=' + empId : ''), { headers: h }).then(r => r.json()),
         fetch(base + '/activity/total', { headers: h }).then(r => r.json()),
       ]);
       setStats(s); setByStatus(Array.isArray(bs) ? bs.filter((x: any) => x.count > 0) : []);
