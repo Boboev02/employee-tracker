@@ -80,4 +80,38 @@ export class AnalyticsService {
 
     return stats.sort((a, b) => b.completed - a.completed);
   }
+
+  async getActivityFeed(orgId: string, limit = 50) {
+    const events = await this.prisma.activityEvent.findMany({
+      where: { orgId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        userId: true,
+        platform: true,
+        eventType: true,
+        platformData: true,
+        clientTimestamp: true,
+        createdAt: true,
+      },
+    });
+
+    const userIds = [...new Set(events.map(e => e.userId))];
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, name: true },
+    });
+    const userMap = Object.fromEntries(users.map(u => [u.id, u.name]));
+
+    return events.map(e => ({
+      id: e.id,
+      userId: e.userId,
+      userName: userMap[e.userId] ?? 'Сотрудник',
+      platform: e.platform,
+      eventType: e.eventType,
+      platformData: e.platformData,
+      createdAt: e.createdAt,
+    }));
+  }
 }
