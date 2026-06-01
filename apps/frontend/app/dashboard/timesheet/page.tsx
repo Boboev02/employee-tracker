@@ -2,219 +2,166 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-const STATUS_STYLE: Record<string, { label: string; color: string; bg: string }> = {
-  present:     { label:'Присутствует', color:'var(--green)',  bg:'var(--green-bg)' },
-  late:        { label:'Опоздание',    color:'var(--yellow)', bg:'var(--yellow-bg)' },
-  early_leave: { label:'Ранний уход',  color:'var(--orange)', bg:'var(--orange-bg)' },
-  absent:      { label:'Отсутствует',  color:'var(--red)',    bg:'var(--red-bg)' },
-  weekend:     { label:'Выходной',     color:'var(--text-muted)', bg:'var(--bg-secondary)' },
-  no_data:     { label:'—',            color:'var(--text-muted)', bg:'transparent' },
-};
-
-function fmt(mins: number) {
-  if (!mins) return '—';
-  const h = Math.floor(mins / 60); const m = mins % 60;
-  return h > 0 ? h + 'ч ' + m + 'м' : m + 'м';
+function fmtSec(s: number) {
+  if (!s || s <= 0) return '—';
+  if (s < 60) return s + 'с';
+  if (s < 3600) return Math.floor(s / 60) + 'м';
+  return Math.floor(s / 3600) + 'ч ' + Math.floor((s % 3600) / 60) + 'м';
 }
 
-function fmtTime(timeStr: string | null) {
-  if (!timeStr) return '—';
-  return timeStr;
-}
-
+const AVATAR_COLORS = ['#6C5CE7','#4A90E2','#43A047','#FB8C00','#E53935','#00ACC1','#8E24AA'];
+const avatarColor = (name: string) => AVATAR_COLORS[(name?.charCodeAt(0)??0) % AVATAR_COLORS.length];
+const DAYS_RU = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
 
 export default function TimesheetPage() {
   const router = useRouter();
-  const [token, setToken]   = useState('');
-  const [data, setData]     = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState('14');
-  const [selectedUser, setSelectedUser] = useState('');
+  const [data, setData]           = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
-  const [todaySessions, setTodaySessions] = useState<any[]>([]);
+  const [selectedUser, setSelectedUser] = useState('ALL');
+  const [days, setDays]           = useState(7);
+  const [loading, setLoading]     = useState(true);
 
   useEffect(() => {
     const t = localStorage.getItem('access_token');
     if (!t) { router.push('/login'); return; }
-    setToken(t);
-    loadEmployees(t); load(t, '14', ''); loadTodaySessions(t);
-  }, []);
+    loadData(t);
+  }, [days]);
 
-  const loadEmployees = async (t: string) => {
-    const res = await fetch('https://employee-tracker.ru/api/v1/employees', { headers: { Authorization: 'Bearer ' + t } });
-    const d = await res.json(); setEmployees(Array.isArray(d) ? d : []);
-  };
-
-  const loadTodaySessions = async (t: string) => {
-    try {
-      const res = await fetch('https://employee-tracker.ru/api/v1/work-session/org/today', { headers: { Authorization: 'Bearer ' + t } });
-      const d = await res.json(); setTodaySessions(Array.isArray(d) ? d : []);
-    } catch {}
-  };
-
-  const load = async (t: string, days: string, uid: string) => {
+  const loadData = async (t: string) => {
     setLoading(true);
-    const params = new URLSearchParams({ days }); if (uid) params.set('userId', uid);
-    const res = await fetch('https://employee-tracker.ru/api/v1/timesheet?' + params, { headers: { Authorization: 'Bearer ' + t } });
-    const d = await res.json(); setData(Array.isArray(d) ? d : []);
-    setLoading(false);
+    try {
+      const [activity, emps] = await Promise.all([
+        fetch(`https://employee-tracker.ru/api/v1/analytics/activity/summary?days=${days}`, { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
+        fetch('https://employee-tracker.ru/api/v1/employees', { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
+      ]);
+      if (Array.isArray(activity)) setData(activity);
+      if (Array.isArray(emps)) setEmployees(emps);
+    } catch(e) {} finally { setLoading(false); }
   };
 
-  const dates = data[0]?.days?.map((d: any) => ({ date: d.date, dayOfWeek: d.dayOfWeek })) ?? [];
+  const filtered = selectedUser === 'ALL' ? data : data.filter(d => d.userId === selectedUser);
+
+  const card: React.CSSProperties = { background:'#fff', borderRadius:'12px', padding:'16px 18px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', border:'1px solid #eee' };
+  const selStyle: React.CSSProperties = { background:'#F5F3FC', border:'1.5px solid #E0DDF0', borderRadius:'9px', padding:'7px 12px', fontSize:'13px', color:'#1a1a2e', outline:'none' };
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-tertiary)' }}>
-      <div style={{ background: 'var(--bg-primary)', borderBottom: '0.5px solid var(--border)', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 10, flexWrap: 'wrap', gap: '10px' }}>
+    <div style={{ minHeight:'100vh', background:'#EBE8F6' }}>
+      <div style={{ background:'#fff', borderBottom:'1px solid #eee', padding:'16px 28px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:10, boxShadow:'0 2px 8px rgba(108,92,231,0.06)' }}>
         <div>
-          <h1 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Табель рабочего времени</h1>
-          <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0' }}>Начало и окончание по данным трекера</p>
+          <h1 style={{ fontSize:'18px', fontWeight:700, color:'#1a1a2e', margin:0 }}>Табель</h1>
+          <p style={{ fontSize:'12px', color:'#aaa', margin:'2px 0 0' }}>Учёт рабочего времени сотрудников</p>
         </div>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', gap: '3px', background: 'var(--bg-secondary)', borderRadius: '8px', padding: '3px' }}>
-            {[{l:'7д',v:'7'},{l:'14д',v:'14'},{l:'30д',v:'30'}].map(opt => (
-              <button key={opt.v} onClick={() => { setPeriod(opt.v); load(token, opt.v, selectedUser); }}
-                style={{ padding: '5px 10px', borderRadius: '6px', fontSize: '12px', border: 'none', cursor: 'pointer', background: period === opt.v ? 'var(--bg-primary)' : 'transparent', color: period === opt.v ? 'var(--text-primary)' : 'var(--text-muted)', fontWeight: period === opt.v ? 500 : 400 }}>
-                {opt.l}
-              </button>
-            ))}
-          </div>
-          <select value={selectedUser} onChange={e => { setSelectedUser(e.target.value); load(token, period, e.target.value); }}
-            style={{ background: 'var(--bg-primary)', border: '0.5px solid var(--border)', borderRadius: '8px', padding: '6px 10px', fontSize: '12px', color: 'var(--text-primary)', outline: 'none' }}>
-            <option value="">Все сотрудники</option>
-            {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+        <div style={{ display:'flex', gap:'8px' }}>
+          {[{v:1,l:'Сегодня'},{v:7,l:'7 дней'},{v:14,l:'14 дней'},{v:30,l:'30 дней'}].map(d => (
+            <button key={d.v} onClick={()=>setDays(d.v)}
+              style={{ padding:'6px 14px', borderRadius:'8px', border:'none', fontSize:'12px', fontWeight:500, cursor:'pointer', background:days===d.v?'#6C5CE7':'#F5F3FC', color:days===d.v?'white':'#666', transition:'all 0.15s' }}>
+              {d.l}
+            </button>
+          ))}
+          <select value={selectedUser} onChange={e=>setSelectedUser(e.target.value)} style={selStyle}>
+            <option value="ALL">Все сотрудники</option>
+            {employees.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
           </select>
         </div>
       </div>
 
-      {loading ? (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', color: 'var(--text-muted)', fontSize: '13px' }}>Загрузка...</div>
-      ) : (
-        <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
-          {/* Summary */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
-            {[
-              { label: 'Сотрудников',    value: data.length, color: 'var(--text-primary)' },
-              { label: 'Присутствовали', value: data.reduce((s, r) => s + r.presentDays, 0), color: '#22c55e' },
-              { label: 'Опозданий',      value: data.reduce((s, r) => s + r.lateDays, 0), color: '#eab308' },
-              { label: 'Отсутствий',     value: data.reduce((s, r) => s + r.absentDays, 0), color: '#ef4444' },
-            ].map(card => (
-              <div key={card.label} style={{ background: 'var(--bg-primary)', border: '0.5px solid var(--border)', borderRadius: 'var(--radius)', padding: '14px' }}>
-                <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>{card.label}</p>
-                <p style={{ fontSize: '22px', fontWeight: 600, color: card.color, margin: 0 }}>{card.value}</p>
-              </div>
-            ))}
+      <div style={{ padding:'24px 28px', display:'flex', flexDirection:'column', gap:'16px' }}>
+        {loading ? (
+          <div style={{ ...card, padding:'60px', textAlign:'center', color:'#aaa' }}>Загрузка данных...</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ ...card, padding:'60px', textAlign:'center' }}>
+            <div style={{ fontSize:'40px', marginBottom:'12px' }}>📅</div>
+            <p style={{ color:'#aaa', fontSize:'13px' }}>Нет данных за выбранный период</p>
           </div>
+        ) : (
+          <>
+            {/* Summary cards */}
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'14px' }}>
+              {[
+                { label:'Всего сотрудников', value:filtered.length, icon:'ti-users', color:'#6C5CE7', bg:'#EDE9FF' },
+                { label:'Активных дней', value:Math.max(...filtered.map(d=>d.activeDays??0)), icon:'ti-calendar', color:'#4A90E2', bg:'#E3F2FD' },
+                { label:'Всего кликов', value:filtered.reduce((s,d)=>s+(d.totalEvents??0),0).toLocaleString('ru'), icon:'ti-mouse', color:'#43A047', bg:'#E8F5E9' },
+              ].map((k,i) => (
+                <div key={i} style={{ ...card, display:'flex', alignItems:'center', gap:'12px' }}>
+                  <div style={{ width:'42px', height:'42px', borderRadius:'10px', background:k.bg, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <i className={'ti '+k.icon} style={{ fontSize:'20px', color:k.color }} aria-hidden="true" />
+                  </div>
+                  <div>
+                    <p style={{ fontSize:'22px', fontWeight:700, color:'#1a1a2e', margin:0, lineHeight:1 }}>{k.value}</p>
+                    <p style={{ fontSize:'12px', color:'#aaa', margin:'4px 0 0' }}>{k.label}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
 
-          {/* Today sessions */}
-          {todaySessions.length > 0 && (
-            <div style={{ background: 'var(--bg-primary)', border: '0.5px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
-              <div style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--border)', background: 'var(--bg-secondary)' }}>
-                <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Сегодня — ручные отметки</p>
-              </div>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            {/* Table */}
+            <div style={card}>
+              <table style={{ width:'100%', borderCollapse:'collapse' }}>
                 <thead>
-                  <tr>
-                    {['Сотрудник','Начал','Закончил','Работал','Перерыв','Статус'].map(h => (
-                      <th key={h} style={{ padding: '10px 16px', fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', background: 'var(--bg-secondary)', borderBottom: '0.5px solid var(--border)', textAlign: 'left' }}>{h}</th>
+                  <tr style={{ borderBottom:'1px solid #f0f0f0' }}>
+                    {['Сотрудник','Активных дней','Кликов','Активное время','WB','Ozon','Активность по дням'].map(h => (
+                      <th key={h} style={{ padding:'10px 14px', textAlign:'left', fontSize:'10px', fontWeight:600, color:'#aaa', textTransform:'uppercase', letterSpacing:'0.5px', whiteSpace:'nowrap' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {todaySessions.map((s: any) => (
-                    <tr key={s.userId}>
-                      <td style={{ padding: '10px 16px', borderBottom: '0.5px solid var(--border)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <span style={{ color: 'white', fontSize: '10px', fontWeight: 600 }}>{s.name.charAt(0)}</span>
+                  {filtered.map((emp:any) => {
+                    const totalEv = emp.totalEvents ?? 0;
+                    const wb = emp.platforms?.WILDBERRIES ?? 0;
+                    const oz = emp.platforms?.OZON ?? 0;
+                    const totalTime = Object.values(emp.sections??{} as Record<string,any>).reduce((s:number,v:any)=>s+(v.timeSeconds??0),0);
+                    const recentDays = (emp.days??[]).slice(-7);
+                    const maxDay = Math.max(...recentDays.map((d:any)=>d.eventCount??0), 1);
+                    return (
+                      <tr key={emp.userId} style={{ borderBottom:'1px solid #f9f9f9', transition:'background 0.1s' }}
+                        onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background='#F5F3FC'}
+                        onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background='transparent'}>
+                        <td style={{ padding:'12px 14px' }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+                            <div style={{ width:'34px', height:'34px', borderRadius:'50%', background:avatarColor(emp.name), display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                              <span style={{ color:'white', fontSize:'12px', fontWeight:600 }}>{emp.name?.charAt(0)}</span>
+                            </div>
+                            <span style={{ fontSize:'13px', fontWeight:500, color:'#1a1a2e' }}>{emp.name}</span>
                           </div>
-                          <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>{s.name}</span>
-                        </div>
-                      </td>
-                      <td style={{ padding: '10px 16px', borderBottom: '0.5px solid var(--border)', fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>{s.startedAt ?? '—'}</td>
-                      <td style={{ padding: '10px 16px', borderBottom: '0.5px solid var(--border)', fontSize: '13px', color: 'var(--text-secondary)' }}>{s.finishedAt ?? '—'}</td>
-                      <td style={{ padding: '10px 16px', borderBottom: '0.5px solid var(--border)', fontSize: '13px', color: '#a78bfa', fontWeight: 500 }}>{s.workMinutes >= 60 ? Math.floor(s.workMinutes/60) + 'ч ' + (s.workMinutes%60) + 'м' : s.workMinutes + 'м'}</td>
-                      <td style={{ padding: '10px 16px', borderBottom: '0.5px solid var(--border)', fontSize: '13px', color: 'var(--text-muted)' }}>{s.breakMinutes ? s.breakMinutes + 'м' : '—'}</td>
-                      <td style={{ padding: '10px 16px', borderBottom: '0.5px solid var(--border)' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 500, padding: '3px 8px', borderRadius: '12px', background: s.status === 'working' ? '#f0fdf4' : s.status === 'break' ? '#fefce8' : s.status === 'finished' ? '#f4f4f5' : 'var(--bg-secondary)', color: s.status === 'working' ? '#22c55e' : s.status === 'break' ? '#eab308' : s.status === 'finished' ? '#71717a' : 'var(--text-muted)' }}>
-                          {s.status === 'working' ? 'Работает' : s.status === 'break' ? 'Перерыв' : s.status === 'finished' ? 'Завершил' : 'Не начал'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td style={{ padding:'12px 14px' }}>
+                          <span style={{ fontSize:'13px', fontWeight:600, color:'#1a1a2e' }}>{emp.activeDays ?? 0}</span>
+                          <span style={{ fontSize:'11px', color:'#aaa', marginLeft:'4px' }}>дн.</span>
+                        </td>
+                        <td style={{ padding:'12px 14px' }}>
+                          <span style={{ fontSize:'13px', fontWeight:600, color:'#6C5CE7' }}>{totalEv.toLocaleString('ru')}</span>
+                        </td>
+                        <td style={{ padding:'12px 14px' }}>
+                          <span style={{ fontSize:'13px', fontWeight:600, color:'#1a1a2e' }}>{fmtSec(totalTime)}</span>
+                        </td>
+                        <td style={{ padding:'12px 14px' }}>
+                          <span style={{ fontSize:'12px', fontWeight:600, color:'#6C5CE7', background:'#EDE9FF', padding:'2px 8px', borderRadius:'6px' }}>{wb}</span>
+                        </td>
+                        <td style={{ padding:'12px 14px' }}>
+                          <span style={{ fontSize:'12px', fontWeight:600, color:'#4A90E2', background:'#E3F2FD', padding:'2px 8px', borderRadius:'6px' }}>{oz}</span>
+                        </td>
+                        <td style={{ padding:'12px 14px' }}>
+                          <div style={{ display:'flex', gap:'3px', alignItems:'flex-end', height:'28px' }}>
+                            {recentDays.map((d:any,i:number) => {
+                              const h = Math.max(4, Math.round((d.eventCount??0)/maxDay*24));
+                              const dt = new Date(d.date);
+                              const isToday = new Date().toDateString() === dt.toDateString();
+                              return (
+                                <div key={i} title={`${d.date}: ${d.eventCount} кликов`}
+                                  style={{ width:'10px', height:h+'px', borderRadius:'3px', background:isToday?'#6C5CE7':d.eventCount>0?'#EDE9FF':'#f0f0f0', transition:'height 0.3s', flexShrink:0 }} />
+                              );
+                            })}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
-          )}
-
-          {/* Timesheet table */}
-          <div style={{ background: 'var(--bg-primary)', border: '0.5px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-              <thead>
-                <tr>
-                  <th style={{ padding: '10px 16px', fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', background: 'var(--bg-secondary)', borderBottom: '0.5px solid var(--border)', textAlign: 'left', position: 'sticky', left: 0, minWidth: '160px' }}>Сотрудник</th>
-                  <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', background: 'var(--bg-secondary)', borderBottom: '0.5px solid var(--border)', textAlign: 'center', minWidth: '60px' }}>Среднее</th>
-                  {dates.map((d: any) => (
-                    <th key={d.date} style={{ padding: '10px 8px', fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-secondary)', borderBottom: '0.5px solid var(--border)', textAlign: 'center', minWidth: '72px' }}>
-                      <div>{d.dayOfWeek}</div>
-                      <div style={{ fontWeight: 400, color: 'var(--text-muted)' }}>{d.date.slice(5)}</div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {data.map((row: any) => (
-                  <tr key={row.userId}>
-                    <td style={{ padding: '10px 16px', borderBottom: '0.5px solid var(--border)', position: 'sticky', left: 0, background: 'var(--bg-primary)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <span style={{ color: 'white', fontSize: '10px', fontWeight: 600 }}>{row.name.charAt(0)}</span>
-                        </div>
-                        <div>
-                          <p style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>{row.name}</p>
-                          <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: 0 }}>{row.avgStartTime} — {row.avgEndTime}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td style={{ padding: '10px 12px', borderBottom: '0.5px solid var(--border)', textAlign: 'center' }}>
-                      <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)' }}>{row.avgStartTime}</div>
-                      <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{fmt(Math.round(row.totalWorkMinutes / (row.presentDays || 1)))}/д</div>
-                    </td>
-                    {row.days.map((day: any) => {
-                      const ss = STATUS_STYLE[day.status] ?? STATUS_STYLE.no_data;
-                      return (
-                        <td key={day.date} style={{ padding: '8px', borderBottom: '0.5px solid var(--border)', textAlign: 'center' }}>
-                          {day.status === 'weekend' || day.status === 'no_data' ? (
-                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>—</span>
-                          ) : day.status === 'absent' ? (
-                            <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 6px', borderRadius: '6px', background: '#fef2f2', color: '#ef4444' }}>Нет</span>
-                          ) : (
-                            <div style={{ fontSize: '11px' }}>
-                              <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{day.firstEvent}</div>
-                              <div style={{ color: 'var(--text-muted)' }}>{day.lastEvent}</div>
-                              {day.lateMinutes > 15 && <div style={{ color: '#eab308', fontWeight: 600 }}>⏰ опозд. {day.lateMinutes >= 60 ? Math.floor(day.lateMinutes/60) + 'ч ' + (day.lateMinutes%60) + 'м' : day.lateMinutes + 'м'}</div>}
-                            </div>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Legend */}
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            {Object.entries(STATUS_STYLE).filter(([k]) => k !== 'no_data').map(([key, s]) => (
-              <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: s.color, flexShrink: 0 }} />
-                <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{s.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

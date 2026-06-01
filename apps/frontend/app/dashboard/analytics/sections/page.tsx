@@ -1,397 +1,257 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-const WB_SECTIONS: Record<string, string> = {
-  // Товары
-  products:'Товары', brands:'Бренды', content:'Контент', abtest:'A/B тест карточки',
-  recommendations:'Рекомендации', substitution:'Подмена артикула',
-  // Цены
-  prices:'Цены и скидки', cashback:'Кэшбэк', promotions:'Акции',
-  // Отзывы
-  feedbacks:'Отзывы', questions:'Вопросы', claims:'Претензии покупателей', chat:'Чат с покупателями',
-  // Склад
-  supplies:'Поставки', stocks:'Остатки', orders:'Заказы (FBS)', returns:'Возвраты', logistics:'Логистика',
-  // Аналитика
+const SECTION_LABELS: Record<string,string> = {
+  orders:'Заказы', feedbacks:'Отзывы', reviews:'Отзывы', questions:'Вопросы',
+  products:'Товары', brands:'Бренды', content:'Контент', abtest:'A/B тест',
+  prices:'Цены и скидки', cashback:'Кэшбэк', promotions:'Акции', promotion:'Продвижение',
+  claims:'Претензии', chat:'Чат с покупателями',
+  supplies:'Поставки', supply:'Поставки', stocks:'Остатки', remains:'Остатки',
+  orders_fbo:'Заказы FBO', orders_fbs:'Заказы FBS', returns:'Возвраты',
   analytics:'Аналитика', content_analytics:'Аналитика контента',
   search_analytics:'Поисковая аналитика', platform_analytics:'Аналитика платформы',
-  // Финансы
-  finance:'Финансы', income:'Доходы и расходы', calculator:'Калькулятор прибыли',
-  // Реклама
-  advertising:'Реклама',
-  // Прочее
-  tariffs:'Тарифы', levels:'Уровни продавца', showcase:'Витрина продавца',
-  monetization:'Монетизация данных', support:'Поддержка', knowledge:'База знаний', other:'Прочее',
-};
-const OZON_SECTIONS: Record<string, string> = {
-  // Товары
-  products:'Товары', certificates:'Сертификаты', merge:'Объединение товаров',
-  // Заказы
-  orders_fbo:'Заказы FBO', orders_fbs:'Заказы FBS', returns:'Возвраты',
-  // Склад
-  stocks:'Остатки', warehouse:'Склад', supplies:'Поставки', logistics:'Логистика',
-  // Цены
-  prices:'Цены', highlights:'Акции и хайлайты',
-  // Отзывы
-  reviews:'Отзывы', questions:'Вопросы', complaints:'Жалобы',
-  // Аналитика
-  analytics:'Аналитика', analytics_search:'Поисковая аналитика',
-  // Финансы
-  finance:'Финансы',
-  // Продвижение
-  promotion:'Продвижение',
-  // Прочее
-  rating:'Рейтинг', chat:'Чат', dashboard:'Дашборд', other:'Прочее',
-};
-const ACTION_LABELS: Record<string, string> = {
-  // WB Заказы
-  wb_order_accept:'Принял заказ', wb_order_cancel:'Отменил заказ',
-  wb_order_filter:'Фильтр заказов', wb_order_export:'Экспорт заказов',
-  // WB Отзывы/Вопросы
-  wb_review_reply:'Ответил на отзыв', wb_review_complain:'Жалоба на отзыв',
-  wb_question_reply:'Ответил на вопрос',
-  // WB Товары
-  wb_product_create:'Создал товар', wb_product_edit:'Редактировал товар',
-  wb_product_delete:'Удалил товар', wb_product_upload:'Загрузил файл',
-  // WB Цены
-  wb_price_save:'Сохранил цены', wb_price_edit:'Изменил цену', wb_price_upload:'Загрузил файл',
-  // WB Остатки/Поставки
-  wb_stock_update:'Обновил остатки', wb_stock_upload:'Загрузил остатки',
-  wb_supply_create:'Создал поставку', wb_supply_confirm:'Подтвердил поставку', wb_supply_print:'Напечатал этикетки',
-  // WB Реклама
-  wb_ads_create:'Создал кампанию', wb_ads_pause:'Приостановил рекламу',
-  wb_ads_start:'Запустил рекламу', wb_ads_budget:'Изменил бюджет', wb_ads_filter:'Фильтр рекламы',
-  // WB Прочее
-  wb_chat_send:'Отправил сообщение', wb_promo_join:'Вступил в акцию',
-  wb_analytics_export:'Экспорт отчёта', wb_analytics_filter:'Применил фильтр',
-  wb_finance_export:'Скачал документ',
-  // Ozon Заказы
-  ozon_order_accept:'Принял заказ', ozon_order_cancel:'Отменил заказ',
-  ozon_order_export:'Экспорт заказов', ozon_order_label:'Напечатал этикетку',
-  ozon_fbo_filter:'Фильтр FBO', ozon_fbo_export:'Экспорт FBO',
-  ozon_fbs_filter:'Фильтр FBS', ozon_fbs_export:'Экспорт FBS',
-  // Ozon Товары
-  ozon_product_create:'Создал товар', ozon_product_edit:'Редактировал товар',
-  ozon_product_upload:'Загрузил файл',
-  // Ozon Цены/Остатки
-  ozon_price_save:'Сохранил цены', ozon_price_edit:'Изменил цену', ozon_price_upload:'Загрузил файл',
-  ozon_stock_update:'Обновил остатки', ozon_stock_upload:'Загрузил файл',
-  // Ozon Поставки
-  ozon_supply_create:'Создал поставку', ozon_supply_confirm:'Подтвердил поставку',
-  // Ozon Отзывы/Вопросы
-  ozon_review_reply:'Ответил на отзыв', ozon_review_complain:'Жалоба на отзыв',
-  ozon_question_reply:'Ответил на вопрос',
-  // Ozon Аналитика/Финансы/Реклама
-  ozon_analytics_export:'Экспорт', ozon_analytics_filter:'Применил фильтр',
-  ozon_finance_export:'Скачал документ',
-  ozon_ads_create:'Создал кампанию', ozon_ads_pause:'Приостановил', ozon_ads_budget:'Изменил бюджет',
-  ozon_chat_send:'Отправил сообщение', ozon_promo_join:'Вступил в акцию',
+  analytics_search:'Поисковая аналитика',
+  finance:'Финансы', income:'Доходы', calculator:'Калькулятор',
+  advertising:'Реклама', highlights:'Акции', complaints:'Жалобы', warehouse:'Склад',
+  dashboard:'Дашборд', rating:'Рейтинг', support:'Поддержка', other:'Прочее',
 };
 
-const PLATFORM_COLOR: Record<string, string> = { WILDBERRIES:'#a78bfa', OZON:'#4d9de0' };
-const tooltipStyle = { background:'var(--bg-primary)', border:'0.5px solid var(--border)', borderRadius:'8px', fontSize:'12px' };
+function fmtSec(s: number) {
+  if (!s || s <= 0) return '—';
+  if (s < 60) return s + 'с';
+  if (s < 3600) return Math.floor(s / 60) + 'м ' + (s % 60) + 'с';
+  return Math.floor(s / 3600) + 'ч ' + Math.floor((s % 3600) / 60) + 'м';
+}
 
-export default function SectionAnalyticsPage() {
+export default function AnalyticsSectionsPage() {
   const router = useRouter();
-  const [token, setToken]     = useState('');
-  const [events, setEvents]   = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [period, setPeriod]   = useState('7');
-  const [platform, setPlatform] = useState<'ALL'|'WILDBERRIES'|'OZON'>('ALL');
+  const [data, setData]       = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
-  const [selectedEmp, setSelectedEmp] = useState('');
-  const [selectedSection, setSelectedSection] = useState('');
+  const [days, setDays]       = useState(1);
+  const [platform, setPlatform] = useState('ALL');
+  const [selectedUser, setSelectedUser] = useState('ALL');
+  const [selectedSection, setSelectedSection] = useState('ALL');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const t = localStorage.getItem('access_token');
     if (!t) { router.push('/login'); return; }
-    setToken(t);
-    fetch('https://employee-tracker.ru/api/v1/employees', { headers: { Authorization: 'Bearer ' + t } })
-      .then(r => r.json()).then(d => setEmployees(Array.isArray(d) ? d : []));
-    load(t, '7', 'ALL', '');
+    loadData(t);
+  }, [days]);
 
-  }, []);
-
-  const load = async (t: string, days: string, plat: string, empId: string) => {
+  const loadData = async (t: string) => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ days, limit: '50000' });
-      if (plat !== 'ALL') params.set('platform', plat);
-      if (empId) params.set('userId', empId);
-      const res = await fetch('https://employee-tracker.ru/api/v1/analytics/activity/summary?' + params, {
-        headers: { Authorization: 'Bearer ' + t },
-      });
-      const data = await res.json();
-      setEvents(Array.isArray(data) ? data : []);
-    } finally { setLoading(false); }
+      const [activity, emps] = await Promise.all([
+        fetch(`https://employee-tracker.ru/api/v1/analytics/activity/summary?days=${days}`, { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
+        fetch('https://employee-tracker.ru/api/v1/employees', { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
+      ]);
+      if (Array.isArray(activity)) setData(activity);
+      if (Array.isArray(emps)) setEmployees(emps);
+    } catch(e) {} finally { setLoading(false); }
   };
 
-  // Build section stats from events
-  const buildSectionStats = () => {
-    const stats: Record<string, { section: string; label: string; platform: string; events: number; timeSeconds: number; actions: Record<string, number> }> = {};
-    
-    events.forEach((emp: any) => {
-      if (!emp.sections) return;
-      Object.entries(emp.sections as Record<string, any>).forEach(([key, val]: [string, any]) => {
-        const [plat, section] = key.split(':');
-        if (platform !== 'ALL' && plat !== platform) return;
-        if (selectedSection && section !== selectedSection) return;
-        const id = plat + ':' + section;
-        if (!stats[id]) {
-          const label = plat === 'WILDBERRIES' ? (WB_SECTIONS[section] ?? section) : (OZON_SECTIONS[section] ?? section);
-          stats[id] = { section, label, platform: plat, events: 0, timeSeconds: 0, actions: {} };
-        }
-        stats[id].events += val.events ?? 0;
-        stats[id].timeSeconds += val.timeSeconds ?? 0;
-        if (val.actions) {
-          Object.entries(val.actions as Record<string, number>).forEach(([action, count]) => {
-            stats[id].actions[action] = (stats[id].actions[action] ?? 0) + count;
-          });
-        }
-      });
+  // Flatten all sections
+  const allSections: any[] = [];
+  data.forEach(emp => {
+    if (!emp.sections) return;
+    Object.entries(emp.sections as Record<string,any>).forEach(([key,val]:any) => {
+      const [plat, section] = key.split(':');
+      if (section === 'other' || section === 'unknown') return;
+      allSections.push({ userId:emp.userId, userName:emp.name, platform:plat, section, key, clicks:(val.clicks??0)+(val.events??0), timeSeconds:val.timeSeconds??0, actions:val.actions??{} });
     });
-    return Object.values(stats).sort((a, b) => b.events - a.events);
-  };
-
-  // Build employee section breakdown
-  const buildEmployeeStats = () => {
-    return events.map((emp: any) => {
-      let totalEvents = 0;
-      let topSection = '';
-      let topEvents = 0;
-      if (emp.sections) {
-        Object.entries(emp.sections as Record<string, any>).forEach(([key, val]: [string, any]) => {
-          const [, section] = key.split(':');
-          const ev = (val as any).events ?? 0;
-          totalEvents += ev;
-          if (ev > topEvents) { topEvents = ev; topSection = section; }
-        });
-      }
-      return { ...emp, totalEvents, topSection };
-    }).sort((a: any, b: any) => b.totalEvents - a.totalEvents);
-  };
-
-  const sectionStats = buildSectionStats();
-  const employeeStats = buildEmployeeStats();
-  const maxEvents = Math.max(...sectionStats.map(s => s.events), 1);
-
-  const fmtTime = (sec: number) => {
-    if (!sec || sec <= 0) return null;
-    if (sec < 60) return sec + 'с';
-    if (sec < 3600) return Math.floor(sec/60) + 'м ' + (sec%60) + 'с';
-    return Math.floor(sec/3600) + 'ч ' + Math.floor((sec%3600)/60) + 'м';
-  };
-
-  const totalTime = sectionStats.reduce((s, sec) => s + sec.timeSeconds, 0);
-
-  // Deduplicate sections by label
-  const allSectionsRaw = platform === 'OZON' ? OZON_SECTIONS : platform === 'WILDBERRIES' ? WB_SECTIONS : { ...WB_SECTIONS, ...OZON_SECTIONS };
-  const seen = new Set<string>();
-  const allSections: Record<string, string> = {};
-  Object.entries(allSectionsRaw).forEach(([k, v]) => {
-    if (!seen.has(v as string)) { seen.add(v as string); allSections[k] = v as string; }
   });
 
+  const filtered = allSections.filter(s => {
+    if (platform !== 'ALL' && s.platform !== platform) return false;
+    if (selectedUser !== 'ALL' && s.userId !== selectedUser) return false;
+    if (selectedSection !== 'ALL' && s.section !== selectedSection) return false;
+    return s.clicks > 0 || s.timeSeconds > 0;
+  });
+
+  // Aggregate by section
+  const aggregated: Record<string,any> = {};
+  filtered.forEach(s => {
+    const key = s.platform + ':' + s.section;
+    if (!aggregated[key]) aggregated[key] = { platform:s.platform, section:s.section, clicks:0, timeSeconds:0, actions:{} };
+    aggregated[key].clicks += s.clicks;
+    aggregated[key].timeSeconds += s.timeSeconds;
+    Object.entries(s.actions as Record<string,number>).forEach(([k,v]) => {
+      aggregated[key].actions[k] = (aggregated[key].actions[k] ?? 0) + v;
+    });
+  });
+
+  const sorted = Object.values(aggregated).sort((a,b)=>b.clicks-a.clicks);
+  const maxClicks = Math.max(...sorted.map(s=>s.clicks), 1);
+  const totalClicks = sorted.reduce((s,r)=>s+r.clicks, 0);
+  const totalTime   = sorted.reduce((s,r)=>s+r.timeSeconds, 0);
+
+  const allSectionNames = [...new Set(allSections.map(s=>s.section))];
+  const card: React.CSSProperties = { background:'#fff', borderRadius:'12px', padding:'16px 18px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', border:'1px solid #eee' };
+  const selStyle: React.CSSProperties = { background:'#F5F3FC', border:'1.5px solid #E0DDF0', borderRadius:'9px', padding:'7px 12px', fontSize:'13px', color:'#1a1a2e', outline:'none', cursor:'pointer' };
+
   return (
-    <div style={{ minHeight:'100vh', background:'var(--bg-tertiary)' }}>
+    <div style={{ minHeight:'100vh', background:'#EBE8F6' }}>
       {/* Header */}
-      <div style={{ background:'var(--bg-primary)', borderBottom:'0.5px solid var(--border)', padding:'14px 24px', position:'sticky', top:0, zIndex:10 }}>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'12px' }}>
-          <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
-            <button onClick={() => router.push('/dashboard/analytics')} style={{ background:'none', border:'none', cursor:'pointer', fontSize:'13px', color:'var(--text-muted)', padding:'4px 8px', borderRadius:'6px' }}>← Назад</button>
-            <h1 style={{ fontSize:'16px', fontWeight:600, color:'var(--text-primary)', margin:0 }}>Активность по разделам</h1>
+      <div style={{ background:'#fff', borderBottom:'1px solid #eee', padding:'16px 28px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:10, boxShadow:'0 2px 8px rgba(108,92,231,0.06)' }}>
+        <div>
+          <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+            <button onClick={()=>router.push('/dashboard/analytics')} style={{ background:'none', border:'none', cursor:'pointer', color:'#aaa', fontSize:'13px', display:'flex', alignItems:'center', gap:'4px' }}>
+              ← Назад
+            </button>
+            <h1 style={{ fontSize:'18px', fontWeight:700, color:'#1a1a2e', margin:0 }}>Активность по разделам</h1>
           </div>
+          <p style={{ fontSize:'12px', color:'#aaa', margin:'2px 0 0' }}>{totalClicks.toLocaleString('ru')} кликов · {fmtSec(totalTime)} активного времени</p>
         </div>
-        <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
-          {/* Period */}
-          <div style={{ display:'flex', gap:'3px', background:'var(--bg-secondary)', borderRadius:'8px', padding:'3px' }}>
-            {[{l:'Сегодня',v:'1'},{l:'7 дней',v:'7'},{l:'14 дней',v:'14'},{l:'30 дней',v:'30'}].map(opt => (
-              <button key={opt.v} onClick={() => { setPeriod(opt.v); load(token, opt.v, platform, selectedEmp); }}
-                style={{ padding:'4px 10px', borderRadius:'6px', fontSize:'12px', border:'none', cursor:'pointer', background: period===opt.v ? 'var(--bg-primary)' : 'transparent', color: period===opt.v ? 'var(--text-primary)' : 'var(--text-muted)', fontWeight: period===opt.v ? 500 : 400 }}>
-                {opt.l}
-              </button>
-            ))}
-          </div>
-          {/* Platform */}
-          <div style={{ display:'flex', gap:'3px', background:'var(--bg-secondary)', borderRadius:'8px', padding:'3px' }}>
-            {[{l:'Все',v:'ALL'},{l:'Wildberries',v:'WILDBERRIES'},{l:'Ozon',v:'OZON'}].map(opt => (
-              <button key={opt.v} onClick={() => { setPlatform(opt.v as any); load(token, period, opt.v, selectedEmp); }}
-                style={{ padding:'4px 10px', borderRadius:'6px', fontSize:'12px', border:'none', cursor:'pointer', background: platform===opt.v ? 'var(--bg-primary)' : 'transparent', color: platform===opt.v ? 'var(--text-primary)' : 'var(--text-muted)', fontWeight: platform===opt.v ? 500 : 400 }}>
-                {opt.l}
-              </button>
-            ))}
-          </div>
-          {/* Employee */}
-          <select value={selectedEmp} onChange={e => { setSelectedEmp(e.target.value); load(token, period, platform, e.target.value); }}
-            style={{ background:'var(--bg-primary)', border:'0.5px solid var(--border)', borderRadius:'8px', padding:'6px 10px', fontSize:'12px', color:'var(--text-primary)', outline:'none' }}>
-            <option value="">Все сотрудники</option>
-            {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+        {/* Filters */}
+        <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+          {[{v:1,l:'Сегодня'},{v:7,l:'7 дней'},{v:14,l:'14 дней'},{v:30,l:'30 дней'}].map(d => (
+            <button key={d.v} onClick={()=>setDays(d.v)}
+              style={{ padding:'6px 14px', borderRadius:'8px', border:'none', fontSize:'12px', fontWeight:500, cursor:'pointer', background:days===d.v?'#6C5CE7':'#F5F3FC', color:days===d.v?'white':'#666', transition:'all 0.15s' }}>
+              {d.l}
+            </button>
+          ))}
+          <select value={platform} onChange={e=>setPlatform(e.target.value)} style={selStyle}>
+            <option value="ALL">Все платформы</option>
+            <option value="WILDBERRIES">Wildberries</option>
+            <option value="OZON">Ozon</option>
           </select>
-          {/* Section */}
-          <select value={selectedSection} onChange={e => setSelectedSection(e.target.value)}
-            style={{ background:'var(--bg-primary)', border:'0.5px solid var(--border)', borderRadius:'8px', padding:'6px 10px', fontSize:'12px', color:'var(--text-primary)', outline:'none' }}>
-            <option value="">Все разделы</option>
-            {Object.entries(allSections).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          <select value={selectedUser} onChange={e=>setSelectedUser(e.target.value)} style={selStyle}>
+            <option value="ALL">Все сотрудники</option>
+            {employees.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
           </select>
         </div>
       </div>
 
-      {loading ? (
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'200px', color:'var(--text-muted)', fontSize:'13px' }}>Загрузка...</div>
-      ) : (
-        <div style={{ padding:'20px 24px', display:'flex', flexDirection:'column', gap:'16px' }}>
-
-          {sectionStats.length === 0 ? (
-            <div style={{ background:'var(--bg-primary)', border:'0.5px solid var(--border)', borderRadius:'var(--radius)', padding:'48px', textAlign:'center' }}>
-              <p style={{ fontSize:'36px', marginBottom:'12px' }}>📊</p>
-              <p style={{ fontSize:'15px', fontWeight:500, color:'var(--text-primary)', marginBottom:'6px' }}>Нет данных по разделам</p>
-              <p style={{ fontSize:'13px', color:'var(--text-muted)' }}>Переустановите расширение и откройте WB или Ozon</p>
+      <div style={{ padding:'24px 28px', display:'flex', flexDirection:'column', gap:'16px' }}>
+        {/* Summary KPI */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'14px' }}>
+          {[
+            { label:'Всего кликов', value:totalClicks.toLocaleString('ru'), icon:'ti-mouse', color:'#6C5CE7', bg:'#EDE9FF' },
+            { label:'Активное время', value:fmtSec(totalTime), icon:'ti-clock', color:'#4A90E2', bg:'#E3F2FD' },
+            { label:'Уникальных разделов', value:sorted.length, icon:'ti-layout-grid', color:'#43A047', bg:'#E8F5E9' },
+            { label:'Сотрудников', value:data.length, icon:'ti-users', color:'#FB8C00', bg:'#FFF3E0' },
+          ].map((k,i) => (
+            <div key={i} style={{ ...card, display:'flex', alignItems:'center', gap:'12px' }}>
+              <div style={{ width:'40px', height:'40px', borderRadius:'10px', background:k.bg, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <i className={'ti '+k.icon} style={{ fontSize:'18px', color:k.color }} aria-hidden="true" />
+              </div>
+              <div>
+                <p style={{ fontSize:'20px', fontWeight:700, color:'#1a1a2e', margin:0, lineHeight:1 }}>{k.value}</p>
+                <p style={{ fontSize:'11px', color:'#aaa', margin:'4px 0 0' }}>{k.label}</p>
+              </div>
             </div>
-          ) : (
-            <>
-              {/* Time summary cards */}
-              {totalTime > 0 && (
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(180px, 1fr))', gap:'10px' }}>
-                  {sectionStats.filter(s => s.timeSeconds > 0).slice(0,6).map(s => {
-                    const color = PLATFORM_COLOR[s.platform] ?? '#a78bfa';
-                    const pct = Math.round(s.timeSeconds / totalTime * 100);
-                    return (
-                      <div key={s.platform+':'+s.section} style={{ background:'var(--bg-primary)', border:'0.5px solid var(--border)', borderRadius:'var(--radius)', padding:'14px' }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:'6px', marginBottom:'8px' }}>
-                          <span style={{ fontSize:'10px', fontWeight:600, padding:'2px 6px', borderRadius:'4px', background: s.platform==='WILDBERRIES' ? 'rgba(167,139,250,0.15)' : 'rgba(77,157,224,0.15)', color, flexShrink:0 }}>
-                            {s.platform === 'WILDBERRIES' ? 'WB' : 'OZ'}
-                          </span>
-                          <span style={{ fontSize:'12px', fontWeight:500, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{s.label}</span>
-                        </div>
-                        <p style={{ fontSize:'22px', fontWeight:600, color, margin:'0 0 4px' }}>{fmtTime(s.timeSeconds)}</p>
-                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:'11px', color:'var(--text-muted)' }}>
-                          <span>{s.events} кликов</span>
-                          <span>{pct}% времени</span>
-                        </div>
-                        <div style={{ height:'3px', background:'var(--bg-secondary)', borderRadius:'2px', overflow:'hidden', marginTop:'8px' }}>
-                          <div style={{ height:'3px', width:pct+'%', background:color, borderRadius:'2px' }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+          ))}
+        </div>
 
-              {/* Section bars */}
-              <div style={{ background:'var(--bg-primary)', border:'0.5px solid var(--border)', borderRadius:'var(--radius)', padding:'18px' }}>
-                <p style={{ fontSize:'13px', fontWeight:500, color:'var(--text-primary)', margin:'0 0 16px' }}>Активность по разделам</p>
-                <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
-                  {sectionStats.slice(0, 12).map(s => {
-                    const pct = Math.round(s.events / maxEvents * 100);
-                    const color = PLATFORM_COLOR[s.platform] ?? '#a78bfa';
-                    return (
-                      <div key={s.platform+':'+s.section}>
-                        <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'4px' }}>
-                          <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-                            <span style={{ fontSize:'10px', fontWeight:600, padding:'2px 6px', borderRadius:'4px', background: s.platform==='WILDBERRIES' ? 'rgba(167,139,250,0.15)' : 'rgba(77,157,224,0.15)', color }}>
-                              {s.platform === 'WILDBERRIES' ? 'WB' : 'OZ'}
-                            </span>
-                            <span style={{ fontSize:'13px', fontWeight:500, color:'var(--text-primary)' }}>{s.label}</span>
-                          </div>
-                          <div style={{ display:'flex', gap:'12px', fontSize:'12px', alignItems:'center' }}>
-                            <span style={{ color }}>{s.events} кликов</span>
-                            {fmtTime(s.timeSeconds) && (
-                              <span style={{ display:'flex', alignItems:'center', gap:'4px', color:'var(--text-muted)', background:'var(--bg-secondary)', padding:'2px 8px', borderRadius:'10px' }}>
-                                ⏱ {fmtTime(s.timeSeconds)}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div style={{ height:'6px', background:'var(--bg-secondary)', borderRadius:'3px', overflow:'hidden' }}>
-                          <div style={{ height:'6px', width: pct+'%', background: color, borderRadius:'3px', transition:'width 0.5s' }} />
-                        </div>
-                      </div>
-                    );
-                  })}
+        {/* Top section highlight */}
+        {sorted.length > 0 && (
+          <div style={{ background:'#6C5CE7', borderRadius:'14px', padding:'18px 22px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div>
+              <p style={{ fontSize:'11px', color:'rgba(255,255,255,0.7)', margin:'0 0 4px', fontWeight:600, letterSpacing:'0.5px' }}>ТОП РАЗДЕЛ</p>
+              <p style={{ fontSize:'20px', fontWeight:700, color:'white', margin:0 }}>
+                {sorted[0].platform==='WILDBERRIES'?'WB':'OZ'} · {SECTION_LABELS[sorted[0].section]??sorted[0].section}
+              </p>
+            </div>
+            <div style={{ textAlign:'right' }}>
+              <p style={{ fontSize:'28px', fontWeight:700, color:'white', margin:0 }}>{sorted[0].clicks.toLocaleString('ru')}</p>
+              <p style={{ fontSize:'12px', color:'rgba(255,255,255,0.7)', margin:0 }}>кликов · {fmtSec(sorted[0].timeSeconds)}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Sections table */}
+        <div style={card}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'14px' }}>
+            <h2 style={{ fontSize:'14px', fontWeight:700, color:'#1a1a2e', margin:0 }}>Активность по разделам</h2>
+            <span style={{ fontSize:'12px', color:'#aaa' }}>{sorted.length} разделов</span>
+          </div>
+          {loading ? (
+            <div style={{ padding:'40px', textAlign:'center', color:'#aaa' }}>Загрузка...</div>
+          ) : sorted.length === 0 ? (
+            <div style={{ padding:'40px', textAlign:'center' }}>
+              <div style={{ fontSize:'40px', marginBottom:'12px' }}>📊</div>
+              <p style={{ color:'#aaa', fontSize:'13px' }}>Нет данных за выбранный период</p>
+            </div>
+          ) : sorted.map((s,i) => {
+            const isWB = s.platform==='WILDBERRIES';
+            const color = isWB ? '#6C5CE7' : '#4A90E2';
+            const pct = Math.round(s.clicks/maxClicks*100);
+            const topActions = Object.entries(s.actions as Record<string,number>).sort((a,b)=>b[1]-a[1]).slice(0,3);
+            return (
+              <div key={i} style={{ padding:'12px 0', borderBottom:'1px solid #f5f5f5' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'6px' }}>
+                  <span style={{ fontSize:'12px', fontWeight:700, color:'#aaa', width:'20px' }}>#{i+1}</span>
+                  <span style={{ fontSize:'10px', fontWeight:700, color, background:isWB?'#EDE9FF':'#E3F2FD', padding:'2px 7px', borderRadius:'6px' }}>{isWB?'WB':'OZ'}</span>
+                  <span style={{ fontSize:'14px', fontWeight:500, color:'#1a1a2e', flex:1 }}>{SECTION_LABELS[s.section]??s.section}</span>
+                  <div style={{ textAlign:'right' }}>
+                    <span style={{ fontSize:'16px', fontWeight:700, color }}>{s.clicks.toLocaleString('ru')}</span>
+                    <span style={{ fontSize:'11px', color:'#aaa', marginLeft:'8px' }}>{fmtSec(s.timeSeconds)}</span>
+                  </div>
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+                  <span style={{ width:'20px' }}></span>
+                  <div style={{ flex:1, height:'5px', background:'#F5F3FC', borderRadius:'3px', overflow:'hidden' }}>
+                    <div style={{ height:'5px', width:pct+'%', background:color, borderRadius:'3px', transition:'width 0.5s' }} />
+                  </div>
+                  {topActions.length > 0 && (
+                    <div style={{ display:'flex', gap:'6px', flexShrink:0 }}>
+                      {topActions.map(([action,count]:any) => (
+                        <span key={action} style={{ fontSize:'10px', color:'#888', background:'#f5f5f5', padding:'2px 7px', borderRadius:'6px' }}>
+                          {action.replace(/^(wb_|ozon_)/,'').replace(/_/g,' ')} {count}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
+            );
+          })}
+        </div>
 
-              {/* Actions breakdown */}
-              {sectionStats.some(s => Object.keys(s.actions).length > 0) && (
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
-                  {sectionStats.filter(s => Object.keys(s.actions).length > 0).slice(0,4).map(s => {
-                    const color = PLATFORM_COLOR[s.platform] ?? '#a78bfa';
-                    const actions = Object.entries(s.actions).filter(([k]) => !k.includes('ping') && !k.includes('section_enter') && !k.includes('section_leave')).sort(([,a],[,b]) => (b as number)-(a as number)).slice(0,6);
-                    return (
-                      <div key={s.platform+':'+s.section} style={{ background:'var(--bg-primary)', border:'0.5px solid var(--border)', borderRadius:'var(--radius)', padding:'16px' }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'12px' }}>
-                          <span style={{ fontSize:'10px', fontWeight:600, padding:'2px 6px', borderRadius:'4px', background: s.platform==='WILDBERRIES' ? 'rgba(167,139,250,0.15)' : 'rgba(77,157,224,0.15)', color }}>
-                            {s.platform === 'WILDBERRIES' ? 'WB' : 'OZ'}
-                          </span>
-                          <p style={{ fontSize:'13px', fontWeight:500, color:'var(--text-primary)', margin:0 }}>{s.label}</p>
-                        </div>
-                        <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-                          {actions.map(([action, count]) => (
-                            <div key={action} style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                              <span style={{ fontSize:'12px', color:'var(--text-secondary)' }}>{ACTION_LABELS[action] ?? (action.includes('filter') ? 'Применил фильтр' : action.includes('search') ? 'Поиск' : action.replace(/^(wb_|ozon_)/, '').replace(/_/g, ' '))}</span>
-                              <span style={{ fontSize:'12px', fontWeight:600, color, background: s.platform==='WILDBERRIES' ? 'rgba(167,139,250,0.1)' : 'rgba(77,157,224,0.1)', padding:'2px 8px', borderRadius:'10px' }}>{count}</span>
-                            </div>
-                          ))}
-                        </div>
+        {/* By employee */}
+        {data.length > 0 && (
+          <div style={card}>
+            <h2 style={{ fontSize:'14px', fontWeight:700, color:'#1a1a2e', margin:'0 0 14px' }}>По сотрудникам</h2>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:'10px' }}>
+              {data.map((emp:any) => {
+                const empSecs = Object.entries(emp.sections??{} as Record<string,any>)
+                  .filter(([k,v]:any) => !k.endsWith(':other') && (v.clicks||v.events||v.timeSeconds))
+                  .sort((a:any,b:any)=>((b[1].clicks??0)+(b[1].events??0))-((a[1].clicks??0)+(a[1].events??0)))
+                  .slice(0,3);
+                const totalEmpClicks = Object.values(emp.sections??{} as Record<string,any>).reduce((s:number,v:any)=>s+(v.clicks??0)+(v.events??0),0);
+                return (
+                  <div key={emp.userId} style={{ background:'#F5F3FC', borderRadius:'10px', padding:'12px 14px' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px' }}>
+                      <div style={{ width:'30px', height:'30px', borderRadius:'50%', background:'#6C5CE7', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                        <span style={{ color:'white', fontSize:'11px', fontWeight:600 }}>{emp.name?.charAt(0)}</span>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Employee table */}
-              <div style={{ background:'var(--bg-primary)', border:'0.5px solid var(--border)', borderRadius:'var(--radius)', overflow:'hidden' }}>
-                <div style={{ padding:'12px 16px', borderBottom:'0.5px solid var(--border)', background:'var(--bg-secondary)' }}>
-                  <p style={{ fontSize:'12px', fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', margin:0 }}>По сотрудникам</p>
-                </div>
-                <table style={{ width:'100%', borderCollapse:'collapse' }}>
-                  <thead>
-                    <tr>
-                      {['Сотрудник','Топ-раздел','Событий','Разделов','Время'].map(h => (
-                        <th key={h} style={{ padding:'10px 16px', fontSize:'11px', fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', background:'var(--bg-secondary)', borderBottom:'0.5px solid var(--border)', textAlign: h==='Сотрудник' ? 'left' : 'center' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {employeeStats.map((emp: any) => {
-                      const topLabel = WB_SECTIONS[emp.topSection] ?? OZON_SECTIONS[emp.topSection] ?? emp.topSection;
-                      const sectionCount = emp.sections ? Object.keys(emp.sections).length : 0;
-                      const totalTime = emp.sections ? Object.values(emp.sections as any).reduce((s: number, v: any) => s + (v.timeSeconds ?? 0), 0) : 0;
+                      <div style={{ flex:1 }}>
+                        <p style={{ fontSize:'13px', fontWeight:600, color:'#1a1a2e', margin:0 }}>{emp.name}</p>
+                        <p style={{ fontSize:'11px', color:'#aaa', margin:0 }}>{totalEmpClicks} кликов</p>
+                      </div>
+                    </div>
+                    {empSecs.map(([key,val]:any) => {
+                      const [plat, sec] = key.split(':');
+                      const c = (val.clicks??0)+(val.events??0);
+                      const isWB = plat==='WILDBERRIES';
+                      const color = isWB?'#6C5CE7':'#4A90E2';
                       return (
-                        <tr key={emp.userId}
-                          onMouseEnter={e => (e.currentTarget as HTMLElement).style.background='var(--bg-secondary)'}
-                          onMouseLeave={e => (e.currentTarget as HTMLElement).style.background='transparent'}>
-                          <td style={{ padding:'12px 16px', borderBottom:'0.5px solid var(--border)' }}>
-                            <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-                              <div style={{ width:'28px', height:'28px', borderRadius:'50%', background:'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                                <span style={{ color:'white', fontSize:'11px', fontWeight:600 }}>{emp.name?.charAt(0)}</span>
-                              </div>
-                              <span style={{ fontSize:'13px', fontWeight:500, color:'var(--text-primary)' }}>{emp.name}</span>
-                            </div>
-                          </td>
-                          <td style={{ padding:'12px 16px', borderBottom:'0.5px solid var(--border)', textAlign:'center' }}>
-                            {topLabel ? <span style={{ fontSize:'12px', padding:'3px 8px', borderRadius:'12px', background:'var(--accent-bg)', color:'var(--accent)' }}>{topLabel}</span> : <span style={{ color:'var(--text-muted)', fontSize:'12px' }}>—</span>}
-                          </td>
-                          <td style={{ padding:'12px 16px', borderBottom:'0.5px solid var(--border)', textAlign:'center', fontSize:'13px', fontWeight:500, color:'var(--accent)' }}>{emp.totalEvents}</td>
-                          <td style={{ padding:'12px 16px', borderBottom:'0.5px solid var(--border)', textAlign:'center', fontSize:'13px', color:'var(--text-secondary)' }}>{sectionCount}</td>
-                          <td style={{ padding:'12px 16px', borderBottom:'0.5px solid var(--border)', textAlign:'center', fontSize:'13px', fontWeight: totalTime > 0 ? 500 : 400, color: totalTime > 0 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-                          {totalTime > 0 ? (
-                            <span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:'4px' }}>
-                              ⏱ {fmtTime(totalTime as number)}
-                            </span>
-                          ) : '—'}
-                        </td>
-                        </tr>
+                        <div key={key} style={{ display:'flex', alignItems:'center', gap:'6px', marginBottom:'4px' }}>
+                          <span style={{ fontSize:'9px', fontWeight:700, color, background:isWB?'#EDE9FF':'#E3F2FD', padding:'1px 5px', borderRadius:'4px', flexShrink:0 }}>{isWB?'WB':'OZ'}</span>
+                          <span style={{ fontSize:'12px', color:'#555', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{SECTION_LABELS[sec]??sec}</span>
+                          <span style={{ fontSize:'12px', fontWeight:600, color }}>{c}</span>
+                        </div>
                       );
                     })}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-        </div>
-      )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
