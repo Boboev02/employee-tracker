@@ -1,202 +1,235 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSocket } from '@/lib/useSocket';
+import { usePermissions } from '@/lib/usePermissions';
 
-const STATUS_COLORS: Record<string,string> = { ACTIVE:'#43A047', INACTIVE:'#aaa', SUSPENDED:'#E53935' };
-const STATUS_LABELS: Record<string,string> = { ACTIVE:'Активен', INACTIVE:'Неактивен', SUSPENDED:'Заблокирован' };
-const AVATAR_COLORS = ['#6C5CE7','#4A90E2','#43A047','#FB8C00','#E53935','#00ACC1','#8E24AA'];
-const avatarColor = (name: string) => AVATAR_COLORS[(name?.charCodeAt(0)??0) % AVATAR_COLORS.length];
+const ROLES = ['EMPLOYEE','MANAGER','VIEWER','HR','ADMIN'];
+import { ROLE_STYLE } from '@/lib/ds';
 
 export default function EmployeesPage() {
   const router = useRouter();
+  const [token, setToken]       = useState<string | null>(null);
   const [employees, setEmployees] = useState<any[]>([]);
-  const [presence, setPresence]   = useState<Record<string,any>>({});
-  const [search, setSearch]       = useState('');
-  const [loading, setLoading]     = useState(true);
-  const [showInvite, setShowInvite] = useState(false);
-  const [invite, setInvite]       = useState({ name:'', email:'', password:'', role:'EMPLOYEE' });
-  const [inviteError, setInviteError] = useState('');
+  const [loading, setLoading]   = useState(true);
+  const [search, setSearch]     = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm]         = useState({ name: '', email: '', role: 'EMPLOYEE', password: '' });
+  const [saving, setSaving]     = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const { connected, presence, getStatus } = useSocket(token);
+  const perms = usePermissions();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     const t = localStorage.getItem('access_token');
     if (!t) { router.push('/login'); return; }
-    loadData(t);
+    setToken(t);
+    load(t);
+    const interval = setInterval(() => {
+      const t2 = localStorage.getItem('access_token');
+      if (t2) load(t2);
+    }, 15_000);
+    return () => clearInterval(interval);
   }, []);
 
-  const loadData = async (t: string) => {
+  const load = async (t: string) => {
     try {
-      const [emps, pres] = await Promise.all([
-        fetch('https://employee-tracker.ru/api/v1/employees', { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
-        fetch('https://employee-tracker.ru/api/v1/presence',  { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
-      ]);
-      if (Array.isArray(emps)) setEmployees(emps);
-      if (pres && !pres.error) {
-        if (Array.isArray(pres)) setPresence(Object.fromEntries(pres.map((p:any)=>[p.userId,p])));
-        else setPresence(pres);
-      }
-    } catch(e) {} finally { setLoading(false); }
+      const res = await fetch('https://employee-tracker.ru/api/v1/employees', { headers: { Authorization: 'Bearer ' + t } });
+      const data = await res.json();
+      setEmployees(Array.isArray(data) ? data : []);
+      setLastUpdated(new Date());
+    } finally { setLoading(false); }
   };
 
-  const handleInvite = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setInviteError('');
-    const t = localStorage.getItem('access_token');
-    if (!t) return;
+  const invite = async (e: React.FormEvent) => {
+    e.preventDefault(); setSaving(true);
     try {
-      const res = await fetch('https://employee-tracker.ru/api/v1/employees/invite', {
-        method: 'POST', headers:{ Authorization:'Bearer '+t, 'Content-Type':'application/json' },
-        body: JSON.stringify(invite),
+      // Register user with password
+      await fetch('https://employee-tracker.ru/api/v1/auth/register', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: form.name, email: form.email, password: form.password }),
       });
-      const data = await res.json();
-      if (!res.ok) { setInviteError(data.message??'Ошибка'); return; }
-      setShowInvite(false);
-      setInvite({ name:'', email:'', password:'', role:'EMPLOYEE' });
-      loadData(t);
-    } catch { setInviteError('Ошибка подключения'); }
+      // Then invite as employee with role
+      await fetch('https://employee-tracker.ru/api/v1/employees/invite', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ name: form.name, email: form.email, role: form.role }),
+      });
+      setShowForm(false); setForm({ name: '', email: '', role: 'EMPLOYEE', password: '' });
+      if (token) load(token);
+    } finally { setSaving(false); }
+  };
+
+  const updateRole = async (id: string, role: string) => {
+    await fetch('https://employee-tracker.ru/api/v1/employees/' + id + '/role', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ role }),
+    });
+    if (token) load(token);
+  };
+
+  const toggleStatus = async (emp: any) => {
+    const endpoint = emp.status === 'ACTIVE' ? 'suspend' : 'activate';
+    await fetch('https://employee-tracker.ru/api/v1/employees/' + emp.id + '/' + endpoint, {
+      method: 'PATCH', headers: { Authorization: 'Bearer ' + token },
+    });
+    if (token) load(token);
+  };
+
+  const deleteEmployee = async (emp: any) => {
+    if (!confirm('Удалить сотрудника ' + emp.name + '?')) return;
+    await fetch('https://employee-tracker.ru/api/v1/employees/' + emp.id, {
+      method: 'DELETE', headers: { Authorization: 'Bearer ' + token },
+    });
+    if (token) load(token);
   };
 
   const filtered = employees.filter(e =>
     e.name?.toLowerCase().includes(search.toLowerCase()) ||
     e.email?.toLowerCase().includes(search.toLowerCase())
   );
-  const onlineCount = Object.values(presence).filter((p:any)=>p.isOnline||p.status==='ONLINE').length;
-
-  const card: React.CSSProperties = { background:'#fff', borderRadius:'12px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', border:'1px solid #eee' };
-  const inp: React.CSSProperties = { width:'100%', background:'#F5F3FC', border:'1.5px solid #E0DDF0', borderRadius:'8px', padding:'9px 12px', fontSize:'13px', color:'#1a1a2e', outline:'none', boxSizing:'border-box' };
+  const onlineCount = employees.filter(e => ['ONLINE','online','active'].includes(getStatus(e.id) as string)).length;
 
   return (
-    <div style={{ minHeight:'100vh', background:'#EBE8F6' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-tertiary)' }}>
       {/* Header */}
-      <div style={{ background:'#fff', borderBottom:'1px solid #eee', padding:'16px 28px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:10, boxShadow:'0 2px 8px rgba(108,92,231,0.06)' }}>
-        <div>
-          <h1 style={{ fontSize:'18px', fontWeight:700, color:'#1a1a2e', margin:0 }}>Сотрудники</h1>
-          <p style={{ fontSize:'12px', color:'#aaa', margin:'2px 0 0' }}>{employees.length} всего · {onlineCount} онлайн</p>
+      <div style={{ background: 'var(--bg-primary)', borderBottom: '0.5px solid var(--border)', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <h1 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Сотрудники</h1>
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{employees.length} чел.</span>
+          {connected && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: '#22c55e' }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
+              {onlineCount} онлайн
+            </span>
+          )}
+          {lastUpdated && <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>обновлено {lastUpdated.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })}</span>}
         </div>
-        <div style={{ display:'flex', gap:'10px', alignItems:'center' }}>
-          <input placeholder="Поиск по имени или email..." value={search} onChange={e=>setSearch(e.target.value)}
-            style={{ ...inp, width:'240px' }} />
-          <button onClick={()=>setShowInvite(true)}
-            style={{ background:'#6C5CE7', color:'white', border:'none', borderRadius:'9px', padding:'9px 18px', fontSize:'13px', fontWeight:600, cursor:'pointer', boxShadow:'0 4px 12px rgba(108,92,231,0.3)' }}>
-            + Пригласить
+        {mounted && perms.canInviteUsers && (
+          <button onClick={() => setShowForm(true)}
+            style={{ background: 'var(--accent)', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 500, cursor: 'pointer' }}>
+            + Добавить
           </button>
-        </div>
+        )}
       </div>
 
-      <div style={{ padding:'24px 28px' }}>
-        {/* Stats row */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'14px', marginBottom:'20px' }}>
-          {[
-            { label:'Всего сотрудников', value:employees.length, color:'#6C5CE7', bg:'#EDE9FF', icon:'ti-users' },
-            { label:'Онлайн сейчас',     value:onlineCount,       color:'#43A047', bg:'#E8F5E9', icon:'ti-circle-check' },
-            { label:'Активных',          value:employees.filter(e=>e.status==='ACTIVE').length, color:'#4A90E2', bg:'#E3F2FD', icon:'ti-user-check' },
-          ].map((s,i) => (
-            <div key={i} style={{ ...card, padding:'16px 20px', display:'flex', alignItems:'center', gap:'14px' }}>
-              <div style={{ width:'42px', height:'42px', borderRadius:'10px', background:s.bg, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                <i className={'ti '+s.icon} style={{ fontSize:'20px', color:s.color }} aria-hidden="true" />
-              </div>
-              <div>
-                <p style={{ fontSize:'24px', fontWeight:700, color:'#1a1a2e', margin:0, lineHeight:1 }}>{s.value}</p>
-                <p style={{ fontSize:'12px', color:'#aaa', margin:'4px 0 0' }}>{s.label}</p>
-              </div>
-            </div>
-          ))}
+      <div style={{ padding: '20px 24px' }}>
+        {/* Search */}
+        <div style={{ marginBottom: '16px' }}>
+          <input placeholder="Поиск по имени или email..." value={search} onChange={e => setSearch(e.target.value)}
+            style={{ width: '320px', background: 'var(--bg-primary)', border: '0.5px solid var(--border)', borderRadius: '8px', padding: '8px 12px', fontSize: '13px', color: 'var(--text-primary)', outline: 'none' }} />
         </div>
 
         {/* Table */}
-        <div style={card}>
-          <table style={{ width:'100%', borderCollapse:'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom:'1px solid #f0f0f0' }}>
-                {['Сотрудник','Email','Роль','Статус','Активность',''].map(h => (
-                  <th key={h} style={{ padding:'12px 16px', textAlign:'left', fontSize:'11px', fontWeight:600, color:'#aaa', textTransform:'uppercase', letterSpacing:'0.6px' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={6} style={{ padding:'40px', textAlign:'center', color:'#aaa' }}>Загрузка...</td></tr>
-              ) : filtered.length===0 ? (
-                <tr><td colSpan={6} style={{ padding:'40px', textAlign:'center', color:'#aaa' }}>Нет сотрудников</td></tr>
-              ) : filtered.map((emp:any) => {
-                const pres = presence[emp.id] ?? presence[emp.userId];
-                const isOnline = pres?.isOnline || pres?.status==='ONLINE';
-                const lastActivity = pres?.lastActivityAt;
-                return (
-                  <tr key={emp.id} style={{ borderBottom:'1px solid #f9f9f9', cursor:'pointer', transition:'background 0.1s' }}
-                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#F5F3FC'}
-                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-                    onClick={()=>router.push('/dashboard/employees/'+emp.id)}>
-                    <td style={{ padding:'12px 16px' }}>
-                      <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-                        <div style={{ position:'relative', flexShrink:0 }}>
-                          <div style={{ width:'36px', height:'36px', borderRadius:'50%', background:avatarColor(emp.name), display:'flex', alignItems:'center', justifyContent:'center' }}>
-                            <span style={{ color:'white', fontSize:'13px', fontWeight:600 }}>{emp.name?.charAt(0)}</span>
+        <div style={{ background: 'var(--bg-primary)', border: '0.5px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+          {loading ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>Загрузка...</div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  {['Сотрудник', 'Статус', 'Активность', 'Роль', 'Действия'].map(h => (
+                    <th key={h} style={{ padding: '10px 16px', fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', background: 'var(--bg-secondary)', borderBottom: '0.5px solid var(--border)', textAlign: 'left' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((emp, idx) => {
+                  const status = getStatus(emp.id);
+                  const isOnline = ['ONLINE','online','active'].includes(status as string);
+                  const role = emp.roles?.[0] ?? 'EMPLOYEE';
+                  const rs = ROLE_STYLE[role] ?? { bg: '#f4f4f5', color: '#71717a' };
+                  return (
+                    <tr key={emp.id} style={{ cursor: 'pointer', transition: 'background 0.15s' }}
+                      onClick={() => router.push('/dashboard/employees/' + emp.id)}
+                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-secondary)'}
+                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+                      <td style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--border)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{ position: 'relative' }}>
+                            <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <span style={{ color: 'white', fontSize: '12px', fontWeight: 600 }}>{emp.name?.charAt(0)}</span>
+                            </div>
+                            <span style={{ position: 'absolute', bottom: 0, right: 0, width: '8px', height: '8px', borderRadius: '50%', background: isOnline ? '#22c55e' : '#d4d4d8', border: '2px solid var(--bg-primary)' }} />
                           </div>
-                          <span style={{ position:'absolute', bottom:0, right:0, width:'9px', height:'9px', borderRadius:'50%', background:isOnline?'#43A047':'#ddd', border:'2px solid white' }} />
+                          <div>
+                            <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>{emp.name}</p>
+                            <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0 }}>{emp.email}</p>
+                          </div>
                         </div>
-                        <span style={{ fontSize:'13px', fontWeight:500, color:'#1a1a2e' }}>{emp.name}</span>
-                      </div>
-                    </td>
-                    <td style={{ padding:'12px 16px', fontSize:'13px', color:'#666' }}>{emp.email}</td>
-                    <td style={{ padding:'12px 16px' }}>
-                      <span style={{ fontSize:'11px', fontWeight:600, color:'#6C5CE7', background:'#EDE9FF', padding:'3px 9px', borderRadius:'8px' }}>{emp.roles?.[0]??'EMPLOYEE'}</span>
-                    </td>
-                    <td style={{ padding:'12px 16px' }}>
-                      <span style={{ fontSize:'11px', fontWeight:600, color:STATUS_COLORS[emp.status]??'#aaa', background:(STATUS_COLORS[emp.status]??'#aaa')+'15', padding:'3px 9px', borderRadius:'8px' }}>
-                        {STATUS_LABELS[emp.status]??emp.status}
-                      </span>
-                    </td>
-                    <td style={{ padding:'12px 16px', fontSize:'12px', color:isOnline?'#43A047':'#aaa' }}>
-                      {isOnline ? '● Онлайн сейчас' : lastActivity ? new Date(lastActivity).toLocaleString('ru',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '—'}
-                    </td>
-                    <td style={{ padding:'12px 16px' }}>
-                      <button onClick={e=>{e.stopPropagation();router.push('/dashboard/employees/'+emp.id);}}
-                        style={{ background:'#EDE9FF', color:'#6C5CE7', border:'none', borderRadius:'7px', padding:'5px 12px', fontSize:'12px', cursor:'pointer', fontWeight:500 }}>
-                        Подробнее →
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      </td>
+                      <td style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--border)' }}>
+                        <span style={{ fontSize: '12px', color: isOnline ? '#22c55e' : 'var(--text-muted)' }}>
+                          {isOnline ? 'Онлайн' : 'Офлайн'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--border)', fontSize: '12px', color: 'var(--text-muted)' }}>
+                        {(presence[emp.id] as any)?.lastSeen ? new Date((presence[emp.id] as any).lastSeen).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' }) + ' назад' : '—'}
+                      </td>
+                      <td style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--border)' }} onClick={e => e.stopPropagation()}>
+                        {mounted && perms.canChangeRoles ? (
+                          <select value={role} onChange={e => updateRole(emp.id, e.target.value)}
+                            style={{ fontSize: '11px', fontWeight: 500, padding: '3px 8px', borderRadius: '20px', background: rs.bg, color: rs.color, border: 'none', cursor: 'pointer', outline: 'none' }}>
+                            {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                          </select>
+                        ) : (
+                          <span style={{ fontSize: '11px', fontWeight: 500, padding: '3px 8px', borderRadius: '20px', background: rs.bg, color: rs.color }}>{role}</span>
+                        )}
+                      </td>
+                      <td style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--border)' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          {mounted && perms.canSuspendUsers && (
+                            <button onClick={() => toggleStatus(emp)}
+                              style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '7px', fontWeight: 500, cursor: 'pointer', background: emp.status === 'ACTIVE' ? '#fef2f2' : '#f0fdf4', color: emp.status === 'ACTIVE' ? '#ef4444' : '#22c55e', border: 'none' }}>
+                              {emp.status === 'ACTIVE' ? 'Заблок.' : 'Активир.'}
+                            </button>
+                          )}
+                          {mounted && perms.canInviteUsers && (
+                            <button onClick={() => deleteEmployee(emp)}
+                              style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '7px', fontWeight: 500, cursor: 'pointer', background: 'var(--bg-secondary)', color: 'var(--text-muted)', border: 'none' }}>
+                              Удалить
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
       {/* Invite modal */}
-      {showInvite && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(26,26,46,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, backdropFilter:'blur(2px)' }}>
-          <div style={{ background:'#fff', borderRadius:'16px', padding:'28px 32px', width:'420px', boxShadow:'0 16px 48px rgba(108,92,231,0.2)' }}>
-            <h3 style={{ fontSize:'16px', fontWeight:700, color:'#1a1a2e', margin:'0 0 22px' }}>Пригласить сотрудника</h3>
-            <form onSubmit={handleInvite} style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
-              {[
-                { label:'Имя', field:'name', type:'text', ph:'Иван Иванов' },
-                { label:'Email', field:'email', type:'email', ph:'ivan@company.ru' },
-                { label:'Пароль', field:'password', type:'password', ph:'Минимум 6 символов' },
-              ].map(f => (
-                <div key={f.field}>
-                  <label style={{ fontSize:'11px', fontWeight:600, color:'#888', letterSpacing:'0.3px', display:'block', marginBottom:'6px' }}>{f.label.toUpperCase()}</label>
-                  <input type={f.type} placeholder={f.ph} required value={(invite as any)[f.field]}
-                    onChange={e => setInvite({...invite, [f.field]:e.target.value})} style={inp} />
+      {showForm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          <div style={{ background: 'var(--bg-primary)', borderRadius: 'var(--radius)', padding: '24px', width: '400px', border: '0.5px solid var(--border)' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '20px' }}>Добавить сотрудника</h2>
+            <form onSubmit={invite} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {[{ label: 'Имя', key: 'name', type: 'text', placeholder: 'Иван Петров' }, { label: 'Email', key: 'email', type: 'email', placeholder: 'ivan@company.ru' }, { label: 'Пароль', key: 'password', type: 'password', placeholder: 'Минимум 8 символов' }].map(f => (
+                <div key={f.key}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '6px' }}>{f.label}</label>
+                  <input type={f.type} value={(form as any)[f.key]} onChange={e => setForm({ ...form, [f.key]: e.target.value })} placeholder={f.placeholder} required
+                    style={{ width: '100%', background: 'var(--bg-secondary)', border: '0.5px solid var(--border)', borderRadius: '8px', padding: '8px 12px', fontSize: '13px', color: 'var(--text-primary)', outline: 'none' }} />
                 </div>
               ))}
               <div>
-                <label style={{ fontSize:'11px', fontWeight:600, color:'#888', letterSpacing:'0.3px', display:'block', marginBottom:'6px' }}>РОЛЬ</label>
-                <select value={invite.role} onChange={e=>setInvite({...invite,role:e.target.value})} style={inp}>
-                  <option value="EMPLOYEE">Сотрудник</option>
-                  <option value="MANAGER">Менеджер</option>
-                  <option value="ADMIN">Администратор</option>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '6px' }}>Роль</label>
+                <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}
+                  style={{ width: '100%', background: 'var(--bg-secondary)', border: '0.5px solid var(--border)', borderRadius: '8px', padding: '8px 12px', fontSize: '13px', color: 'var(--text-primary)', outline: 'none' }}>
+                  {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
-              {inviteError && <div style={{ background:'#FFEBEE', color:'#C62828', borderRadius:'8px', padding:'8px 12px', fontSize:'12px' }}>{inviteError}</div>}
-              <div style={{ display:'flex', gap:'10px', marginTop:'8px' }}>
-                <button type="button" onClick={()=>setShowInvite(false)}
-                  style={{ flex:1, background:'#F5F3FC', color:'#666', border:'1px solid #E0DDF0', borderRadius:'9px', padding:'10px', fontSize:'13px', cursor:'pointer', fontWeight:500 }}>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px' }}>
+                <button type="button" onClick={() => setShowForm(false)}
+                  style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '0.5px solid var(--border)', padding: '8px 16px', borderRadius: '8px', fontSize: '13px', cursor: 'pointer' }}>
                   Отмена
                 </button>
-                <button type="submit"
-                  style={{ flex:1, background:'#6C5CE7', color:'white', border:'none', borderRadius:'9px', padding:'10px', fontSize:'13px', cursor:'pointer', fontWeight:600 }}>
-                  Пригласить →
+                <button type="submit" disabled={saving}
+                  style={{ background: 'var(--accent)', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 500, cursor: 'pointer', opacity: saving ? 0.7 : 1 }}>
+                  {saving ? 'Добавляю...' : 'Добавить'}
                 </button>
               </div>
             </form>

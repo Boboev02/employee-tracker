@@ -3,176 +3,207 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePermissions } from '@/lib/usePermissions';
 
-const DAYS = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
-const HOURS = Array.from({length:24},(_,i)=>i.toString().padStart(2,'0')+':00');
-const TIMEZONES = ['Europe/Moscow','Europe/Kaliningrad','Asia/Yekaterinburg','Asia/Omsk','Asia/Krasnoyarsk','Asia/Irkutsk','Asia/Yakutsk','Asia/Vladivostok'];
+const DAYS = [{ label: 'Пн', value: 1 },{ label: 'Вт', value: 2 },{ label: 'Ср', value: 3 },{ label: 'Чт', value: 4 },{ label: 'Пт', value: 5 },{ label: 'Сб', value: 6 },{ label: 'Вс', value: 0 }];
+const TIMEZONES = [
+  { label: 'Москва (UTC+3)', value: 'Europe/Moscow' },
+  { label: 'Екатеринбург (UTC+5)', value: 'Asia/Yekaterinburg' },
+  { label: 'Новосибирск (UTC+7)', value: 'Asia/Novosibirsk' },
+  { label: 'Владивосток (UTC+10)', value: 'Asia/Vladivostok' },
+  { label: 'UTC', value: 'UTC' },
+];
+const HOURS = Array.from({ length: 24 }, (_, i) => ({ value: i, label: i.toString().padStart(2,'0') + ':00' }));
 
 export default function SettingsPage() {
   const router = useRouter();
-  const perms = usePermissions();
-  const [settings, setSettings] = useState<any>({ workDays:[1,2,3,4,5], startTime:'09:00', endTime:'18:00', timezone:'Europe/Moscow', lunchEnabled:true, lunchStart:'13:00', lunchEnd:'14:00' });
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const perms  = usePermissions();
+  const [token, setToken]   = useState('');
+  const [settings, setSettings] = useState<any>({ enabled: true, startHour: 9, endHour: 18, timezone: 'Europe/Moscow', workDays: [1,2,3,4,5], lunchStart: 13, lunchEnd: 14 });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving]   = useState(false);
+  const [saved, setSaved]     = useState(false);
+  const [status, setStatus]   = useState('');
 
   useEffect(() => {
     const t = localStorage.getItem('access_token');
     if (!t) { router.push('/login'); return; }
-    fetch('https://employee-tracker.ru/api/v1/settings/work-hours', { headers:{ Authorization:'Bearer '+t } })
-      .then(r=>r.json()).then(d=>{ if (d && !d.error) setSettings({...settings,...d}); });
+    setToken(t);
+    fetch('https://employee-tracker.ru/api/v1/settings/work-hours', { headers: { Authorization: 'Bearer ' + t } })
+      .then(r => r.json()).then(d => { setSettings(d); setLoading(false); });
   }, []);
 
+  useEffect(() => {
+    if (!settings.enabled) { setStatus('Рабочее время не ограничено'); return; }
+    const now = new Date();
+    const local = new Date(now.toLocaleString('en-US', { timeZone: settings.timezone }));
+    const day = local.getDay(); const hour = local.getHours() + local.getMinutes() / 60;
+    if (!settings.workDays.includes(day)) { setStatus('Сейчас нерабочий день'); return; }
+    if (hour < settings.startHour || hour >= settings.endHour) { setStatus('Сейчас нерабочее время'); return; }
+    if (settings.lunchStart != null && hour >= settings.lunchStart && hour < settings.lunchEnd) { setStatus('Обеденный перерыв'); return; }
+    setStatus('Сейчас рабочее время ✓');
+  }, [settings]);
+
   const save = async () => {
-    const t = localStorage.getItem('access_token');
-    if (!t) return;
     setSaving(true);
     await fetch('https://employee-tracker.ru/api/v1/settings/work-hours', {
-      method:'PUT', headers:{ Authorization:'Bearer '+t, 'Content-Type':'application/json' },
+      method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
       body: JSON.stringify(settings),
     });
-    setSaving(false); setSaved(true);
-    setTimeout(()=>setSaved(false), 2000);
+    setSaved(true); setSaving(false);
+    setTimeout(() => setSaved(false), 2000);
   };
 
-  const reset = async () => {
-    if (!confirm('Удалить все данные активности? Это необратимо!')) return;
-    const t = localStorage.getItem('access_token');
-    if (!t) return;
-    await fetch('https://employee-tracker.ru/api/v1/analytics/reset', { method:'POST', headers:{ Authorization:'Bearer '+t } });
-    alert('Данные очищены');
-  };
+  const canEdit = perms.isAdmin;
 
-  const toggleDay = (d: number) => {
-    const days = settings.workDays ?? [];
-    setSettings({ ...settings, workDays: days.includes(d) ? days.filter((x:number)=>x!==d) : [...days,d].sort() });
-  };
+  if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', color: 'var(--text-muted)', fontSize: '13px' }}>Загрузка...</div>;
 
-  const inp: React.CSSProperties = { background:'#F5F3FC', border:'1.5px solid #E0DDF0', borderRadius:'9px', padding:'9px 14px', fontSize:'13px', color:'#1a1a2e', outline:'none' };
-  const card: React.CSSProperties = { background:'#fff', borderRadius:'14px', padding:'22px 24px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', border:'1px solid #eee', marginBottom:'16px' };
+  const selectStyle: React.CSSProperties = { width:'100%', background:'var(--bg-secondary)', border:'0.5px solid var(--border-strong)', borderRadius:'8px', padding:'8px 12px', fontSize:'13px', color:'var(--text-primary)', outline:'none' };
 
   return (
-    <div style={{ minHeight:'100vh', background:'#EBE8F6' }}>
-      <div style={{ background:'#fff', borderBottom:'1px solid #eee', padding:'16px 28px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:10, boxShadow:'0 2px 8px rgba(108,92,231,0.06)' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-tertiary)' }}>
+      <div style={{ background: 'var(--bg-primary)', borderBottom: '0.5px solid var(--border)', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 10 }}>
         <div>
-          <h1 style={{ fontSize:'18px', fontWeight:700, color:'#1a1a2e', margin:0 }}>Настройки</h1>
-          <p style={{ fontSize:'12px', color:'#aaa', margin:'2px 0 0' }}>Параметры рабочего времени и системы</p>
+          <h1 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Настройки</h1>
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0' }}>Рабочее время организации</p>
         </div>
-        {perms.isAdmin && (
+        {canEdit && (
           <button onClick={save} disabled={saving}
-            style={{ background:saved?'#43A047':'#6C5CE7', color:'white', border:'none', borderRadius:'9px', padding:'9px 20px', fontSize:'13px', fontWeight:600, cursor:'pointer', transition:'background 0.3s', boxShadow:'0 4px 12px rgba(108,92,231,0.3)' }}>
-            {saved ? '✓ Сохранено' : saving ? 'Сохранение...' : 'Сохранить'}
+            style={{ background: saved ? '#22c55e' : 'var(--accent)', color: 'white', border: 'none', padding: '8px 20px', borderRadius: '8px', fontSize: '13px', fontWeight: 500, cursor: 'pointer', transition: 'background 0.3s' }}>
+            {saved ? '✓ Сохранено' : saving ? 'Сохраняю...' : 'Сохранить'}
           </button>
         )}
       </div>
 
-      <div style={{ padding:'24px 28px', maxWidth:'700px' }}>
-        {/* Timezone */}
-        <div style={card}>
-          <h3 style={{ fontSize:'14px', fontWeight:700, color:'#1a1a2e', margin:'0 0 16px', display:'flex', alignItems:'center', gap:'8px' }}>
-            <span style={{ width:'28px', height:'28px', background:'#EDE9FF', borderRadius:'7px', display:'inline-flex', alignItems:'center', justifyContent:'center' }}>
-              <i className="ti ti-world" style={{ fontSize:'14px', color:'#6C5CE7' }} aria-hidden="true" />
-            </span>
-            Часовой пояс
-          </h3>
-          <select value={settings.timezone} onChange={e=>setSettings({...settings,timezone:e.target.value})} disabled={!perms.isAdmin} style={{ ...inp, width:'100%' }}>
-            {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz.replace('_',' ')}</option>)}
-          </select>
-        </div>
+      <div style={{ padding: '24px', maxWidth: '640px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
-        {/* Work days */}
-        <div style={card}>
-          <h3 style={{ fontSize:'14px', fontWeight:700, color:'#1a1a2e', margin:'0 0 16px', display:'flex', alignItems:'center', gap:'8px' }}>
-            <span style={{ width:'28px', height:'28px', background:'#EDE9FF', borderRadius:'7px', display:'inline-flex', alignItems:'center', justifyContent:'center' }}>
-              <i className="ti ti-calendar" style={{ fontSize:'14px', color:'#6C5CE7' }} aria-hidden="true" />
-            </span>
-            Рабочие дни
-          </h3>
-          <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
-            {DAYS.map((d,i) => {
-              const n = i+1;
-              const active = (settings.workDays??[]).includes(n);
-              return (
-                <button key={n} onClick={()=>perms.isAdmin&&toggleDay(n)}
-                  style={{ width:'44px', height:'44px', borderRadius:'10px', border:'none', cursor:perms.isAdmin?'pointer':'default', fontWeight:600, fontSize:'13px', background:active?'#6C5CE7':'#F5F3FC', color:active?'white':'#888', transition:'all 0.15s', boxShadow:active?'0 4px 10px rgba(108,92,231,0.3)':'none' }}>
-                  {d}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Work hours */}
-        <div style={card}>
-          <h3 style={{ fontSize:'14px', fontWeight:700, color:'#1a1a2e', margin:'0 0 16px', display:'flex', alignItems:'center', gap:'8px' }}>
-            <span style={{ width:'28px', height:'28px', background:'#EDE9FF', borderRadius:'7px', display:'inline-flex', alignItems:'center', justifyContent:'center' }}>
-              <i className="ti ti-clock" style={{ fontSize:'14px', color:'#6C5CE7' }} aria-hidden="true" />
-            </span>
-            Рабочие часы
-          </h3>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr auto 1fr', gap:'10px', alignItems:'center' }}>
+        {/* Toggle */}
+        <div style={{ background: 'var(--bg-primary)', border: '0.5px solid var(--border)', borderRadius: 'var(--radius)', padding: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
             <div>
-              <label style={{ fontSize:'11px', color:'#aaa', display:'block', marginBottom:'6px', fontWeight:600, letterSpacing:'0.3px' }}>НАЧАЛО</label>
-              <select value={settings.startTime} onChange={e=>setSettings({...settings,startTime:e.target.value})} disabled={!perms.isAdmin} style={{ ...inp, width:'100%' }}>
-                {HOURS.map(h=><option key={h} value={h}>{h}</option>)}
-              </select>
+              <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>Учёт рабочего времени</p>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '3px 0 0' }}>Аналитика считает только рабочие часы</p>
             </div>
-            <div style={{ color:'#aaa', fontWeight:600, marginTop:'20px' }}>—</div>
-            <div>
-              <label style={{ fontSize:'11px', color:'#aaa', display:'block', marginBottom:'6px', fontWeight:600, letterSpacing:'0.3px' }}>КОНЕЦ</label>
-              <select value={settings.endTime} onChange={e=>setSettings({...settings,endTime:e.target.value})} disabled={!perms.isAdmin} style={{ ...inp, width:'100%' }}>
-                {HOURS.map(h=><option key={h} value={h}>{h}</option>)}
-              </select>
+            <div onClick={() => canEdit && setSettings({ ...settings, enabled: !settings.enabled })}
+              style={{ width: '44px', height: '24px', borderRadius: '12px', background: settings.enabled ? 'var(--accent)' : 'var(--border-strong)', cursor: canEdit ? 'pointer' : 'default', position: 'relative', transition: 'background 0.2s' }}>
+              <span style={{ position: 'absolute', top: '3px', left: settings.enabled ? '22px' : '3px', width: '18px', height: '18px', borderRadius: '50%', background: 'white', transition: 'left 0.2s' }} />
             </div>
+          </div>
+          <div style={{ background: status.includes('✓') ? '#f0fdf4' : 'var(--bg-secondary)', borderRadius: '8px', padding: '8px 12px', fontSize: '12px', color: status.includes('✓') ? '#22c55e' : 'var(--text-muted)' }}>
+            {status}
           </div>
         </div>
 
-        {/* Lunch */}
-        <div style={card}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: settings.lunchEnabled?'16px':'0' }}>
-            <h3 style={{ fontSize:'14px', fontWeight:700, color:'#1a1a2e', margin:0, display:'flex', alignItems:'center', gap:'8px' }}>
-              <span style={{ width:'28px', height:'28px', background:'#EDE9FF', borderRadius:'7px', display:'inline-flex', alignItems:'center', justifyContent:'center' }}>
-                <i className="ti ti-coffee" style={{ fontSize:'14px', color:'#6C5CE7' }} aria-hidden="true" />
-              </span>
-              Обеденный перерыв
-            </h3>
-            <div onClick={()=>perms.isAdmin&&setSettings({...settings,lunchEnabled:!settings.lunchEnabled})}
-              style={{ width:'44px', height:'24px', borderRadius:'12px', background:settings.lunchEnabled?'#6C5CE7':'#E0E0E0', position:'relative', cursor:perms.isAdmin?'pointer':'default', transition:'background 0.2s' }}>
-              <div style={{ position:'absolute', top:'3px', left:settings.lunchEnabled?'23px':'3px', width:'18px', height:'18px', borderRadius:'50%', background:'white', transition:'left 0.2s', boxShadow:'0 1px 4px rgba(0,0,0,0.2)' }} />
-            </div>
-          </div>
-          {settings.lunchEnabled && (
-            <div style={{ display:'grid', gridTemplateColumns:'1fr auto 1fr', gap:'10px', alignItems:'center' }}>
-              <select value={settings.lunchStart} onChange={e=>setSettings({...settings,lunchStart:e.target.value})} disabled={!perms.isAdmin} style={{ ...inp, width:'100%' }}>
-                {HOURS.map(h=><option key={h} value={h}>{h}</option>)}
-              </select>
-              <span style={{ color:'#aaa', fontWeight:600 }}>—</span>
-              <select value={settings.lunchEnd} onChange={e=>setSettings({...settings,lunchEnd:e.target.value})} disabled={!perms.isAdmin} style={{ ...inp, width:'100%' }}>
-                {HOURS.map(h=><option key={h} value={h}>{h}</option>)}
+        {settings.enabled && (
+          <>
+            {/* Timezone */}
+            <div style={{ background: 'var(--bg-primary)', border: '0.5px solid var(--border)', borderRadius: 'var(--radius)', padding: '20px' }}>
+              <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '10px' }}>Часовой пояс</p>
+              <select value={settings.timezone} disabled={!canEdit}
+                onChange={e => setSettings({ ...settings, timezone: e.target.value })}
+                style={selectStyle}>
+                {TIMEZONES.map(tz => <option key={tz.value} value={tz.value}>{tz.label}</option>)}
               </select>
             </div>
-          )}
-        </div>
 
-        {/* Summary */}
-        <div style={{ ...card, background:'#F5F3FC', border:'1px solid #E0DDF0' }}>
-          <p style={{ fontSize:'12px', color:'#888', margin:0, fontWeight:500 }}>
-            <i className="ti ti-info-circle" style={{ marginRight:'6px', color:'#6C5CE7' }} aria-hidden="true" />
-            {(settings.workDays??[]).map((d:number)=>DAYS[d-1]).join(', ')} · {settings.startTime} — {settings.endTime} {settings.lunchEnabled?`· Обед ${settings.lunchStart}–${settings.lunchEnd}`:''}
-          </p>
-        </div>
+            {/* Work days */}
+            <div style={{ background: 'var(--bg-primary)', border: '0.5px solid var(--border)', borderRadius: 'var(--radius)', padding: '20px' }}>
+              <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '12px' }}>Рабочие дни</p>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                {DAYS.map(day => {
+                  const active = settings.workDays.includes(day.value);
+                  return (
+                    <button key={day.value} disabled={!canEdit}
+                      onClick={() => {
+                        const days = active ? settings.workDays.filter((d: number) => d !== day.value) : [...settings.workDays, day.value];
+                        setSettings({ ...settings, workDays: days });
+                      }}
+                      style={{ width: '40px', height: '40px', borderRadius: '8px', fontSize: '13px', fontWeight: 500, border: 'none', cursor: canEdit ? 'pointer' : 'default', background: active ? 'var(--accent)' : 'var(--bg-secondary)', color: active ? 'white' : 'var(--text-secondary)', transition: 'background 0.15s' }}>
+                      {day.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-        {/* Danger zone */}
-        {perms.isAdmin && (
-          <div style={{ ...card, border:'1px solid rgba(229,57,53,0.2)', background:'#FFEBEE' }}>
-            <h3 style={{ fontSize:'14px', fontWeight:700, color:'#C62828', margin:'0 0 8px', display:'flex', alignItems:'center', gap:'8px' }}>
-              <i className="ti ti-alert-triangle" style={{ fontSize:'16px' }} aria-hidden="true" /> Опасная зона
-            </h3>
-            <p style={{ fontSize:'12px', color:'#E57373', margin:'0 0 14px' }}>Удаляет все данные активности. Используется только для тестирования.</p>
-            <button onClick={reset} style={{ background:'#E53935', color:'white', border:'none', borderRadius:'9px', padding:'9px 18px', fontSize:'13px', fontWeight:600, cursor:'pointer' }}>
-              🗑 Очистить все данные
-            </button>
-          </div>
+            {/* Hours */}
+            <div style={{ background: 'var(--bg-primary)', border: '0.5px solid var(--border)', borderRadius: 'var(--radius)', padding: '20px' }}>
+              <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '14px' }}>Рабочие часы</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                <div>
+                  <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Начало</label>
+                  <select value={settings.startHour} disabled={!canEdit} onChange={e => setSettings({ ...settings, startHour: parseInt(e.target.value) })} style={selectStyle}>
+                    {HOURS.map(h => <option key={h.value} value={h.value}>{h.label}</option>)}
+                  </select>
+                </div>
+                <span style={{ color: 'var(--text-muted)', marginTop: '16px' }}>—</span>
+                <div>
+                  <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Конец</label>
+                  <select value={settings.endHour} disabled={!canEdit} onChange={e => setSettings({ ...settings, endHour: parseInt(e.target.value) })} style={selectStyle}>
+                    {HOURS.map(h => <option key={h.value} value={h.value}>{h.label}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Lunch */}
+              <div style={{ borderTop: '0.5px solid var(--border)', paddingTop: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <span style={{ fontSize: '13px', color: 'var(--text-primary)' }}>Обеденный перерыв</span>
+                  <div onClick={() => canEdit && setSettings({ ...settings, lunchStart: settings.lunchStart != null ? null : 13, lunchEnd: settings.lunchEnd != null ? null : 14 })}
+                    style={{ width: '36px', height: '20px', borderRadius: '10px', background: settings.lunchStart != null ? 'var(--accent)' : 'var(--border-strong)', cursor: canEdit ? 'pointer' : 'default', position: 'relative', transition: 'background 0.2s' }}>
+                    <span style={{ position: 'absolute', top: '2px', left: settings.lunchStart != null ? '18px' : '2px', width: '16px', height: '16px', borderRadius: '50%', background: 'white', transition: 'left 0.2s' }} />
+                  </div>
+                </div>
+                {settings.lunchStart != null && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: '8px' }}>
+                    <select value={settings.lunchStart} disabled={!canEdit} onChange={e => setSettings({ ...settings, lunchStart: parseInt(e.target.value) })} style={selectStyle}>
+                      {HOURS.map(h => <option key={h.value} value={h.value}>{h.label}</option>)}
+                    </select>
+                    <span style={{ color: 'var(--text-muted)' }}>—</span>
+                    <select value={settings.lunchEnd} disabled={!canEdit} onChange={e => setSettings({ ...settings, lunchEnd: parseInt(e.target.value) })} style={selectStyle}>
+                      {HOURS.map(h => <option key={h.value} value={h.value}>{h.label}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Summary */}
+            <div style={{ background: 'rgba(167,139,250,0.08)', border: '0.5px solid rgba(167,139,250,0.2)', borderRadius: 'var(--radius)', padding: '14px 16px' }}>
+              <p style={{ fontSize: '12px', color: '#a78bfa', fontWeight: 500, marginBottom: '4px' }}>Текущие настройки</p>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
+                {DAYS.filter(d => settings.workDays.includes(d.value)).map(d => d.label).join(', ')} · {String(settings.startHour).padStart(2,'0')}:00 — {String(settings.endHour).padStart(2,'0')}:00
+                {settings.lunchStart != null && ' · Обед ' + String(settings.lunchStart).padStart(2,'0') + ':00—' + String(settings.lunchEnd).padStart(2,'0') + ':00'}
+              </p>
+            </div>
+          </>
         )}
+        {!canEdit && <p style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>Только администратор может изменять настройки</p>}
       </div>
+      {canEdit && (
+      <div style={{ background:'var(--bg-primary)', border:'1px solid #fee2e2', borderRadius:'var(--radius)', padding:'20px', marginTop:'16px' }}>
+        <h2 style={{ fontSize:'14px', fontWeight:600, color:'#ef4444', margin:'0 0 8px' }}>⚠️ Опасная зона — Сброс данных</h2>
+        <p style={{ fontSize:'12px', color:'var(--text-muted)', margin:'0 0 16px' }}>
+          Удаляет все данные активности, задачи, аналитику и статистику. Структура системы сохраняется. Используется только для тестирования.
+        </p>
+        <button
+          onClick={async () => {
+            if (!confirm('Вы уверены? Это удалит ВСЕ данные: активность, задачи, аналитику, время работы. Действие необратимо!')) return;
+            if (!confirm('Подтвердите ещё раз — все данные будут удалены безвозвратно.')) return;
+            const t = localStorage.getItem('access_token');
+            const res = await fetch('https://employee-tracker.ru/api/v1/reset', {
+              method: 'POST',
+              headers: { Authorization: 'Bearer ' + t },
+            });
+            const data = await res.json();
+            if (data.success) alert('✅ Все данные успешно очищены!');
+            else alert('Ошибка: ' + JSON.stringify(data));
+          }}
+          style={{ background:'#ef4444', color:'white', border:'none', padding:'10px 20px', borderRadius:'8px', fontSize:'13px', fontWeight:600, cursor:'pointer' }}
+        >
+          🗑️ Очистить все данные
+        </button>
+      </div>
+      )}
+
     </div>
   );
 }
