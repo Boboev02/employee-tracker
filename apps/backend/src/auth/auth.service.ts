@@ -117,6 +117,25 @@ export class AuthService {
     return { message: 'Logged out' };
   }
 
+  async refreshExpiredToken(expiredToken: string) {
+    try {
+      const payload = this.tokens.verifyAccessTokenIgnoreExpiry(expiredToken);
+      if (!payload?.sub) throw new Error('Invalid');
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+        include: { userRoles: { include: { role: true } } },
+      });
+      if (!user || user.deletedAt) throw new Error('Not found');
+      const roles = user.userRoles.map((ur: any) => ur.role.name);
+      const accessToken = this.tokens.generateAccessToken({
+        sub: user.id, email: user.email, orgId: user.orgId, roles,
+      });
+      return { accessToken, expiresIn: 86400 };
+    } catch(e) {
+      return null;
+    }
+  }
+
   async getMe(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },

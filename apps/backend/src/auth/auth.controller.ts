@@ -32,22 +32,9 @@ export class AuthController {
     const authHeader = req.headers['authorization'] ?? '';
     const token = authHeader.replace('Bearer ', '').trim();
     if (!token) throw new UnauthorizedException('No token');
-    try {
-      const payload = this.auth['tokens'].verifyAccessTokenIgnoreExpiry(token);
-      if (!payload?.sub) throw new UnauthorizedException();
-      const user = await this.auth['prisma'].user.findUnique({
-        where: { id: payload.sub },
-        include: { userRoles: { include: { role: true } } },
-      });
-      if (!user || user.deletedAt) throw new UnauthorizedException();
-      const roles = user.userRoles.map((ur: any) => ur.role.name);
-      const accessToken = this.auth['tokens'].generateAccessToken({
-        sub: user.id, email: user.email, orgId: user.orgId, roles,
-      });
-      return { accessToken, expiresIn: 86400 };
-    } catch(e) {
-      throw new UnauthorizedException('Invalid token');
-    }
+    const result = await this.auth.refreshExpiredToken(token);
+    if (!result) throw new UnauthorizedException('Invalid token');
+    return result;
   }
 
   // Old refresh (requires valid access token)
