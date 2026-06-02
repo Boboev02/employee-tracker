@@ -5,17 +5,23 @@ import { PrismaService } from '../prisma/prisma.service';
 export class ActiveTimeService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getActivitySummary(orgId: string, days = 7, targetUserId?: string) {
-    const from = new Date();
-    if (days === 1) {
+  async getActivitySummary(orgId: string, days = 7, targetUserId?: string, fromDate?: string, toDate?: string) {
+    let from = new Date();
+    let to: Date | undefined;
+    if (fromDate) {
+      from = new Date(fromDate + 'T00:00:00');
+    } else if (days === 1) {
       from.setHours(0, 0, 0, 0);
     } else {
       from.setDate(from.getDate() - days);
       from.setHours(0, 0, 0, 0);
     }
+    if (toDate) {
+      to = new Date(toDate + 'T23:59:59');
+    }
 
     const events = await this.prisma.activityEvent.findMany({
-      where: { orgId, createdAt: { gte: from }, ...(targetUserId ? { userId: targetUserId } : {}) },
+      where: { orgId, createdAt: { gte: from, ...(to ? { lte: to } : {}) }, ...(targetUserId ? { userId: targetUserId } : {}) },
       select: {
         userId: true, platform: true,
         clientTimestamp: true, createdAt: true,

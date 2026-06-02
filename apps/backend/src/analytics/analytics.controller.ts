@@ -48,11 +48,11 @@ export class AnalyticsController {
 
   @Get('activity/summary')
   @RequirePermissions('analytics:view:org', 'analytics:view:team', 'analytics:view:self')
-  getActivitySummary(@CurrentUser() user: any, @Query('days') days?: string, @Query('userId') userId?: string) {
+  getActivitySummary(@CurrentUser() user: any, @Query('days') days?: string, @Query('userId') userId?: string, @Query('from') from?: string, @Query('to') to?: string) {
     // EMPLOYEE can only see own data
     const hasOrgView = user.permissions?.has('analytics:view:org') || user.permissions?.has('analytics:view:team');
     const targetUserId = hasOrgView ? userId : user.id;
-    return this.activeTime.getActivitySummary(user.orgId, days ? parseInt(days) : 7, targetUserId);
+    return this.activeTime.getActivitySummary(user.orgId, days ? parseInt(days) : 7, targetUserId, from, to);
   }
 
   @Get('activity/platforms')
