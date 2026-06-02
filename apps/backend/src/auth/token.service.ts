@@ -28,4 +28,11 @@ export class TokenService {
   verifyRefreshToken(token: string): JwtPayload {
     return this.jwt.verify(token, { secret: process.env.JWT_REFRESH_SECRET });
   }
+
+  verifyAccessTokenIgnoreExpiry(token: string): JwtPayload {
+    return this.jwt.verify(token, {
+      secret: process.env.JWT_ACCESS_SECRET,
+      ignoreExpiration: true,
+    });
+  }
 }

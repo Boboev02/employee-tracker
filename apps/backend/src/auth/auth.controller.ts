@@ -25,6 +25,31 @@ export class AuthController {
     return res.json(result);
   }
 
+  // Extension refresh — accepts expired access token
+  @Public()
+  @Post('refresh-extension')
+  async refreshExtension(@Req() req: any) {
+    const authHeader = req.headers['authorization'] ?? '';
+    const token = authHeader.replace('Bearer ', '').trim();
+    if (!token) throw new UnauthorizedException('No token');
+    try {
+      const payload = this.auth['tokens'].verifyAccessTokenIgnoreExpiry(token);
+      if (!payload?.sub) throw new UnauthorizedException();
+      const user = await this.auth['prisma'].user.findUnique({
+        where: { id: payload.sub },
+        include: { userRoles: { include: { role: true } } },
+      });
+      if (!user || user.deletedAt) throw new UnauthorizedException();
+      const roles = user.userRoles.map((ur: any) => ur.role.name);
+      const accessToken = this.auth['tokens'].generateAccessToken({
+        sub: user.id, email: user.email, orgId: user.orgId, roles,
+      });
+      return { accessToken, expiresIn: 86400 };
+    } catch(e) {
+      throw new UnauthorizedException('Invalid token');
+    }
+  }
+
   // Old refresh (requires valid access token)
   @Post('refresh')
   @HttpCode(200)
