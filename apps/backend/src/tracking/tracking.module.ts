@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { TrackingController }     from './tracking.controller';
+import { TrackingController, TrackingAdminController }     from './tracking.controller';
 import { TrackingService }        from './tracking.service';
 import { WorkSessionService }     from './work-session.service';
 import { WorkSessionController }  from './work-session.controller';
