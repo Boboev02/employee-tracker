@@ -8,6 +8,12 @@ export class TrackingService {
   constructor(private readonly prisma: PrismaService) {}
 
   async ingestBatch(user: any, payload: any) {
+    // Проверяем статус сотрудника
+    const dbUser = await this.prisma.user.findUnique({ where: { id: user.id }, select: { status: true } });
+    if (dbUser?.status === 'SUSPENDED') {
+      this.logger.warn(`[Tracking] Rejected events from suspended user ${user.id}`);
+      return { received: 0, error: 'suspended' };
+    }
     const events = payload.events ?? [];
     if (!events.length) return { received: 0 };
 
