@@ -2,19 +2,30 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 
-const STATUS_STYLE: Record<string, { bg: string; color: string; label: string }> = {
-  NEW:         { bg:'var(--bg-secondary)', color:'var(--text-muted)',   label:'Новая' },
-  IN_PROGRESS: { bg:'var(--blue-bg)',      color:'var(--blue)',          label:'В работе' },
-  REVIEW:      { bg:'var(--orange-bg)',    color:'var(--orange)',        label:'Проверка' },
-  DONE:        { bg:'var(--green-bg)',     color:'var(--green)',         label:'Готово' },
-  BLOCKED:     { bg:'var(--red-bg)',       color:'var(--red)',           label:'Заблокирована' },
+const STATUS_STYLE: Record<string,{bg:string;c:string;label:string}> = {
+  NEW:         { bg:'#EDE9FE', c:'#7F77DD', label:'Новая' },
+  IN_PROGRESS: { bg:'#DBEAFE', c:'#2563EB', label:'В работе' },
+  REVIEW:      { bg:'#FEF3C7', c:'#D97706', label:'Проверка' },
+  DONE:        { bg:'#DCFCE7', c:'#16A34A', label:'Готово' },
+  BLOCKED:     { bg:'#FEE2E2', c:'#DC2626', label:'Заблокирована' },
+  OVERDUE:     { bg:'#FEE2E2', c:'#DC2626', label:'Просрочена' },
 };
-const PRIORITY_STYLE: Record<string, { bg: string; color: string; label: string }> = {
-  LOW:      { bg:'var(--bg-secondary)', color:'var(--text-muted)',  label:'Низкий' },
-  MEDIUM:   { bg:'var(--blue-bg)',      color:'var(--blue)',         label:'Средний' },
-  HIGH:     { bg:'var(--orange-bg)',    color:'var(--orange)',       label:'Высокий' },
-  CRITICAL: { bg:'var(--red-bg)',       color:'var(--red)',          label:'Критический' },
+const PRIORITY_STYLE: Record<string,{bg:string;c:string;label:string}> = {
+  LOW:      { bg:'#F3F4F6', c:'#6B7280', label:'Низкий' },
+  MEDIUM:   { bg:'#DBEAFE', c:'#2563EB', label:'Средний' },
+  HIGH:     { bg:'#FEF3C7', c:'#D97706', label:'Высокий' },
+  CRITICAL: { bg:'#FEE2E2', c:'#DC2626', label:'Критический' },
 };
+const AVATAR_COLORS = ['#7F77DD','#2563EB','#16A34A','#D97706','#DC2626','#0891B2'];
+const avatarColor = (name: string) => AVATAR_COLORS[(name?.charCodeAt(0)??0) % AVATAR_COLORS.length];
+
+function timeAgo(dateStr: string) {
+  const d = Math.floor((Date.now()-new Date(dateStr).getTime())/60000);
+  if (d<1) return 'только что';
+  if (d<60) return d+'м назад';
+  if (d<1440) return Math.floor(d/60)+'ч назад';
+  return new Date(dateStr).toLocaleDateString('ru',{day:'numeric',month:'short'});
+}
 
 export default function TaskDetailPage() {
   const router = useRouter();
@@ -24,11 +35,13 @@ export default function TaskDetailPage() {
   const [task, setTask]         = useState<any>(null);
   const [comments, setComments] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
-  const [userMap, setUserMap]   = useState<Record<string, string>>({});
+  const [userMap, setUserMap]   = useState<Record<string,string>>({});
   const [loading, setLoading]   = useState(true);
   const [comment, setComment]   = useState('');
   const [posting, setPosting]   = useState(false);
   const [saving, setSaving]     = useState(false);
+  const [editTitle, setEditTitle] = useState(false);
+  const [titleVal, setTitleVal] = useState('');
 
   useEffect(() => {
     const t = localStorage.getItem('access_token');
@@ -36,11 +49,11 @@ export default function TaskDetailPage() {
     if (!t) { router.push('/login'); return; }
     setToken(t); if (u) setUser(JSON.parse(u));
     loadTask(t);
-    fetch('https://employee-tracker.ru/api/v1/employees', { headers: { Authorization: 'Bearer ' + t } })
-      .then(r => r.json()).then(data => {
+    fetch('https://employee-tracker.ru/api/v1/employees', { headers:{ Authorization:'Bearer '+t } })
+      .then(r=>r.json()).then(data => {
         if (Array.isArray(data)) {
           const map: Record<string,string> = {};
-          data.forEach((e: any) => { map[e.id] = e.name; });
+          data.forEach((e:any)=>{ map[e.id]=e.name; });
           setUserMap(map); setEmployees(data);
         }
       });
@@ -49,26 +62,27 @@ export default function TaskDetailPage() {
   const loadTask = async (t: string) => {
     setLoading(true);
     try {
-      const res = await fetch('https://employee-tracker.ru/api/v1/tasks/' + id, { headers: { Authorization: 'Bearer ' + t } });
-      const data = await res.json(); setTask(data);
-      setComments(Array.isArray(data.comments) ? data.comments : []);
+      const res  = await fetch('https://employee-tracker.ru/api/v1/tasks/'+id, { headers:{ Authorization:'Bearer '+t } });
+      const data = await res.json();
+      setTask(data); setTitleVal(data.title ?? '');
+      setComments(Array.isArray(data.comments)?data.comments:[]);
     } finally { setLoading(false); }
   };
 
   const updateField = async (field: string, value: any) => {
     setSaving(true);
     try {
-      await fetch('https://employee-tracker.ru/api/v1/tasks/' + id, {
-        method:'PATCH', headers:{'Content-Type':'application/json', Authorization:'Bearer '+token},
-        body: JSON.stringify({ [field]: value || null }),
+      await fetch('https://employee-tracker.ru/api/v1/tasks/'+id, {
+        method:'PATCH', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token },
+        body: JSON.stringify({ [field]: value||null }),
       });
       loadTask(token);
     } finally { setSaving(false); }
   };
 
   const moveTask = async (status: string) => {
-    await fetch('https://employee-tracker.ru/api/v1/tasks/' + id + '/move', {
-      method:'PATCH', headers:{'Content-Type':'application/json', Authorization:'Bearer '+token},
+    await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/move', {
+      method:'PATCH', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token },
       body: JSON.stringify({ status }),
     });
     loadTask(token);
@@ -78,128 +92,237 @@ export default function TaskDetailPage() {
     if (!comment.trim()) return;
     setPosting(true);
     try {
-      await fetch('https://employee-tracker.ru/api/v1/tasks/' + id + '/comments', {
-        method:'POST', headers:{'Content-Type':'application/json', Authorization:'Bearer '+token},
+      await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/comments', {
+        method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token },
         body: JSON.stringify({ content: comment.trim() }),
       });
       setComment(''); loadTask(token);
     } finally { setPosting(false); }
   };
 
-  if (loading) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'200px', color:'var(--text-muted)', fontSize:'13px' }}>Загрузка...</div>;
-  if (!task)   return <div style={{ padding:'24px', color:'var(--text-muted)', fontSize:'13px' }}>Задача не найдена</div>;
+  if (loading) return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'200px', color:'#9B97CC', fontSize:'13px' }}>
+      Загрузка...
+    </div>
+  );
+  if (!task) return (
+    <div style={{ padding:'24px', color:'#9B97CC', fontSize:'13px' }}>Задача не найдена</div>
+  );
 
   const ss = STATUS_STYLE[task.status] ?? STATUS_STYLE.NEW;
   const ps = PRIORITY_STYLE[task.priority] ?? PRIORITY_STYLE.MEDIUM;
-  const card: React.CSSProperties = { background:'var(--bg-primary)', border:'0.5px solid var(--border)', borderRadius:'var(--radius)', padding:'18px' };
-  const inputStyle: React.CSSProperties = { width:'100%', background:'var(--bg-secondary)', border:'0.5px solid var(--border)', borderRadius:'8px', padding:'7px 10px', fontSize:'12px', color:'var(--text-primary)', outline:'none', opacity: saving ? 0.6 : 1 };
+  const overdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'DONE';
+  const card: React.CSSProperties = { background:'white', borderRadius:'20px', padding:'20px', boxShadow:'0 4px 16px rgba(127,119,221,0.08)' };
+  const inp: React.CSSProperties  = { width:'100%', background:'#F8F7FF', border:'1px solid #EDE9FE', borderRadius:'10px', padding:'8px 12px', fontSize:'13px', color:'#1a1040', outline:'none', boxSizing:'border-box', fontFamily:'inherit', opacity:saving?0.6:1 };
+
+  const MOVE_ACTIONS: Record<string,{to:string;label:string;bg:string;c:string}[]> = {
+    NEW:         [{ to:'IN_PROGRESS', label:'▶ Взять в работу',   bg:'#DBEAFE', c:'#2563EB' }],
+    IN_PROGRESS: [{ to:'REVIEW',      label:'👁 На проверку',     bg:'#FEF3C7', c:'#D97706' }, { to:'DONE', label:'✓ Завершить', bg:'#DCFCE7', c:'#16A34A' }],
+    REVIEW:      [{ to:'IN_PROGRESS', label:'↩ Вернуть',          bg:'#DBEAFE', c:'#2563EB' }, { to:'DONE', label:'✓ Завершить', bg:'#DCFCE7', c:'#16A34A' }],
+    BLOCKED:     [{ to:'IN_PROGRESS', label:'▶ Вернуть в работу', bg:'#DBEAFE', c:'#2563EB' }],
+    OVERDUE:     [{ to:'IN_PROGRESS', label:'▶ Вернуть в работу', bg:'#DBEAFE', c:'#2563EB' }, { to:'DONE', label:'✓ Завершить', bg:'#DCFCE7', c:'#16A34A' }],
+    DONE:        [{ to:'IN_PROGRESS', label:'↩ Переоткрыть',      bg:'#DBEAFE', c:'#2563EB' }],
+  };
+  const canBlock = !['NEW','DONE','BLOCKED','OVERDUE'].includes(task.status);
 
   return (
-    <div style={{ minHeight:'100vh', background:'var(--bg-tertiary)' }}>
+    <div style={{ minHeight:'100vh', background:'#ECEAF8' }}>
       {/* Header */}
-      <div style={{ background:'var(--bg-primary)', borderBottom:'0.5px solid var(--border)', padding:'14px 24px', display:'flex', alignItems:'center', gap:'12px', position:'sticky', top:0, zIndex:10 }}>
-        <button onClick={() => router.push('/dashboard/tasks')} style={{ background:'none', border:'none', cursor:'pointer', fontSize:'13px', color:'var(--text-muted)', padding:'4px 8px', borderRadius:'6px' }}>← Назад</button>
-        <h1 style={{ fontSize:'15px', fontWeight:600, color:'var(--text-primary)', margin:0, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{task.title}</h1>
-        <span style={{ fontSize:'11px', fontWeight:500, padding:'3px 8px', borderRadius:'20px', background:ss.bg, color:ss.color, flexShrink:0 }}>{ss.label}</span>
+      <div style={{ background:'white', padding:'14px 28px', display:'flex', alignItems:'center', gap:'12px', position:'sticky', top:0, zIndex:10, boxShadow:'0 4px 16px rgba(127,119,221,0.06)' }}>
+        <button onClick={()=>router.push('/dashboard/tasks')}
+          style={{ background:'#F8F7FF', border:'1px solid #EDE9FE', color:'#7F77DD', borderRadius:'20px', padding:'6px 14px', fontSize:'12px', fontWeight:700, cursor:'pointer', flexShrink:0 }}>
+          ← Назад
+        </button>
+        {editTitle ? (
+          <input autoFocus value={titleVal} onChange={e=>setTitleVal(e.target.value)}
+            onBlur={()=>{ setEditTitle(false); if(titleVal.trim()&&titleVal!==task.title) updateField('title',titleVal.trim()); }}
+            onKeyDown={e=>{ if(e.key==='Enter'){ setEditTitle(false); updateField('title',titleVal.trim()); } if(e.key==='Escape') setEditTitle(false); }}
+            style={{ flex:1, fontSize:'16px', fontWeight:700, color:'#1a1040', border:'1px solid #7F77DD', borderRadius:'10px', padding:'6px 12px', outline:'none', background:'#F8F7FF' }}/>
+        ) : (
+          <h1 onClick={()=>setEditTitle(true)}
+            title="Нажмите для редактирования"
+            style={{ fontSize:'16px', fontWeight:800, color:'#1a1040', margin:0, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'text', letterSpacing:'-0.3px' }}>
+            {task.title}
+            {task.isRoutine && <span style={{ fontSize:'10px', fontWeight:700, color:'#7F77DD', background:'#EDE9FE', padding:'2px 7px', borderRadius:'8px', marginLeft:'8px' }}>🔄 Рутина</span>}
+          </h1>
+        )}
+        <span style={{ fontSize:'11px', fontWeight:700, padding:'4px 12px', borderRadius:'20px', background:ss.bg, color:ss.c, flexShrink:0 }}>{ss.label}</span>
       </div>
 
-      <div style={{ padding:'20px 24px', display:'grid', gridTemplateColumns:'1fr 280px', gap:'16px' }}>
+      <div style={{ padding:'20px 28px', display:'grid', gridTemplateColumns:'1fr 280px', gap:'16px', alignItems:'start' }}>
 
-        {/* Main */}
+        {/* Left — description + comments */}
         <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+
+          {/* Description */}
           <div style={card}>
-            <p style={{ fontSize:'12px', fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', margin:'0 0 10px' }}>Описание</p>
+            <p style={{ fontSize:'11px', fontWeight:700, color:'#9B97CC', textTransform:'uppercase', letterSpacing:'0.5px', margin:'0 0 12px' }}>Описание</p>
             {task.description ? (
-              <p style={{ fontSize:'13px', color:'var(--text-secondary)', lineHeight:1.6, whiteSpace:'pre-wrap' }}>{task.description}</p>
+              <p style={{ fontSize:'13px', color:'#1a1040', lineHeight:1.7, whiteSpace:'pre-wrap', margin:0 }}>{task.description}</p>
             ) : (
-              <p style={{ fontSize:'13px', color:'var(--text-muted)', fontStyle:'italic' }}>Описание не добавлено</p>
+              <p style={{ fontSize:'13px', color:'#C4C0E8', fontStyle:'italic', margin:0 }}>Описание не добавлено</p>
             )}
           </div>
 
           {/* Comments */}
           <div style={card}>
-            <p style={{ fontSize:'12px', fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', margin:'0 0 14px' }}>
-              Комментарии {comments.length > 0 && <span style={{ fontWeight:400, color:'var(--text-muted)' }}>({comments.length})</span>}
-            </p>
-            <div style={{ display:'flex', flexDirection:'column', gap:'12px', marginBottom:'16px' }}>
-              {comments.length === 0 ? (
-                <p style={{ textAlign:'center', fontSize:'13px', color:'var(--text-muted)', padding:'12px' }}>Комментариев пока нет</p>
-              ) : comments.map((c: any, i: number) => (
-                <div key={c.id ?? i} style={{ display:'flex', gap:'10px' }}>
-                  <div style={{ width:'28px', height:'28px', borderRadius:'50%', background:'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                    <span style={{ color:'white', fontSize:'11px', fontWeight:600 }}>{(userMap[c.authorId] ?? c.author?.name ?? '?').charAt(0)}</span>
-                  </div>
-                  <div style={{ flex:1 }}>
-                    <div style={{ display:'flex', alignItems:'baseline', gap:'8px', marginBottom:'4px' }}>
-                      <span style={{ fontSize:'13px', fontWeight:500, color:'var(--text-primary)' }}>{userMap[c.authorId] ?? c.author?.name ?? 'Пользователь'}</span>
-                      <span style={{ fontSize:'11px', color:'var(--text-muted)' }}>{new Date(c.createdAt).toLocaleString('ru',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</span>
-                    </div>
-                    <div style={{ background:'var(--bg-secondary)', borderRadius:'8px', padding:'10px 12px', fontSize:'13px', color:'var(--text-secondary)', lineHeight:1.5 }}>{c.content}</div>
-                  </div>
-                </div>
-              ))}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'16px' }}>
+              <p style={{ fontSize:'11px', fontWeight:700, color:'#9B97CC', textTransform:'uppercase', letterSpacing:'0.5px', margin:0 }}>
+                Комментарии
+                {comments.length>0 && <span style={{ fontWeight:500, color:'#C4C0E8', marginLeft:'4px' }}>({comments.length})</span>}
+              </p>
             </div>
-            <div style={{ display:'flex', gap:'10px' }}>
-              <div style={{ width:'28px', height:'28px', borderRadius:'50%', background:'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:'2px' }}>
-                <span style={{ color:'white', fontSize:'11px', fontWeight:600 }}>{user?.name?.charAt(0) ?? 'U'}</span>
+
+            {/* Comments list */}
+            {comments.length>0 && (
+              <div style={{ display:'flex', flexDirection:'column', gap:'12px', marginBottom:'20px' }}>
+                {comments.map((c:any,i:number) => {
+                  const authorName = userMap[c.authorId] ?? c.author?.name ?? 'Пользователь';
+                  const isMe = c.authorId === user?.id;
+                  return (
+                    <div key={c.id??i} style={{ display:'flex', gap:'10px', alignItems:'flex-start' }}>
+                      <div style={{ width:'32px', height:'32px', borderRadius:'50%', background:avatarColor(authorName), display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                        <span style={{ color:'white', fontSize:'12px', fontWeight:700 }}>{authorName.charAt(0)}</span>
+                      </div>
+                      <div style={{ flex:1 }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'5px' }}>
+                          <span style={{ fontSize:'13px', fontWeight:600, color:'#1a1040' }}>{authorName}</span>
+                          {isMe && <span style={{ fontSize:'10px', color:'#7F77DD', background:'#EDE9FE', padding:'1px 6px', borderRadius:'6px' }}>Вы</span>}
+                          <span style={{ fontSize:'11px', color:'#C4C0E8', marginLeft:'auto' }}>{timeAgo(c.createdAt)}</span>
+                        </div>
+                        <div style={{ background:'#F8F7FF', borderRadius:'12px', padding:'10px 14px', fontSize:'13px', color:'#1a1040', lineHeight:1.6, border:'1px solid #F3F0FF' }}>
+                          {c.content}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {comments.length===0 && (
+              <div style={{ padding:'20px', textAlign:'center', color:'#C4C0E8', fontSize:'13px', marginBottom:'16px' }}>
+                <i className="ti ti-message" style={{ fontSize:'24px', display:'block', marginBottom:'8px', opacity:0.5 }} aria-hidden="true"/>
+                Комментариев пока нет
+              </div>
+            )}
+
+            {/* New comment */}
+            <div style={{ display:'flex', gap:'10px', alignItems:'flex-start' }}>
+              <div style={{ width:'32px', height:'32px', borderRadius:'50%', background:avatarColor(user?.name??''), display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:'1px' }}>
+                <span style={{ color:'white', fontSize:'12px', fontWeight:700 }}>{user?.name?.charAt(0)??'U'}</span>
               </div>
               <div style={{ flex:1 }}>
-                <textarea value={comment} onChange={e => setComment(e.target.value)}
-                  onKeyDown={e => { if (e.key==='Enter' && (e.metaKey||e.ctrlKey)) postComment(); }}
-                  placeholder="Написать комментарий... (Cmd+Enter)" rows={3}
-                  style={{ width:'100%', background:'var(--bg-secondary)', border:'0.5px solid var(--border)', borderRadius:'8px', padding:'10px 12px', fontSize:'13px', color:'var(--text-primary)', outline:'none', resize:'none', fontFamily:'inherit' }} />
-                <div style={{ display:'flex', justifyContent:'flex-end', marginTop:'6px' }}>
-                  <button onClick={postComment} disabled={posting || !comment.trim()}
-                    style={{ background:'var(--accent)', color:'white', border:'none', padding:'7px 14px', borderRadius:'8px', fontSize:'12px', fontWeight:500, cursor:'pointer', opacity: posting||!comment.trim() ? 0.5 : 1 }}>
+                <textarea value={comment} onChange={e=>setComment(e.target.value)}
+                  onKeyDown={e=>{ if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)) postComment(); }}
+                  placeholder="Написать комментарий... (Cmd+Enter для отправки)"
+                  rows={3}
+                  style={{ ...inp, resize:'none', borderRadius:'12px', padding:'10px 14px', lineHeight:1.6 }}/>
+                <div style={{ display:'flex', justifyContent:'flex-end', marginTop:'8px' }}>
+                  <button onClick={postComment} disabled={posting||!comment.trim()}
+                    style={{ background:posting||!comment.trim()?'#EDE9FE':'linear-gradient(135deg,#7F77DD,#5248C5)', color:posting||!comment.trim()?'#C4C0E8':'white', border:'none', padding:'8px 20px', borderRadius:'12px', fontSize:'13px', fontWeight:700, cursor:posting||!comment.trim()?'not-allowed':'pointer', transition:'all 0.2s', display:'flex', alignItems:'center', gap:'6px' }}>
+                    <i className="ti ti-send" style={{ fontSize:'14px' }} aria-hidden="true"/>
                     {posting ? 'Отправляю...' : 'Отправить'}
                   </button>
                 </div>
               </div>
             </div>
           </div>
+
+          {/* History */}
+          {task.history?.length>0 && (
+            <div style={card}>
+              <p style={{ fontSize:'11px', fontWeight:700, color:'#9B97CC', textTransform:'uppercase', letterSpacing:'0.5px', margin:'0 0 12px' }}>История изменений</p>
+              <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                {task.history.slice(0,10).map((h:any,i:number)=>(
+                  <div key={i} style={{ display:'flex', alignItems:'center', gap:'8px', fontSize:'12px', color:'#9B97CC', padding:'4px 0', borderBottom:'1px solid #F9F8FF' }}>
+                    <i className="ti ti-history" style={{ fontSize:'13px', flexShrink:0 }} aria-hidden="true"/>
+                    <span style={{ flex:1 }}><b style={{ color:'#6B7280' }}>{userMap[h.actorId]??'Система'}</b> изменил {h.field}: {h.oldValue||'—'} → {h.newValue||'—'}</span>
+                    <span style={{ flexShrink:0, fontSize:'10px' }}>{timeAgo(h.createdAt)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Sidebar */}
+        {/* Right sidebar */}
         <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
 
           {/* Status actions */}
           <div style={card}>
-            <p style={{ fontSize:'12px', fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', margin:'0 0 10px' }}>Статус</p>
-            <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-              {task.status==='NEW' && <button onClick={() => moveTask('IN_PROGRESS')} style={{ padding:'8px', borderRadius:'8px', border:'none', background:'var(--blue-bg)', color:'var(--blue)', fontSize:'12px', fontWeight:500, cursor:'pointer' }}>▶ Взять в работу</button>}
-              {task.status==='IN_PROGRESS' && <button onClick={() => moveTask('REVIEW')} style={{ padding:'8px', borderRadius:'8px', border:'none', background:'var(--orange-bg)', color:'var(--orange)', fontSize:'12px', fontWeight:500, cursor:'pointer' }}>👁 На проверку</button>}
-              {task.status==='REVIEW' && <button onClick={() => moveTask('DONE')} style={{ padding:'8px', borderRadius:'8px', border:'none', background:'var(--green-bg)', color:'var(--green)', fontSize:'12px', fontWeight:500, cursor:'pointer' }}>✓ Завершить</button>}
-              {task.status!=='NEW' && task.status!=='DONE' && <button onClick={() => moveTask('BLOCKED')} style={{ padding:'8px', borderRadius:'8px', border:'none', background:'var(--red-bg)', color:'var(--red)', fontSize:'12px', fontWeight:500, cursor:'pointer' }}>🚫 Заблокировать</button>}
+            <p style={{ fontSize:'11px', fontWeight:700, color:'#9B97CC', textTransform:'uppercase', letterSpacing:'0.5px', margin:'0 0 12px' }}>Действия</p>
+            <div style={{ display:'flex', flexDirection:'column', gap:'7px' }}>
+              {(MOVE_ACTIONS[task.status]??[]).map(a=>(
+                <button key={a.to} onClick={()=>moveTask(a.to)}
+                  style={{ padding:'9px', borderRadius:'12px', border:'none', background:a.bg, color:a.c, fontSize:'13px', fontWeight:700, cursor:'pointer', transition:'all 0.15s', width:'100%' }}
+                  onMouseEnter={e=>(e.currentTarget as HTMLElement).style.opacity='0.8'}
+                  onMouseLeave={e=>(e.currentTarget as HTMLElement).style.opacity='1'}>
+                  {a.label}
+                </button>
+              ))}
+              {canBlock && (
+                <button onClick={()=>moveTask('BLOCKED')}
+                  style={{ padding:'9px', borderRadius:'12px', border:'none', background:'#FEE2E2', color:'#DC2626', fontSize:'13px', fontWeight:700, cursor:'pointer', width:'100%' }}>
+                  🚫 Заблокировать
+                </button>
+              )}
             </div>
           </div>
 
           {/* Details */}
           <div style={card}>
-            <p style={{ fontSize:'12px', fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', margin:'0 0 12px' }}>Детали</p>
-            <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+            <p style={{ fontSize:'11px', fontWeight:700, color:'#9B97CC', textTransform:'uppercase', letterSpacing:'0.5px', margin:'0 0 14px' }}>Детали</p>
+            <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+
+              {/* Priority */}
               <div>
-                <p style={{ fontSize:'11px', color:'var(--text-muted)', margin:'0 0 5px' }}>Приоритет</p>
-                <span style={{ fontSize:'11px', fontWeight:500, padding:'3px 8px', borderRadius:'12px', background:ps.bg, color:ps.color }}>{ps.label}</span>
+                <p style={{ fontSize:'10px', color:'#9B97CC', margin:'0 0 6px', fontWeight:600 }}>Приоритет</p>
+                <span style={{ fontSize:'11px', fontWeight:700, padding:'3px 10px', borderRadius:'20px', background:ps.bg, color:ps.c }}>{ps.label}</span>
               </div>
+
+              {/* Assignee */}
               <div>
-                <p style={{ fontSize:'11px', color:'var(--text-muted)', margin:'0 0 5px' }}>Исполнитель</p>
-                <select value={task.assigneeId ?? ''} onChange={e => updateField('assigneeId', e.target.value)} disabled={saving} style={inputStyle}>
+                <p style={{ fontSize:'10px', color:'#9B97CC', margin:'0 0 6px', fontWeight:600 }}>Исполнитель</p>
+                <select value={task.assigneeId??''} onChange={e=>updateField('assigneeId',e.target.value)} disabled={saving} style={inp}>
                   <option value="">Не назначен</option>
-                  {employees.map((e: any) => <option key={e.id} value={e.id}>{e.name}</option>)}
+                  {employees.map((e:any)=><option key={e.id} value={e.id}>{e.name}</option>)}
                 </select>
               </div>
+
+              {/* Due date */}
               <div>
-                <p style={{ fontSize:'11px', color:'var(--text-muted)', margin:'0 0 5px' }}>Дедлайн</p>
-                <input type="date" value={task.dueDate ? task.dueDate.slice(0,10) : ''} onChange={e => updateField('dueDate', e.target.value)} disabled={saving} style={inputStyle} />
+                <p style={{ fontSize:'10px', color:'#9B97CC', margin:'0 0 6px', fontWeight:600 }}>Дедлайн</p>
+                <input type="date" value={task.dueDate?task.dueDate.slice(0,10):''} onChange={e=>updateField('dueDate',e.target.value)} disabled={saving} style={inp}/>
                 {task.dueDate && (
-                  <p style={{ fontSize:'11px', margin:'4px 0 0', color: new Date(task.dueDate)<new Date() ? 'var(--red)' : new Date(task.dueDate)<new Date(Date.now()+3*864e5) ? 'var(--yellow)' : 'var(--green)' }}>
-                    {new Date(task.dueDate)<new Date() ? '⚠ Просрочено' : new Date(task.dueDate)<new Date(Date.now()+3*864e5) ? '⏰ Скоро' : '✓ '+new Date(task.dueDate).toLocaleDateString('ru',{day:'numeric',month:'long'})}
+                  <p style={{ fontSize:'11px', margin:'5px 0 0', fontWeight:600, color:overdue?'#DC2626':new Date(task.dueDate)<new Date(Date.now()+3*864e5)?'#D97706':'#16A34A' }}>
+                    {overdue ? '⚠ Просрочено' : new Date(task.dueDate)<new Date(Date.now()+3*864e5) ? '⏰ Скоро дедлайн' : '✓ '+new Date(task.dueDate).toLocaleDateString('ru',{day:'numeric',month:'long'})}
                   </p>
                 )}
               </div>
-              <div style={{ display:'flex', justifyContent:'space-between', fontSize:'12px', paddingTop:'8px', borderTop:'0.5px solid var(--border)' }}>
-                <span style={{ color:'var(--text-muted)' }}>Создана</span>
-                <span style={{ color:'var(--text-secondary)' }}>{new Date(task.createdAt).toLocaleDateString('ru')}</span>
+
+              {/* Meta */}
+              <div style={{ paddingTop:'12px', borderTop:'1px solid #F3F0FF', display:'flex', flexDirection:'column', gap:'6px' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', fontSize:'12px' }}>
+                  <span style={{ color:'#9B97CC' }}>Создана</span>
+                  <span style={{ color:'#6B7280' }}>{new Date(task.createdAt).toLocaleDateString('ru',{day:'numeric',month:'short'})}</span>
+                </div>
+                {task.startedAt && (
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:'12px' }}>
+                    <span style={{ color:'#9B97CC' }}>Начата</span>
+                    <span style={{ color:'#6B7280' }}>{new Date(task.startedAt).toLocaleDateString('ru',{day:'numeric',month:'short'})}</span>
+                  </div>
+                )}
+                {task.completedAt && (
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:'12px' }}>
+                    <span style={{ color:'#9B97CC' }}>Завершена</span>
+                    <span style={{ color:'#16A34A', fontWeight:600 }}>{new Date(task.completedAt).toLocaleDateString('ru',{day:'numeric',month:'short'})}</span>
+                  </div>
+                )}
+                <div style={{ display:'flex', justifyContent:'space-between', fontSize:'12px' }}>
+                  <span style={{ color:'#9B97CC' }}>Комментариев</span>
+                  <span style={{ color:'#6B7280', fontWeight:600 }}>{comments.length}</span>
+                </div>
               </div>
             </div>
           </div>
