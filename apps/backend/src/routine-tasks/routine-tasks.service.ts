@@ -95,7 +95,6 @@ export class RoutineTasksService {
           orgId,
           title: tpl.title,
           createdAt: { gte: new Date(today + 'T00:00:00'), lte: new Date(today + 'T23:59:59') },
-          isRoutine: true,
         } as any,
       });
       if (exists) continue;
@@ -118,7 +117,6 @@ export class RoutineTasksService {
           status:      'NEW',
           dueDate,
           createdById: tpl.createdById,
-          isRoutine:   true,
         } as any,
       });
       created++;
@@ -138,9 +136,8 @@ export class RoutineTasksService {
     const tasks = await this.prisma.task.findMany({
       where: {
         orgId,
-        isRoutine: true,
         createdAt: { gte: from },
-      } as any,
+    } as any,
       include: { assignee: { select: { id: true, name: true } } },
     });
 

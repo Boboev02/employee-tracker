@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Patch, Param, Body, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Patch, Param, Body, Query, Req } from '@nestjs/common';
 import { RoutineTasksService } from './routine-tasks.service';
 import { CurrentUser } from '../auth/decorators/index';
 
@@ -39,5 +39,21 @@ export class RoutineTasksController {
   @Post('spawn')
   spawnToday(@CurrentUser() user: any) {
     return this.service.spawnTasksForToday(user.orgId);
+  }
+
+  // Internal cron endpoint — only from localhost
+  @Post('cron/spawn-all')
+  async cronSpawnAll(@Req() req: any) {
+    const ip = req.ip || req.connection?.remoteAddress || '';
+    if (!ip.includes('127.0.0.1') && !ip.includes('::1') && !ip.includes('localhost')) {
+      return { error: 'Forbidden' };
+    }
+    const orgs = await this.service['prisma'].organisation.findMany({ select: { id: true } });
+    const results = [];
+    for (const org of orgs) {
+      const r = await this.service.spawnTasksForToday(org.id);
+      results.push({ orgId: org.id, ...r });
+    }
+    return { results, spawned: results.reduce((s: number, r: any) => s + (r.created || 0), 0) };
   }
 }
