@@ -113,4 +113,15 @@ export class EmployeesService {
     });
     return { message: 'Deleted' };
   }
+
+  async resetPassword(id: string, orgId: string, newPassword: string) {
+    if (!newPassword || newPassword.length < 6) throw new Error('Min 6 chars');
+    const hash = await bcrypt.hash(newPassword, 12);
+    return this.prisma.user.update({
+      where: { id },
+      data: { password: hash, updatedAt: new Date() },
+      select: { id: true, name: true, email: true },
+    });
+  }
+
 }
