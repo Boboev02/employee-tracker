@@ -14,6 +14,7 @@ model Organisation {
   users        User[]
   teams        Team[]
   routineTasks RoutineTask[]
+  kpis         EmployeeKpi[]
 }
 
 model User {
@@ -32,6 +33,8 @@ model User {
   userRoles    UserRole[]
   sessions     Session[]
   assignedTasks    Task[]        @relation("TaskAssignee")
+  kpis             EmployeeKpi[] @relation("KpiUser")
+  kpisCreated      EmployeeKpi[] @relation("KpiCreator")
   routineTasks     RoutineTask[] @relation("RoutineAssignee")
   routinesCreated  RoutineTask[] @relation("RoutineCreator")
 }
