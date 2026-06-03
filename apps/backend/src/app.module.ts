@@ -6,6 +6,7 @@ import { RoutineTasksModule } from './routine-tasks/routine-tasks.module';
 import { PrismaModule }    from './prisma/prisma.module';
 import { AuthModule }      from './auth/auth.module';
 import { ResetModule } from './reset/reset.module';
+import { KpiModule } from './kpi/kpi.module';
 import { HealthModule }    from './health/health.module';
 import { TasksModule }     from './tasks/tasks.module';
 import { EmployeesModule } from './employees/employees.module';
@@ -24,6 +25,7 @@ import { JwtAuthGuard }    from './auth/guards/index';
     RoutineTasksModule,
     SearchModule, AuthModule, ResetModule,
     HealthModule,
+    KpiModule,
     TasksModule, EmployeesModule, RealtimeModule,
     AnalyticsModule, TrackingModule, TeamsModule,
     SettingsModule, NotificationModule, KnowledgeModule,

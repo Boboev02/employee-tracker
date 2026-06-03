@@ -18,6 +18,7 @@ const NAV = [
   { href: '/dashboard/export',       icon: 'ti-download',         label: 'Экспорт',        admin: true  },
   { href: '/dashboard/knowledge',    icon: 'ti-book',             label: 'База знаний',    admin: false },
   { href: '/dashboard/routines',     icon: 'ti-repeat',           label: 'Рутины',         admin: false },
+  { href: '/dashboard/kpi',          icon: 'ti-target',           label: 'KPI',            admin: true  },
   { href: '/dashboard/settings',     icon: 'ti-settings',         label: 'Настройки',      admin: true  },
 ];
 
