@@ -211,6 +211,9 @@ model Notification {
   isRead    Boolean  @default(false)
   taskId    String?
   createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
 }
 
 model KnowledgeCategory {
@@ -265,6 +268,32 @@ model RoutineTask {
   org         Organisation @relation(fields: [orgId], references: [id])
   assignee    User?     @relation("RoutineAssignee", fields: [assigneeId], references: [id])
   createdBy   User      @relation("RoutineCreator", fields: [createdById], references: [id])
+
+  @@index([orgId, isActive])
+  @@index([assigneeId])
 }
 
 
+
+model EmployeeKpi {
+  id          String   @id @default(uuid())
+  orgId       String
+  userId      String
+  period      String   // "2026-06" — месяц
+  tasksTarget Int      @default(0)
+  tasksDone   Int      @default(0)
+  clicksTarget Int     @default(0)
+  clicksActual Int     @default(0)
+  activeDaysTarget Int @default(0)
+  activeDaysActual Int @default(0)
+  notes       String?
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  org         Organisation @relation(fields: [orgId], references: [id])
+  user        User         @relation("KpiUser",    fields: [userId],      references: [id])
+  createdBy   User         @relation("KpiCreator", fields: [createdById], references: [id])
+
+  @@unique([orgId, userId, period])
+  @@index([orgId, period])
+}
