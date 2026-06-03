@@ -7,7 +7,8 @@ const STATUS_COLS = [
   { id:'NEW',         label:'Новые',          dot:'#9B97CC', colBg:'#F8F7FF', accentC:'#7F77DD', accentBg:'#EDE9FE', next:'IN_PROGRESS', nextLabel:'В работу' },
   { id:'IN_PROGRESS', label:'В работе',       dot:'#2563EB', colBg:'#F0F7FF', accentC:'#2563EB', accentBg:'#DBEAFE', next:'REVIEW', nextLabel:'На проверку' },
   { id:'REVIEW',      label:'Проверка',       dot:'#D97706', colBg:'#FFFBF0', accentC:'#D97706', accentBg:'#FEF3C7', next:'DONE', nextLabel:'Готово' },
-  { id:'BLOCKED',     label:'Заблокировано',  dot:'#DC2626', colBg:'#FFF5F5', accentC:'#DC2626', accentBg:'#FEE2E2', next:null, nextLabel:'' },
+  { id:'BLOCKED',     label:'Заблокировано',  dot:'#DC2626', colBg:'#FFF5F5', accentC:'#DC2626', accentBg:'#FEE2E2', next:'IN_PROGRESS', nextLabel:'Вернуть в работу' },
+  { id:'OVERDUE',     label:'Просрочено',     dot:'#DC2626', colBg:'#FFF0F0', accentC:'#DC2626', accentBg:'#FEE2E2', next:'IN_PROGRESS', nextLabel:'Вернуть в работу' },
   { id:'DONE',        label:'Готово',         dot:'#16A34A', colBg:'#F0FDF4', accentC:'#16A34A', accentBg:'#DCFCE7', next:null, nextLabel:'' },
 ];
 

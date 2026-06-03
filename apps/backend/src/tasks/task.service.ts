@@ -108,6 +108,37 @@ export class TaskService {
     return moved;
   }
 
+  async markOverdueTasks(orgId?: string) {
+    const now = new Date();
+    const where: any = {
+      dueDate: { lt: now },
+      status:  { in: ['NEW', 'IN_PROGRESS', 'REVIEW'] },
+      deletedAt: null,
+    };
+    if (orgId) where.orgId = orgId;
+
+    const overdue = await this.prisma.task.findMany({ where, select: { id: true, title: true, assigneeId: true, orgId: true } });
+    if (!overdue.length) return { updated: 0 };
+
+    await this.prisma.task.updateMany({
+      where: { id: { in: overdue.map(t => t.id) } },
+      data:  { status: 'OVERDUE', updatedAt: now },
+    });
+
+    // Уведомления исполнителям
+    for (const task of overdue) {
+      if (task.assigneeId) {
+        await this.notificationService.create(
+          task.assigneeId, task.orgId, 'task_overdue',
+          '⚠️ Задача просрочена',
+          `Задача "${task.title}" просрочена!`,
+          task.id
+        ).catch(() => {});
+      }
+    }
+    return { updated: overdue.length };
+  }
+
   async delete(id: string, orgId: string, userId: string) {
     const task = await this.repo.findById(id, orgId);
     if (!task) throw new NotFoundException('Task not found');

@@ -27,7 +27,7 @@ export class TaskRepository {
     });
 
     const columns: Record<string, any[]> = {
-      NEW: [], IN_PROGRESS: [], REVIEW: [], BLOCKED: [], DONE: [],
+      NEW: [], IN_PROGRESS: [], REVIEW: [], BLOCKED: [], OVERDUE: [], DONE: [],
     };
     for (const task of tasks) {
       if (columns[task.status]) columns[task.status].push(task);

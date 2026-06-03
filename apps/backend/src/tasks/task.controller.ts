@@ -36,6 +36,13 @@ export class TaskController {
     return this.tasks.move(id, user.orgId, user.id, body.status);
   }
 
+  @Post('cron/mark-overdue')
+  async markOverdue(@Req() req: any) {
+    const ip = req.ip || req.connection?.remoteAddress || '';
+    if (!ip.includes('127.0.0.1') && !ip.includes('::1')) return { error: 'Forbidden' };
+    return this.tasks.markOverdueTasks();
+  }
+
   @Delete(':id')
   @HttpCode(204)
   delete(@CurrentUser() user: any, @Param('id') id: string) {
