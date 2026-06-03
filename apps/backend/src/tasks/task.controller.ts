@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, HttpCode } from '@nestjs/common';
+import { Controller, Req, Get, Post, Patch, Delete, Body, Param, Query, HttpCode } from '@nestjs/common';
 import { TaskService } from './task.service';
 import { CurrentUser } from '../auth/decorators/index';
 
