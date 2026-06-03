@@ -24,6 +24,8 @@ export class TaskRepository {
       where,
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
       include: { assignee: { select: { id: true, name: true, avatarUrl: true } } },
+      // isRoutine is a direct field — included automatically
+      // isRoutine передаётся на фронтенд для метки
     });
 
     const columns: Record<string, any[]> = {

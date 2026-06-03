@@ -32,6 +32,10 @@ export default function EmployeesPage() {
   const [inviteError, setInviteError] = useState('');
   const [editingRole, setEditingRole] = useState<string|null>(null);
   const [newRole, setNewRole]     = useState('EMPLOYEE');
+  const [resetPassId, setResetPassId]   = useState<string|null>(null);
+  const [resetPassName, setResetPassName] = useState('');
+  const [newPassword, setNewPassword]   = useState('');
+  const [resetError, setResetError]     = useState('');
   const [mounted, setMounted]     = useState(false);
   useEffect(()=>setMounted(true),[]);
 
@@ -75,6 +79,20 @@ export default function EmployeesPage() {
       if (!res.ok) { setInviteError(data.message??'Ошибка'); return; }
       setShowInvite(false); setInvite({ name:'', email:'', password:'', role:'EMPLOYEE' }); loadData(t);
     } catch { setInviteError('Ошибка подключения'); }
+  };
+
+  const handleResetPassword = async () => {
+    if (!newPassword || newPassword.length < 6) { setResetError('Минимум 6 символов'); return; }
+    const t = localStorage.getItem('access_token');
+    if (!t) return;
+    try {
+      const res = await fetch('https://employee-tracker.ru/api/v1/employees/' + resetPassId + '/reset-password', {
+        method: 'PATCH', headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: newPassword }),
+      });
+      if (!res.ok) { setResetError('Ошибка сброса пароля'); return; }
+      setResetPassId(null); setNewPassword(''); setResetError('');
+    } catch { setResetError('Ошибка подключения'); }
   };
 
   const handleRoleChange = async (empId: string, role: string) => {
@@ -249,6 +267,14 @@ export default function EmployeesPage() {
                         onMouseLeave={e=>(e.currentTarget as HTMLElement).style.opacity='1'}>
                         <i className={isSuspended?'ti ti-user-check':'ti ti-user-off'} style={{ fontSize:'14px', color:isSuspended?'#16A34A':'#D97706' }} aria-hidden="true"/>
                       </button>
+                      {/* Reset password */}
+                      <button onClick={e=>{e.stopPropagation();setResetPassId(emp.id);setResetPassName(emp.name);setNewPassword('');setResetError('');}}
+                        title="Сбросить пароль"
+                        style={{ width:'30px', height:'30px', background:'#FEF3C7', border:'none', borderRadius:'8px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }}
+                        onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background='#FDE68A'}
+                        onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background='#FEF3C7'}>
+                        <i className="ti ti-key" style={{ fontSize:'14px', color:'#D97706' }} aria-hidden="true"/>
+                      </button>
                       {/* Delete */}
                       <button onClick={()=>handleDelete(emp.id, emp.name)}
                         title="Удалить сотрудника"
@@ -278,6 +304,33 @@ export default function EmployeesPage() {
           </div>
         </div>
       </div>
+
+      {/* Reset Password Modal */}
+      {resetPassId && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(26,16,64,0.4)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, backdropFilter:'blur(4px)' }}>
+          <div style={{ background:'white', borderRadius:'24px', padding:'28px 32px', width:'400px', boxShadow:'0 24px 64px rgba(127,119,221,0.2)' }}>
+            <h3 style={{ fontSize:'18px', fontWeight:800, color:'#1a1040', margin:'0 0 6px' }}>Сброс пароля</h3>
+            <p style={{ fontSize:'13px', color:'#9B97CC', margin:'0 0 22px' }}>Сотрудник: <b style={{ color:'#1a1040' }}>{resetPassName}</b></p>
+            <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+              <div>
+                <label style={{ fontSize:'10px', fontWeight:700, color:'#9B97CC', display:'block', marginBottom:'6px', textTransform:'uppercase', letterSpacing:'0.4px' }}>Новый пароль</label>
+                <input type="password" placeholder="Минимум 6 символов" value={newPassword}
+                  onChange={e=>{setNewPassword(e.target.value);setResetError('');}}
+                  style={{ width:'100%', background:'#F8F7FF', border:'1px solid #EDE9FE', borderRadius:'10px', padding:'10px 14px', fontSize:'13px', color:'#1a1040', outline:'none', boxSizing:'border-box' as any }}
+                  autoFocus/>
+              </div>
+              {resetError && <div style={{ background:'#FEE2E2', color:'#DC2626', borderRadius:'10px', padding:'8px 14px', fontSize:'12px' }}>{resetError}</div>}
+              <div style={{ display:'flex', gap:'10px', marginTop:'4px' }}>
+                <button onClick={()=>{setResetPassId(null);setNewPassword('');setResetError('');}}
+                  style={{ flex:1, background:'#F8F7FF', color:'#6B7280', border:'1px solid #EDE9FE', borderRadius:'12px', padding:'11px', fontSize:'13px', cursor:'pointer', fontWeight:600 }}>Отмена</button>
+                <button onClick={handleResetPassword}
+                  style={{ flex:1, background:'linear-gradient(135deg,#D97706,#B45309)', color:'white', border:'none', borderRadius:'12px', padding:'11px', fontSize:'13px', cursor:'pointer', fontWeight:700 }}>
+                  <i className="ti ti-key" style={{ fontSize:'14px', marginRight:'6px' }} aria-hidden="true"/>Сбросить →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Invite Modal */}
       {showInvite && (

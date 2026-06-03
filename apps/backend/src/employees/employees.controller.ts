@@ -27,6 +27,12 @@ export class EmployeesController {
     return this.employees.invite(user.orgId, body);
   }
 
+  @Patch(':id/reset-password')
+  @RequirePermissions('role:assign')
+  resetPassword(@Param('id') id: string, @CurrentUser() user: any, @Body() body: { password: string }) {
+    return this.employees.resetPassword(id, user.orgId, body.password);
+  }
+
   @Patch(':id/role')
   @RequirePermissions('role:assign')
   updateRole(@CurrentUser() user: any, @Param('id') id: string, @Body() body: { role: string }) {
