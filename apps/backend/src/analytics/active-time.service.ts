@@ -51,8 +51,8 @@ export class ActiveTimeService {
       }
       const user = byUser[e.userId];
 
-      // Day grouping
-      const day = e.createdAt.toISOString().slice(0, 10);
+      // Day grouping — используем clientTimestamp (время браузера), не серверное время
+      const day = new Date(e.clientTimestamp).toISOString().slice(0, 10);
       if (!user.days[day]) user.days[day] = { events: 0, platforms: {} };
       user.days[day].events++;
       const plat = e.platform ?? 'OTHER';
@@ -81,15 +81,18 @@ export class ActiveTimeService {
           const activeS = pd?.activeSeconds;
           const spentS  = pd?.timeSpentSeconds;
           const leaveTime = activeS || spentS || 0;
-          // Only add leave time if it's greater than what ping already recorded
-          if (leaveTime > 0 && leaveTime < 7200 && leaveTime > sec.timeSeconds) {
-            sec.timeSeconds = leaveTime;
+          if (leaveTime > 0 && leaveTime < 7200) {
+            // НАКАПЛИВАЕМ время каждого визита, не заменяем
+            // Вычитаем уже записанное через ping чтобы не задвоить
+            const alreadyCounted = sec.lastPingSeconds ?? 0;
+            const toAdd = Math.max(0, leaveTime - alreadyCounted);
+            sec.timeSeconds += toAdd;
           } else if (leaveTime === 0 && sec.lastEnter > 0) {
             const calc = Math.round((Number(e.clientTimestamp) - sec.lastEnter) / 1000);
-            if (calc > 0 && calc < 7200 && calc > sec.timeSeconds) sec.timeSeconds = calc;
+            if (calc > 0 && calc < 7200) sec.timeSeconds += calc;
           }
           sec.lastEnter = 0;
-          sec.lastPingSeconds = 0; // сбрасываем ping счётчик — новые ping считаются с нуля
+          sec.lastPingSeconds = 0;
         }
         // Use section_ping to track time for sessions without navigation
         if (e.eventType === 'wb_section_ping' || e.eventType === 'ozon_section_ping') {
@@ -103,7 +106,7 @@ export class ActiveTimeService {
           }
         }
         // Track specific actions
-        if (e.eventType && e.eventType.startsWith('wb_') || e.eventType && e.eventType.startsWith('ozon_')) {
+        if (e.eventType && (e.eventType.startsWith('wb_') || e.eventType.startsWith('ozon_'))) {
           const skip = ['wb_section_enter','wb_section_leave','ozon_section_enter','ozon_section_leave'];
           if (!skip.includes(e.eventType)) {
             sec.actions[e.eventType] = (sec.actions[e.eventType] ?? 0) + 1;
@@ -124,7 +127,9 @@ export class ActiveTimeService {
       userId,
       name: userMap[userId] ?? 'Unknown',
       totalEvents: data.events,
-      totalEstimatedMins: Object.values(data.days).reduce((s, d) => s + Math.round(d.events * 2 / 60), 0),
+      totalEstimatedMins: Math.round(
+        Object.values(data.sections).reduce((s, sec) => s + sec.timeSeconds, 0) / 60
+      ),
       activeDays: Object.keys(data.days).length,
       sections: data.sections,
       days: Object.entries(data.days).map(([date, d]) => ({
