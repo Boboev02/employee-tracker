@@ -201,15 +201,15 @@ export function Sidebar() {
           <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 10px', borderRadius:'8px', cursor:'pointer', transition:'background 0.15s' }}
             onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'}
             onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-            onClick={() => { localStorage.removeItem('access_token'); localStorage.removeItem('user'); router.push('/login'); }}
-            title="Выйти">
+            onClick={() => router.push('/dashboard/profile')}
+            title="Мой профиль">
             <div style={{ width:'30px', height:'30px', borderRadius:'50%', background:'#8b7cf6', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, position:'relative' }}>
               <span style={{ color:'white', fontSize:'12px', fontWeight:600 }}>{user.name?.charAt(0)}</span>
               <span style={{ position:'absolute', bottom:'0', right:'0', width:'8px', height:'8px', borderRadius:'50%', background: connected ? '#4ade80' : '#4a4d5e', border:'1.5px solid #13151c' }} />
             </div>
             <div style={{ flex:1, minWidth:0 }}>
               <p style={{ color:'#c8cad8', fontSize:'12px', fontWeight:500, margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{user.name}</p>
-              <p style={{ color:'#4a4d5e', fontSize:'10px', margin:0 }}>{user.roles?.[0] ?? 'EMPLOYEE'}</p>
+              <p style={{ color:'#4a4d5e', fontSize:'10px', margin:0 }}>Профиль →</p>
             </div>
           </div>
         )}
