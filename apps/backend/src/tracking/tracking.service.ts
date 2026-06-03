@@ -44,6 +44,16 @@ export class TrackingService {
     return { ok: true, ts: Date.now() };
   }
 
+  async cleanupOldEvents(daysToKeep = 90) {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - daysToKeep);
+    const result = await this.prisma.activityEvent.deleteMany({
+      where: { createdAt: { lt: cutoff } },
+    });
+    this.logger.log(`Cleanup: deleted ${result.count} events older than ${daysToKeep} days`);
+    return { deleted: result.count, cutoff };
+  }
+
   async getRecentEvents(userId: string, orgId: string, limit = 100) {
     return this.prisma.activityEvent.findMany({
       where:   { userId, orgId },
