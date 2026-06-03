@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
+import { RoutineTasksModule } from './routine-tasks/routine-tasks.module';
 import { PrismaModule }    from './prisma/prisma.module';
 import { AuthModule }      from './auth/auth.module';
 import { ResetModule } from './reset/reset.module';
@@ -18,7 +19,8 @@ import { JwtAuthGuard }    from './auth/guards/index';
 
 @Module({
   imports: [
-    PrismaModule, AuthModule, ResetModule,
+    PrismaModule,
+    RoutineTasksModule, AuthModule, ResetModule,
     HealthModule,
     TasksModule, EmployeesModule, RealtimeModule,
     AnalyticsModule, TrackingModule, TeamsModule,
