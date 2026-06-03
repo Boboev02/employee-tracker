@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePermissions } from '@/lib/usePermissions';
+import { useSocket } from '@/lib/useSocket';
 
 const AVATAR_COLORS = ['#7F77DD','#2563EB','#16A34A','#D97706','#DC2626','#0891B2','#7C3AED'];
 const avatarColor = (name: string) => AVATAR_COLORS[(name?.charCodeAt(0)??0) % AVATAR_COLORS.length];
@@ -25,6 +26,8 @@ export default function EmployeesPage() {
   const perms   = usePermissions();
   const [employees, setEmployees] = useState<any[]>([]);
   const [presence, setPresence]   = useState<Record<string,any>>({});
+  const [wsToken, setWsToken]     = useState<string|null>(null);
+  const { presence: wsPresence }  = useSocket(wsToken);
   const [search, setSearch]       = useState('');
   const [loading, setLoading]     = useState(true);
   const [showInvite, setShowInvite] = useState(false);
@@ -114,7 +117,9 @@ export default function EmployeesPage() {
     e.name?.toLowerCase().includes(search.toLowerCase()) ||
     e.email?.toLowerCase().includes(search.toLowerCase())
   );
-  const onlineCount = Object.values(presence).filter((p:any)=>p.isOnline||p.status==='ONLINE').length;
+  // Мержим WebSocket presence с REST presence
+  const mergedPresence = { ...presence, ...Object.fromEntries(Object.entries(wsPresence).map(([k,v])=>[k,{ ...v, isOnline: v.status==='ONLINE' }])) };
+  const onlineCount = Object.values(mergedPresence).filter((p:any)=>p.isOnline||p.status==='ONLINE').length;
 
   const card: React.CSSProperties = { background:'white', borderRadius:'20px', padding:'18px 20px', boxShadow:'0 4px 16px rgba(127,119,221,0.08)' };
   const inp: React.CSSProperties  = { width:'100%', background:'#F8F7FF', border:'1px solid #EDE9FE', borderRadius:'10px', padding:'9px 14px', fontSize:'13px', color:'#1a1040', outline:'none', boxSizing:'border-box' };
@@ -178,7 +183,7 @@ export default function EmployeesPage() {
             ) : filtered.length===0 ? (
               <div style={{ padding:'40px', textAlign:'center', color:'#9B97CC' }}>Нет сотрудников</div>
             ) : filtered.map((emp:any, i:number) => {
-              const pres = presence[emp.id] ?? presence[emp.userId];
+              const pres = mergedPresence[emp.id] ?? mergedPresence[emp.userId];
               const isOnline = pres?.isOnline || pres?.status==='ONLINE';
               const isSuspended = emp.status==='SUSPENDED';
               const ss = STATUS_STYLES[emp.status] ?? STATUS_STYLES.ACTIVE;

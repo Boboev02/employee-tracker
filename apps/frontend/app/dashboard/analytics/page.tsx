@@ -50,6 +50,9 @@ export default function AnalyticsPage() {
   const [selectedEmployee, setSelectedEmployee] = useState('');
   const [selectedPlatform, setSelectedPlatform] = useState('');
   const [lastUpdated, setLastUpdated] = useState<Date|null>(null);
+  const [compare, setCompare]       = useState(false);
+  const [prevActivity, setPrevActivity] = useState<any[]>([]);
+  const [prevByDay, setPrevByDay]   = useState<any[]>([]);
 
   useEffect(() => {
     const t = localStorage.getItem('access_token');
@@ -93,6 +96,27 @@ export default function AnalyticsPage() {
       setLastUpdated(new Date());
     } finally { setLoading(false); }
   }, []);
+
+  const loadComparePeriod = async (t: string, days: string, empId: string, platform: string) => {
+    const h = { Authorization:'Bearer '+t };
+    const base = 'https://employee-tracker.ru/api/v1/analytics';
+    const daysNum = parseInt(days);
+    const toDate = new Date(); toDate.setDate(toDate.getDate() - daysNum);
+    const fromDate = new Date(); fromDate.setDate(fromDate.getDate() - daysNum * 2);
+    const from = fromDate.toISOString().slice(0,10);
+    const to   = toDate.toISOString().slice(0,10);
+    const params = new URLSearchParams({ from, to });
+    if (empId) params.set('userId', empId);
+    if (platform) params.set('platform', platform);
+    try {
+      const [act, bd] = await Promise.all([
+        fetch(base+'/activity/summary?'+params, { headers:h }).then(r=>r.json()),
+        fetch(base+'/tasks/by-day?days='+days, { headers:h }).then(r=>r.json()),
+      ]);
+      setPrevActivity(Array.isArray(act)?act:[]);
+      setPrevByDay(Array.isArray(bd)?bd:[]);
+    } catch {}
+  };
 
   const loadFeed = async (t: string) => {
     setFeedLoading(true);
