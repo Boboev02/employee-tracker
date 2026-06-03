@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useSocket } from '@/lib/useSocket';
 import { usePermissions } from '@/lib/usePermissions';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -16,31 +16,93 @@ const NAV = [
   { href: '/dashboard/timesheet',    icon: 'ti-calendar',         label: 'Табель',         admin: false },
   { href: '/dashboard/reports',      icon: 'ti-file-report',      label: 'Отчёты',         admin: true  },
   { href: '/dashboard/export',       icon: 'ti-download',         label: 'Экспорт',        admin: true  },
-  { href: '/dashboard/knowledge',     icon: 'ti-book',             label: 'База знаний',    admin: false },
-  { href: '/dashboard/routines',  icon: 'ti-repeat',   label: 'Рутины' },
+  { href: '/dashboard/knowledge',    icon: 'ti-book',             label: 'База знаний',    admin: false },
+  { href: '/dashboard/routines',     icon: 'ti-repeat',           label: 'Рутины',         admin: false },
   { href: '/dashboard/settings',     icon: 'ti-settings',         label: 'Настройки',      admin: true  },
 ];
 
+function timeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'только что';
+  if (m < 60) return m + ' мин назад';
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + ' ч назад';
+  return Math.floor(h / 24) + ' д назад';
+}
+
 export function Sidebar() {
-  const pathname = usePathname();
-  const router   = useRouter();
-  const [user, setUser]       = useState<any>(null);
-  const [token, setToken]     = useState<string | null>(null);
-  const { connected }         = useSocket(token);
-  const perms                 = usePermissions();
-  const [mounted, setMounted] = useState(false);
+  const pathname  = usePathname();
+  const router    = useRouter();
+  const [user, setUser]         = useState<any>(null);
+  const [token, setToken]       = useState<string | null>(null);
+  const { connected }           = useSocket(token);
+  const perms                   = usePermissions();
+  const [mounted, setMounted]   = useState(false);
   useEffect(() => setMounted(true), []);
+
+  // Notifications
+  const [notifs, setNotifs]         = useState<any[]>([]);
+  const [unread, setUnread]         = useState(0);
+  const [showNotifs, setShowNotifs] = useState(false);
+  const bellRef                     = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const t = localStorage.getItem('access_token');
     const u = localStorage.getItem('user');
     if (!t || !u) { router.push('/login'); return; }
     setToken(t); setUser(JSON.parse(u));
+    loadNotifs(t);
+    const iv = setInterval(() => loadNotifs(t), 30000);
+    return () => clearInterval(iv);
+  }, []);
+
+  const loadNotifs = async (t: string) => {
+    try {
+      const [all, cnt] = await Promise.all([
+        fetch('https://employee-tracker.ru/api/v1/notifications',             { headers: { Authorization: 'Bearer ' + t } }).then(r => r.json()),
+        fetch('https://employee-tracker.ru/api/v1/notifications/unread-count',{ headers: { Authorization: 'Bearer ' + t } }).then(r => r.json()),
+      ]);
+      if (Array.isArray(all)) setNotifs(all.slice(0, 20));
+      if (typeof cnt === 'number') setUnread(cnt);
+    } catch {}
+  };
+
+  const markAllRead = async () => {
+    const t = localStorage.getItem('access_token');
+    if (!t) return;
+    await fetch('https://employee-tracker.ru/api/v1/notifications/read-all', { method: 'PATCH', headers: { Authorization: 'Bearer ' + t } });
+    setUnread(0);
+    setNotifs(prev => prev.map(n => ({ ...n, isRead: true })));
+  };
+
+  const markRead = async (id: string) => {
+    const t = localStorage.getItem('access_token');
+    if (!t) return;
+    await fetch(`https://employee-tracker.ru/api/v1/notifications/${id}/read`, { method: 'PATCH', headers: { Authorization: 'Bearer ' + t } });
+    setNotifs(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+    setUnread(prev => Math.max(0, prev - 1));
+  };
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) setShowNotifs(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, []);
 
   const items = mounted
     ? NAV.filter(n => !n.admin || perms.isAdmin || perms.isManager)
     : NAV.filter(n => !n.admin);
+
+  const NOTIF_ICONS: Record<string, string> = {
+    task_assigned: 'ti-clipboard-plus',
+    task_status:   'ti-refresh',
+    task_comment:  'ti-message',
+    task_overdue:  'ti-alarm',
+  };
 
   return (
     <aside style={{ width:'220px', flexShrink:0, display:'flex', flexDirection:'column', height:'100vh', position:'sticky', top:0, background:'#13151c', borderRight:'0.5px solid rgba(255,255,255,0.06)' }}>
@@ -53,7 +115,65 @@ export function Sidebar() {
           </div>
           <span style={{ color:'#e2e4ed', fontSize:'13px', fontWeight:500 }}>Employee Tracker</span>
         </div>
-        <ThemeToggle />
+        <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+          {/* Bell */}
+          <div ref={bellRef} style={{ position:'relative' }}>
+            <button onClick={()=>{ setShowNotifs(!showNotifs); if (!showNotifs && unread > 0) markAllRead(); }}
+              style={{ width:'28px', height:'28px', background:'transparent', border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', borderRadius:'6px', transition:'background 0.15s', position:'relative' }}
+              onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background='rgba(255,255,255,0.08)'}
+              onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background='transparent'}
+              title="Уведомления">
+              <i className="ti ti-bell" style={{ fontSize:'16px', color: unread > 0 ? '#f59e0b' : '#6b7090' }} aria-hidden="true"/>
+              {unread > 0 && (
+                <span style={{ position:'absolute', top:'2px', right:'2px', width:'14px', height:'14px', borderRadius:'50%', background:'#ef4444', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'8px', fontWeight:700, color:'white', border:'1.5px solid #13151c' }}>
+                  {unread > 9 ? '9+' : unread}
+                </span>
+              )}
+            </button>
+
+            {/* Notifications dropdown */}
+            {showNotifs && (
+              <div style={{ position:'fixed', top:'48px', left:'8px', width:'320px', background:'#1a1d26', border:'0.5px solid rgba(255,255,255,0.1)', borderRadius:'14px', boxShadow:'0 8px 32px rgba(0,0,0,0.4)', zIndex:1000, overflow:'hidden' }}>
+                <div style={{ padding:'12px 14px', borderBottom:'0.5px solid rgba(255,255,255,0.07)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <span style={{ fontSize:'13px', fontWeight:600, color:'#e2e4ed' }}>Уведомления</span>
+                  {notifs.some(n => !n.isRead) && (
+                    <button onClick={markAllRead}
+                      style={{ fontSize:'11px', color:'#8b7cf6', background:'none', border:'none', cursor:'pointer', fontWeight:500 }}>
+                      Прочитать все
+                    </button>
+                  )}
+                </div>
+                <div style={{ maxHeight:'360px', overflowY:'auto' }}>
+                  {notifs.length === 0 ? (
+                    <div style={{ padding:'32px', textAlign:'center', color:'#4a4d5e', fontSize:'12px' }}>
+                      <i className="ti ti-bell-off" style={{ fontSize:'24px', display:'block', marginBottom:'8px' }} aria-hidden="true"/>
+                      Нет уведомлений
+                    </div>
+                  ) : notifs.map(n => (
+                    <div key={n.id}
+                      onClick={()=>{ markRead(n.id); if (n.taskId) { setShowNotifs(false); router.push('/dashboard/tasks/'+n.taskId); } }}
+                      style={{ padding:'10px 14px', borderBottom:'0.5px solid rgba(255,255,255,0.05)', cursor:n.taskId?'pointer':'default', background:n.isRead?'transparent':'rgba(139,124,246,0.06)', transition:'background 0.1s', display:'flex', gap:'10px', alignItems:'flex-start' }}
+                      onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background='rgba(255,255,255,0.04)'}
+                      onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background=n.isRead?'transparent':'rgba(139,124,246,0.06)'}>
+                      <div style={{ width:'28px', height:'28px', borderRadius:'8px', background:n.isRead?'rgba(255,255,255,0.06)':'rgba(139,124,246,0.2)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:'1px' }}>
+                        <i className={`ti ${NOTIF_ICONS[n.type] ?? 'ti-bell'}`} style={{ fontSize:'14px', color:n.isRead?'#6b7090':'#8b7cf6' }} aria-hidden="true"/>
+                      </div>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:'6px', marginBottom:'2px' }}>
+                          <p style={{ fontSize:'12px', fontWeight:n.isRead?400:600, color:n.isRead?'#8b909e':'#e2e4ed', margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>{n.title}</p>
+                          {!n.isRead && <span style={{ width:'6px', height:'6px', borderRadius:'50%', background:'#8b7cf6', flexShrink:0 }}/>}
+                        </div>
+                        <p style={{ fontSize:'11px', color:'#6b7090', margin:'0 0 2px', lineHeight:1.4 }}>{n.body?.slice(0,80)}{n.body?.length>80?'...':''}</p>
+                        <p style={{ fontSize:'10px', color:'#4a4d5e', margin:0 }}>{timeAgo(n.createdAt)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <ThemeToggle />
+        </div>
       </div>
 
       {/* Divider */}
@@ -68,14 +188,14 @@ export function Sidebar() {
               style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 10px', borderRadius:'8px', textDecoration:'none', background: active ? 'rgba(139,124,246,0.15)' : 'transparent', transition:'background 0.15s' }}
               onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; }}
               onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
-              <i className={'ti ' + item.icon} style={{ fontSize:'17px', color: active ? '#8b7cf6' : '#6b7090', flexShrink:0, lineHeight:1 }} aria-hidden="true" />
+              <i className={'ti ' + item.icon} style={{ fontSize:'17px', color: active ? '#8b7cf6' : '#6b7090', flexShrink:0, lineHeight:1 }} aria-hidden="true"/>
               <span style={{ fontSize:'13px', fontWeight: active ? 500 : 400, color: active ? '#e2e4ed' : '#8b909e' }}>{item.label}</span>
             </Link>
           );
         })}
       </nav>
 
-      {/* Footer — user only */}
+      {/* Footer */}
       <div style={{ padding:'10px 8px', borderTop:'0.5px solid rgba(255,255,255,0.07)' }}>
         {user && (
           <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 10px', borderRadius:'8px', cursor:'pointer', transition:'background 0.15s' }}
