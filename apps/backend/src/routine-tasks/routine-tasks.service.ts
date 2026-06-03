@@ -134,10 +134,7 @@ export class RoutineTasksService {
     });
 
     const tasks = await this.prisma.task.findMany({
-      where: {
-        orgId,
-        createdAt: { gte: from },
-    } as any,
+      where: { orgId, createdAt: { gte: from } },
       include: { assignee: { select: { id: true, name: true } } },
     });
 
