@@ -9,15 +9,17 @@ export class ActiveTimeService {
     let from = new Date();
     let to: Date | undefined;
     if (fromDate) {
-      from = new Date(fromDate + 'T00:00:00');
+      // Используем UTC чтобы не зависеть от timezone сервера
+      from = new Date(fromDate + 'T00:00:00.000Z');
     } else if (days === 1) {
-      from.setHours(0, 0, 0, 0);
+      // Начало сегодняшнего дня UTC
+      from.setUTCHours(0, 0, 0, 0);
     } else {
       from.setDate(from.getDate() - days);
-      from.setHours(0, 0, 0, 0);
+      from.setUTCHours(0, 0, 0, 0);
     }
     if (toDate) {
-      to = new Date(toDate + 'T23:59:59');
+      to = new Date(toDate + 'T23:59:59.999Z');
     }
 
     const events = await this.prisma.activityEvent.findMany({
@@ -163,10 +165,10 @@ export class ActiveTimeService {
   async getHourlyActivity(orgId: string, userId?: string, days = 7) {
     const from = new Date();
     if (days === 1) {
-      from.setHours(0, 0, 0, 0);
+      from.setUTCHours(0, 0, 0, 0);
     } else {
       from.setDate(from.getDate() - days);
-      from.setHours(0, 0, 0, 0);
+      from.setUTCHours(0, 0, 0, 0);
     }
 
     const where: any = { orgId, createdAt: { gte: from } };

@@ -9,6 +9,37 @@ import { randomUUID } from 'crypto';
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  // Simple in-memory rate limiter: ip/email → { count, firstAttempt }
+  private readonly loginAttempts = new Map<string, { count: number; firstAttempt: number }>();
+  private readonly MAX_ATTEMPTS = 10;
+  private readonly WINDOW_MS    = 15 * 60 * 1000; // 15 минут
+
+  private checkRateLimit(key: string): void {
+    const now  = Date.now();
+    const entry = this.loginAttempts.get(key);
+    if (entry) {
+      if (now - entry.firstAttempt > this.WINDOW_MS) {
+        this.loginAttempts.delete(key);
+      } else if (entry.count >= this.MAX_ATTEMPTS) {
+        const remaining = Math.ceil((this.WINDOW_MS - (now - entry.firstAttempt)) / 60000);
+        throw new UnauthorizedException(`Слишком много попыток входа. Подождите ${remaining} мин.`);
+      }
+    }
+  }
+
+  private recordFailedAttempt(key: string): void {
+    const now   = Date.now();
+    const entry = this.loginAttempts.get(key);
+    if (!entry || Date.now() - entry.firstAttempt > this.WINDOW_MS) {
+      this.loginAttempts.set(key, { count: 1, firstAttempt: now });
+    } else {
+      entry.count++;
+    }
+  }
+
+  private clearAttempts(key: string): void {
+    this.loginAttempts.delete(key);
+  }
 
   constructor(
     private readonly prisma: PrismaService,
@@ -52,6 +83,12 @@ export class AuthService {
   }
 
   async login(email: string, password: string, ip?: string, ua?: string) {
+    // Rate limiting по IP и email
+    const ipKey    = 'ip:' + (ip ?? 'unknown');
+    const emailKey = 'email:' + email.toLowerCase();
+    this.checkRateLimit(ipKey);
+    this.checkRateLimit(emailKey);
+
     const user = await this.prisma.user.findUnique({
       where: { email },
       include: { userRoles: { include: { role: true } } },
@@ -59,7 +96,14 @@ export class AuthService {
     if (!user || user.deletedAt) throw new UnauthorizedException('Invalid credentials');
 
     const valid = await bcrypt.compare(password, user.password);
-    if (!valid) throw new UnauthorizedException('Invalid credentials');
+    if (!valid) {
+      this.recordFailedAttempt(ipKey);
+      this.recordFailedAttempt(emailKey);
+      throw new UnauthorizedException('Invalid credentials');
+    }
+    // Успешный вход — сбрасываем счётчики
+    this.clearAttempts(ipKey);
+    this.clearAttempts(emailKey);
 
     const roles = user.userRoles.map(ur => ur.role.name);
     const jti = randomUUID();
