@@ -41,6 +41,33 @@ export function Sidebar() {
   const [mounted, setMounted]   = useState(false);
   useEffect(() => setMounted(true), []);
 
+  // Search
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQ, setSearchQ]       = useState('');
+  const [searchRes, setSearchRes]   = useState<any>(null);
+  const [searching, setSearching]   = useState(false);
+  const searchRef                   = useRef<HTMLDivElement>(null);
+
+  const doSearch = async (q: string) => {
+    setSearchQ(q);
+    if (q.length < 2) { setSearchRes(null); return; }
+    setSearching(true);
+    const t = localStorage.getItem('access_token');
+    if (!t) return;
+    try {
+      const res = await fetch('https://employee-tracker.ru/api/v1/search?q=' + encodeURIComponent(q), { headers: { Authorization: 'Bearer ' + t } });
+      setSearchRes(await res.json());
+    } catch {} finally { setSearching(false); }
+  };
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowSearch(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
   // Notifications
   const [notifs, setNotifs]         = useState<any[]>([]);
   const [unread, setUnread]         = useState(0);
@@ -174,6 +201,69 @@ export function Sidebar() {
           </div>
           <ThemeToggle />
         </div>
+      </div>
+
+      {/* Search */}
+      <div ref={searchRef} style={{ padding:'0 8px 10px', position:'relative' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:'8px', background:'rgba(255,255,255,0.06)', borderRadius:'8px', padding:'7px 10px', cursor:'text' }}
+          onClick={()=>setShowSearch(true)}>
+          <i className="ti ti-search" style={{ fontSize:'14px', color:'#6b7090', flexShrink:0 }} aria-hidden="true"/>
+          <input value={searchQ} onChange={e=>doSearch(e.target.value)}
+            onFocus={()=>setShowSearch(true)}
+            placeholder="Поиск..." style={{ background:'none', border:'none', outline:'none', fontSize:'12px', color:'#c8cad8', width:'100%', fontFamily:'inherit' }}/>
+          {searchQ && <button onClick={()=>{setSearchQ('');setSearchRes(null);}} style={{ background:'none',border:'none',cursor:'pointer',color:'#6b7090',padding:0,fontSize:'14px',lineHeight:1 }}>×</button>}
+        </div>
+        {showSearch && searchRes && (
+          <div style={{ position:'absolute', top:'100%', left:'8px', right:'8px', background:'#1a1d26', border:'0.5px solid rgba(255,255,255,0.1)', borderRadius:'12px', boxShadow:'0 8px 32px rgba(0,0,0,0.4)', zIndex:1000, overflow:'hidden', maxHeight:'360px', overflowY:'auto' }}>
+            {searching && <div style={{ padding:'12px 14px', color:'#6b7090', fontSize:'12px' }}>Поиск...</div>}
+            {!searching && searchRes.tasks?.length===0 && searchRes.employees?.length===0 && searchRes.articles?.length===0 && (
+              <div style={{ padding:'16px 14px', color:'#6b7090', fontSize:'12px', textAlign:'center' }}>Ничего не найдено</div>
+            )}
+            {searchRes.tasks?.length>0 && (
+              <div>
+                <div style={{ padding:'8px 14px 4px', fontSize:'10px', fontWeight:600, color:'#4a4d5e', textTransform:'uppercase', letterSpacing:'0.5px' }}>Задачи</div>
+                {searchRes.tasks.map((t:any)=>(
+                  <div key={t.id} onClick={()=>{router.push('/dashboard/tasks/'+t.id);setShowSearch(false);setSearchQ('');setSearchRes(null);}}
+                    style={{ padding:'8px 14px', cursor:'pointer', display:'flex', alignItems:'center', gap:'8px', transition:'background 0.1s' }}
+                    onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background='rgba(255,255,255,0.05)'}
+                    onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background='transparent'}>
+                    <i className="ti ti-checkbox" style={{ fontSize:'14px', color:'#6b7090', flexShrink:0 }} aria-hidden="true"/>
+                    <span style={{ fontSize:'13px', color:'#c8cad8', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.title}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {searchRes.employees?.length>0 && (
+              <div>
+                <div style={{ padding:'8px 14px 4px', fontSize:'10px', fontWeight:600, color:'#4a4d5e', textTransform:'uppercase', letterSpacing:'0.5px' }}>Сотрудники</div>
+                {searchRes.employees.map((e:any)=>(
+                  <div key={e.id} onClick={()=>{router.push('/dashboard/employees/'+e.id);setShowSearch(false);setSearchQ('');setSearchRes(null);}}
+                    style={{ padding:'8px 14px', cursor:'pointer', display:'flex', alignItems:'center', gap:'8px', transition:'background 0.1s' }}
+                    onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background='rgba(255,255,255,0.05)'}
+                    onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background='transparent'}>
+                    <i className="ti ti-user" style={{ fontSize:'14px', color:'#6b7090', flexShrink:0 }} aria-hidden="true"/>
+                    <span style={{ fontSize:'13px', color:'#c8cad8' }}>{e.name}</span>
+                    <span style={{ fontSize:'11px', color:'#4a4d5e', marginLeft:'auto' }}>{e.email}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {searchRes.articles?.length>0 && (
+              <div>
+                <div style={{ padding:'8px 14px 4px', fontSize:'10px', fontWeight:600, color:'#4a4d5e', textTransform:'uppercase', letterSpacing:'0.5px' }}>База знаний</div>
+                {searchRes.articles.map((a:any)=>(
+                  <div key={a.id} onClick={()=>{router.push('/dashboard/knowledge');setShowSearch(false);setSearchQ('');setSearchRes(null);}}
+                    style={{ padding:'8px 14px', cursor:'pointer', display:'flex', alignItems:'center', gap:'8px', transition:'background 0.1s' }}
+                    onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background='rgba(255,255,255,0.05)'}
+                    onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background='transparent'}>
+                    <i className="ti ti-book" style={{ fontSize:'14px', color:'#6b7090', flexShrink:0 }} aria-hidden="true"/>
+                    <span style={{ fontSize:'13px', color:'#c8cad8', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{a.category?.icon} {a.title}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Divider */}
