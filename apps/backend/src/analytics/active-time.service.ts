@@ -100,9 +100,14 @@ export class ActiveTimeService {
         if (e.eventType === 'wb_section_ping' || e.eventType === 'ozon_section_ping') {
           const activeS = pd?.activeSeconds;
           if (activeS && activeS > 0 && activeS < 7200) {
-            const diff = activeS - (sec.lastPingSeconds ?? 0);
-            if (diff > 0) {
-              sec.timeSeconds += diff;
+            const lastPing = sec.lastPingSeconds ?? 0;
+            if (activeS >= lastPing) {
+              // Продолжение сессии — добавляем разницу
+              const diff = activeS - lastPing;
+              if (diff > 0) sec.timeSeconds += diff;
+            } else {
+              // Страница перезагрузилась — новая сессия, добавляем всё накопленное
+              sec.timeSeconds += activeS;
             }
             sec.lastPingSeconds = activeS;
           }
