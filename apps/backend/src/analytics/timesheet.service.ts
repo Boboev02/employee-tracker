@@ -104,8 +104,8 @@ export class TimesheetService {
         // Кнопочные события
         const startEv  = dayEvs.find(e => e.eventType === 'work_start');
         const endEv    = [...dayEvs].reverse().find(e => e.eventType === 'work_end');
-        const breakStarts = dayEvs.filter(e => e.eventType === 'work_break_start');
-        const breakEnds   = dayEvs.filter(e => e.eventType === 'work_break_end');
+        const breakStarts = dayEvs.filter((e: any) => e.eventType === 'work_break_start' && e._local);
+        const breakEnds   = dayEvs.filter((e: any) => e.eventType === 'work_break_end' && e._local);
 
         // Считаем перерывы
         let breakMs = 0;
@@ -117,8 +117,8 @@ export class TimesheetService {
         const breakMins = Math.round(breakMs / 60000);
 
         // Начало и конец — приоритет у кнопок, fallback у трекера
-        const clickEvents = dayEvs.filter(e =>
-          !['work_start','work_end','work_break_start','work_break_end','work_session_summary'].includes(e.eventType)
+        const clickEvents = dayEvs.filter((e: any) =>
+          !['work_start','work_end','work_break_start','work_break_end','work_session_summary'].includes(e.eventType) && e._local
         );
 
         const workStartLocal = startEv?._local ?? clickEvents[0]?._local;
@@ -135,6 +135,13 @@ export class TimesheetService {
         const startHour = workHours.startHour;
         const endHour   = workHours.endHour;
 
+        if (!workStartLocal || !workEndLocal) return {
+          date: dateStr, dayOfWeek, isWorkDay: true,
+          firstEvent: null, lastEvent: null, workStart: null, workEnd: null,
+          workDuration: 0, breakDuration: 0,
+          status: dateStr < today ? 'absent' : 'no_data',
+          lateMinutes: 0, earlyLeaveMinutes: 0, eventCount: dayEvs.length,
+        };
         const firstHour = workStartLocal.getHours() + workStartLocal.getMinutes() / 60;
         const lastHour  = workEndLocal.getHours()   + workEndLocal.getMinutes()   / 60;
 
