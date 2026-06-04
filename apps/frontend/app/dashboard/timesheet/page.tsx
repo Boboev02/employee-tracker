@@ -90,6 +90,7 @@ export default function TimesheetPage() {
               { l:'Присутствовало', v:data.reduce((s:number,r:any)=>s+(r.presentDays??0),0), icon:'ti-calendar', accent:'#16A34A', accBg:'#DCFCE7', badge:'дней', badgeC:'#16A34A', badgeBg:'#DCFCE7' },
               { l:'Опозданий', v:data.reduce((s:number,r:any)=>s+(r.lateDays??0),0), icon:'ti-clock', accent:'#D97706', accBg:'#FEF3C7', badge:'всего', badgeC:'#D97706', badgeBg:'#FEF3C7' },
               { l:'Отсутствий', v:data.reduce((s:number,r:any)=>s+(r.absentDays??0),0), icon:'ti-user-x', accent:'#DC2626', accBg:'#FEE2E2', badge:'дней', badgeC:'#DC2626', badgeBg:'#FEE2E2' },
+              { l:'Перерывы итого', v:fmtMin(data.reduce((s:number,r:any)=>s+(r.totalBreakMinutes??0),0)), icon:'ti-coffee', accent:'#6B7280', accBg:'#F3F4F6', badge:'мин', badgeC:'#6B7280', badgeBg:'#F3F4F6' },
             ].map((k,i)=>(
               <div key={i} style={{ background:'white', borderRadius:'20px', padding:'16px 18px', boxShadow:'0 4px 16px rgba(127,119,221,0.08)', position:'relative', overflow:'hidden' }}>
                 <div style={{ position:'absolute', top:'12px', right:'12px', fontSize:'10px', fontWeight:700, color:k.badgeC, background:k.badgeBg, padding:'2px 8px', borderRadius:'10px' }}>{k.badge}</div>
@@ -185,21 +186,37 @@ export default function TimesheetPage() {
                           {day.status==='weekend'||day.status==='no_data' ? (
                             <span style={{ fontSize:'12px', color:ss.c }}>—</span>
                           ) : (
-                            <div style={{ display:'inline-flex', flexDirection:'column', alignItems:'center', gap:'2px', background:ss.bg, borderRadius:'10px', padding:'4px 8px', minWidth:'70px' }}>
-                              {day.firstEvent && (
-                                <span style={{ fontSize:'12px', fontWeight:700, color:ss.c, lineHeight:1 }}>{day.firstEvent}</span>
+                            <div style={{ display:'inline-flex', flexDirection:'column', alignItems:'center', gap:'2px', background:ss.bg, borderRadius:'10px', padding:'4px 8px', minWidth:'72px' }}>
+                              {/* Начало дня */}
+                              {(day.workStart||day.firstEvent) && (
+                                <span style={{ fontSize:'12px', fontWeight:700, color:ss.c, lineHeight:1 }}>
+                                  {day.workStart??day.firstEvent}
+                                  {day.workStart && <span style={{ fontSize:'8px', opacity:0.6 }}> ▶</span>}
+                                </span>
                               )}
-                              {day.lastEvent && (
-                                <span style={{ fontSize:'10px', color:ss.c, opacity:0.8, lineHeight:1 }}>{day.lastEvent}</span>
+                              {/* Конец дня */}
+                              {(day.workEnd||day.lastEvent) && (
+                                <span style={{ fontSize:'10px', color:ss.c, opacity:0.8, lineHeight:1 }}>
+                                  {day.workEnd??day.lastEvent}
+                                  {day.workEnd && <span style={{ fontSize:'8px', opacity:0.6 }}> ■</span>}
+                                </span>
                               )}
+                              {/* Перерыв */}
+                              {day.breakDuration>0 && (
+                                <span style={{ fontSize:'9px', color:'#6B7280', background:'#F3F4F6', padding:'1px 5px', borderRadius:'6px' }}>
+                                  ☕ {fmtMin(day.breakDuration)}
+                                </span>
+                              )}
+                              {/* Опоздание */}
                               {(day.lateMinutes>0||day.earlyLeaveMinutes>0) && (
-                                <div style={{ display:'flex', alignItems:'center', gap:'2px', marginTop:'1px' }}>
+                                <div style={{ display:'flex', alignItems:'center', gap:'2px' }}>
                                   <span style={{ fontSize:'9px' }}>⏰</span>
                                   <span style={{ fontSize:'9px', fontWeight:700, color:ss.c }}>
-                                    {day.lateMinutes>0?'опозд. '+fmtMin(day.lateMinutes):day.earlyLeaveMinutes>0?fmtMin(day.earlyLeaveMinutes):null}
+                                    {day.lateMinutes>0?'опозд. '+fmtMin(day.lateMinutes):fmtMin(day.earlyLeaveMinutes)}
                                   </span>
                                 </div>
                               )}
+                              {/* Время работы */}
                               {day.workDuration>0 && (
                                 <span style={{ fontSize:'10px', fontWeight:700, color:ss.c }}>{fmtMin(day.workDuration)}</span>
                               )}
