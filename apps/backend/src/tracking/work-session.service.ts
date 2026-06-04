@@ -30,6 +30,9 @@ export class WorkSessionService {
   }
 
   async startWork(userId: string, orgId: string): Promise<WorkSession> {
+    // Не создаём дубль если уже working
+    const existing = await this.getSession(userId);
+    if (existing.status === 'working') return existing;
     const now = Date.now();
     const session: WorkSession = {
       userId, status: 'working',

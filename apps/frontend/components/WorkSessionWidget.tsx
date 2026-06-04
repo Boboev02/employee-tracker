@@ -67,10 +67,10 @@ export function WorkSessionWidget({ token, compact = false }: Props) {
   const status = session?.status ?? null;
 
   // Цвета статуса
-  const statusColor = status === 'working' ? 'var(--green)'
-    : status === 'break' ? 'var(--orange)'
-    : status === 'finished' ? 'var(--text-muted)'
-    : 'var(--text-muted)';
+  const statusColor = status === 'working' ? '#16A34A'
+    : status === 'break' ? '#D97706'
+    : status === 'finished' ? '#9B97CC'
+    : '#9B97CC';
 
   const statusLabel = status === 'working' ? 'Рабочий день идёт'
     : status === 'break' ? 'Перерыв'
@@ -82,10 +82,10 @@ export function WorkSessionWidget({ token, compact = false }: Props) {
     return (
       <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
         <span style={{ width:'6px', height:'6px', borderRadius:'50%', background:statusColor, flexShrink:0 }} />
-        <span style={{ fontSize:'12px', color:'var(--text-secondary)' }}>{statusLabel}</span>
+        <span style={{ fontSize:'12px', color:'#6B7280' }}>{statusLabel}</span>
         {status === null && (
           <button onClick={() => action('start')} disabled={loading}
-            style={{ fontSize:'11px', color:'var(--green)', background:'var(--green-bg)', border:'none', padding:'2px 8px', borderRadius:'6px', cursor:'pointer' }}>
+            style={{ fontSize:'11px', color:'#16A34A', background:'#DCFCE7', border:'none', padding:'2px 8px', borderRadius:'6px', cursor:'pointer' }}>
             Начать
           </button>
         )}
@@ -94,16 +94,16 @@ export function WorkSessionWidget({ token, compact = false }: Props) {
   }
 
   return (
-    <div style={{ background:'var(--bg-primary)', border:'0.5px solid var(--border)', borderRadius:'var(--radius)', padding:'14px 20px', display:'flex', alignItems:'center', gap:'16px', flexWrap:'wrap' }}>
+    <div style={{ background:'white', borderRadius:'20px', padding:'16px 20px', display:'flex', alignItems:'center', gap:'16px', flexWrap:'wrap', boxShadow:'0 4px 16px rgba(127,119,221,0.08)' }}>
       {/* Иконка + статус */}
       <div style={{ display:'flex', alignItems:'center', gap:'10px', flex:1, minWidth:'200px' }}>
-        <div style={{ width:'36px', height:'36px', borderRadius:'50%', background: status === 'working' ? 'var(--green-bg)' : status === 'break' ? 'var(--orange-bg)' : 'var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+        <div style={{ width:'36px', height:'36px', borderRadius:'50%', background: status === 'working' ? '#DCFCE7' : status === 'break' ? '#FEF3C7' : '#F8F7FF', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
           <i className={'ti ' + (status === 'working' ? 'ti-player-play' : status === 'break' ? 'ti-player-pause' : status === 'finished' ? 'ti-check' : 'ti-clock')}
             style={{ fontSize:'16px', color:statusColor }} aria-hidden="true" />
         </div>
         <div>
-          <p style={{ fontSize:'13px', fontWeight:500, color:'var(--text-primary)', margin:'0 0 2px' }}>{statusLabel}</p>
-          <p style={{ fontSize:'11px', color:'var(--text-muted)', margin:0 }}>
+          <p style={{ fontSize:'13px', fontWeight:500, color:'#1a1040', margin:'0 0 2px' }}>{statusLabel}</p>
+          <p style={{ fontSize:'11px', color:'#9B97CC', margin:0 }}>
             {status === 'working' && elapsed > 0 && 'Активное время: ' + fmtDuration(elapsed)}
             {status === 'break' && 'На перерыве'}
             {status === 'finished' && session?.startedAt && 'Итого: ' + fmtDuration(elapsed)}
@@ -114,39 +114,39 @@ export function WorkSessionWidget({ token, compact = false }: Props) {
 
       {/* Кнопки */}
       <div style={{ display:'flex', gap:'8px', flexShrink:0 }}>
-        {error && <span style={{ fontSize:'11px', color:'var(--red)', alignSelf:'center' }}>{error}</span>}
+        {error && <span style={{ fontSize:'11px', color:'#DC2626', alignSelf:'center' }}>{error}</span>}
 
         {status === null && (
           <button onClick={() => action('start')} disabled={loading}
-            style={{ background:'var(--green)', color:'white', border:'none', padding:'8px 16px', borderRadius:'8px', fontSize:'13px', fontWeight:500, cursor:'pointer', opacity: loading ? 0.7 : 1 }}>
+            style={{ background:'#16A34A', color:'white', border:'none', padding:'8px 16px', borderRadius:'8px', fontSize:'13px', fontWeight:500, cursor:'pointer', opacity: loading ? 0.7 : 1 }}>
             ▶ Начать день
           </button>
         )}
 
         {status === 'working' && (<>
           <button onClick={() => action('break')} disabled={loading}
-            style={{ background:'var(--orange-bg)', color:'var(--orange)', border:'0.5px solid var(--orange)', padding:'8px 14px', borderRadius:'8px', fontSize:'13px', fontWeight:500, cursor:'pointer', opacity: loading ? 0.7 : 1 }}>
+            style={{ background:'#FEF3C7', color:'#D97706', border:'0.5px solid #D97706', padding:'8px 14px', borderRadius:'8px', fontSize:'13px', fontWeight:500, cursor:'pointer', opacity: loading ? 0.7 : 1 }}>
             ⏸ Перерыв
           </button>
           <button onClick={() => action('finish')} disabled={loading}
-            style={{ background:'var(--red-bg)', color:'var(--red)', border:'0.5px solid var(--red)', padding:'8px 14px', borderRadius:'8px', fontSize:'13px', fontWeight:500, cursor:'pointer', opacity: loading ? 0.7 : 1 }}>
+            style={{ background:'#FEE2E2', color:'#DC2626', border:'0.5px solid #DC2626', padding:'8px 14px', borderRadius:'8px', fontSize:'13px', fontWeight:500, cursor:'pointer', opacity: loading ? 0.7 : 1 }}>
             ■ Завершить
           </button>
         </>)}
 
         {status === 'break' && (<>
           <button onClick={() => action('break-end')} disabled={loading}
-            style={{ background:'var(--green)', color:'white', border:'none', padding:'8px 16px', borderRadius:'8px', fontSize:'13px', fontWeight:500, cursor:'pointer', opacity: loading ? 0.7 : 1 }}>
+            style={{ background:'#16A34A', color:'white', border:'none', padding:'8px 16px', borderRadius:'8px', fontSize:'13px', fontWeight:500, cursor:'pointer', opacity: loading ? 0.7 : 1 }}>
             ▶ Продолжить
           </button>
           <button onClick={() => action('finish')} disabled={loading}
-            style={{ background:'var(--red-bg)', color:'var(--red)', border:'0.5px solid var(--red)', padding:'8px 14px', borderRadius:'8px', fontSize:'13px', fontWeight:500, cursor:'pointer', opacity: loading ? 0.7 : 1 }}>
+            style={{ background:'#FEE2E2', color:'#DC2626', border:'0.5px solid #DC2626', padding:'8px 14px', borderRadius:'8px', fontSize:'13px', fontWeight:500, cursor:'pointer', opacity: loading ? 0.7 : 1 }}>
             ■ Завершить
           </button>
         </>)}
 
         {status === 'finished' && (
-          <span style={{ fontSize:'12px', color:'var(--green)', background:'var(--green-bg)', padding:'6px 12px', borderRadius:'8px' }}>
+          <span style={{ fontSize:'12px', color:'#16A34A', background:'#DCFCE7', padding:'6px 12px', borderRadius:'8px' }}>
             ✓ День завершён
           </span>
         )}
