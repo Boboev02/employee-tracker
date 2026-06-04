@@ -107,12 +107,17 @@ export class TimesheetService {
         const breakStarts = dayEvs.filter((e: any) => e.eventType === 'work_break_start' && e._local);
         const breakEnds   = dayEvs.filter((e: any) => e.eventType === 'work_break_end' && e._local);
 
-        // Считаем перерывы
+        // Считаем перерывы — только закрытые пары (есть и start и end)
         let breakMs = 0;
         for (let i = 0; i < breakStarts.length; i++) {
+          const bEnd = breakEnds[i]?._local.getTime();
+          if (!bEnd) continue; // незакрытый перерыв — пропускаем
           const bStart = breakStarts[i]._local.getTime();
-          const bEnd   = breakEnds[i]?._local.getTime() ?? Date.now();
-          breakMs += Math.max(0, bEnd - bStart);
+          const duration = bEnd - bStart;
+          // Максимум 2 часа на перерыв — защита от некорректных данных
+          if (duration > 0 && duration < 7200000) {
+            breakMs += duration;
+          }
         }
         const breakMins = Math.round(breakMs / 60000);
 
