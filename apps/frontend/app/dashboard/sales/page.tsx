@@ -3,6 +3,31 @@ import { useState, useCallback, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area } from 'recharts';
 import * as XLSX from 'xlsx';
 
+const STORAGE_KEY = 'wb_sales_data';
+
+function saveToStorage(orders: Order[], filename: string) {
+  try {
+    const payload = {
+      filename,
+      savedAt: new Date().toISOString(),
+      orders: orders.map(o => ({ ...o, date: o.date.toISOString() })),
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  } catch(e) { console.warn('[Sales] Storage save failed:', e); }
+}
+
+function loadFromStorage(): { orders: Order[]; filename: string; savedAt: Date } | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const payload = JSON.parse(raw);
+    const orders: Order[] = payload.orders.map((o: any) => ({ ...o, date: new Date(o.date) }));
+    return { orders, filename: payload.filename, savedAt: new Date(payload.savedAt) };
+  } catch { return null; }
+}
+
+
+
 // ─── Типы ────────────────────────────────────────────────────────────────────
 interface Order {
   sku: string; name: string; brand: string;
@@ -235,8 +260,17 @@ function KpiCard({label,val,sub,accent,bg,icon,delta}:{label:string;val:string|n
 
 // ─── Главная страница ─────────────────────────────────────────────────────────
 export default function SalesPage() {
-  const [orders, setOrders]     = useState<Order[]>([]);
-  const [filename, setFilename] = useState('');
+  // Восстановление из localStorage при загрузке страницы
+  const initData = () => {
+    const saved = loadFromStorage();
+    if (saved && saved.orders.length > 0) return saved;
+    return null;
+  };
+  const _init = initData();
+
+  const [orders, setOrders]     = useState<Order[]>(_init?.orders ?? []);
+  const [filename, setFilename] = useState(_init?.filename ?? '');
+  const [savedAt, setSavedAt]   = useState<Date|null>(_init?.savedAt ?? null);
   const [tab, setTab]           = useState<'dashboard'|'hours'|'skus'|'days'>('dashboard');
 
   // Доступные даты в файле
@@ -257,6 +291,10 @@ export default function SalesPage() {
     setOrders(o);
     setFilename(name);
     setSelectedSkus([]);
+    if (o.length > 0) {
+      saveToStorage(o, name);
+      setSavedAt(new Date());
+    }
     const days = Array.from(new Set(o.map(x => x.dayKey))).sort();
     // По умолчанию: последний день = A, предпоследний = B
     if (days.length >= 2) {
@@ -353,7 +391,12 @@ export default function SalesPage() {
         <div>
           <h1 style={{ fontSize: '18px', fontWeight: 800, color: '#1a1040', margin: 0 }}>Аналитика продаж WB</h1>
           <p style={{ fontSize: '11px', color: '#9B97CC', margin: '2px 0 0' }}>
-            {filename ? `Файл: ${filename} · ${orders.length} заказов` : 'Загрузите ленту заказов для анализа'}
+            {filename ? (
+              <>
+                {filename} · {orders.length} заказов
+                {savedAt && <span style={{color:'#16A34A'}}> · сохранено {savedAt.toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'})} {savedAt.toLocaleDateString('ru',{day:'numeric',month:'short'})}</span>}
+              </>
+            ) : 'Загрузите ленту заказов для анализа'}
           </p>
         </div>
         {orders.length > 0 && (
