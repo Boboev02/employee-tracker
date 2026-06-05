@@ -99,24 +99,23 @@ function parseWBExcel(data: ArrayBuffer): Order[] {
 
 // ─── Чтение файла (zip или xlsx) ─────────────────────────────────────────────
 async function decompressDeflate(compressed: ArrayBuffer): Promise<ArrayBuffer> {
-  try {
-    const ds = new DecompressionStream('deflate-raw');
-    const writer = ds.writable.getWriter();
-    const reader = ds.readable.getReader();
-    writer.write(new Uint8Array(compressed));
-    writer.close();
-    const chunks: Uint8Array[] = [];
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value);
-    }
-    const total = chunks.reduce((s, c) => s + c.length, 0);
-    const result = new Uint8Array(total);
-    let off = 0;
-    for (const chunk of chunks) { result.set(chunk, off); off += chunk.length; }
-    return result.buffer;
-  } catch { return compressed; }
+  const ds = new DecompressionStream('deflate-raw');
+  const writer = ds.writable.getWriter();
+  const reader = ds.readable.getReader();
+  // ВАЖНО: awaiting write и close
+  await writer.write(new Uint8Array(compressed));
+  await writer.close();
+  const chunks: Uint8Array[] = [];
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+  }
+  const total = chunks.reduce((s, c) => s + c.length, 0);
+  const result = new Uint8Array(total);
+  let off = 0;
+  for (const chunk of chunks) { result.set(chunk, off); off += chunk.length; }
+  return result.buffer;
 }
 
 async function readFile(file: File): Promise<Order[]> {
