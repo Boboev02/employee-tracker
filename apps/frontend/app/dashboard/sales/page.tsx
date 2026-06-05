@@ -99,23 +99,17 @@ function parseWBExcel(data: ArrayBuffer): Order[] {
 
 // ─── Чтение файла (zip или xlsx) ─────────────────────────────────────────────
 async function decompressDeflate(compressed: ArrayBuffer): Promise<ArrayBuffer> {
-  const ds = new DecompressionStream('deflate-raw');
-  const writer = ds.writable.getWriter();
-  const reader = ds.readable.getReader();
-  // ВАЖНО: awaiting write и close
-  await writer.write(new Uint8Array(compressed));
-  await writer.close();
-  const chunks: Uint8Array[] = [];
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
+  try {
+    // Самый надёжный способ — через Response + DecompressionStream
+    const blob = new Blob([compressed]);
+    const ds = new DecompressionStream('deflate-raw');
+    const decompressedStream = blob.stream().pipeThrough(ds);
+    const response = new Response(decompressedStream);
+    return await response.arrayBuffer();
+  } catch {
+    // Fallback — возвращаем как есть (может быть stored без сжатия)
+    return compressed;
   }
-  const total = chunks.reduce((s, c) => s + c.length, 0);
-  const result = new Uint8Array(total);
-  let off = 0;
-  for (const chunk of chunks) { result.set(chunk, off); off += chunk.length; }
-  return result.buffer;
 }
 
 async function readFile(file: File): Promise<Order[]> {
