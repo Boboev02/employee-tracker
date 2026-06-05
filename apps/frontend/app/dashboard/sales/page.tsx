@@ -10,54 +10,67 @@ const fmtMoney = (n: number) => fmtNum(Math.round(n)) + '₽';
 
 interface Order { sku:string; name:string; brand:string; date:Date; hour:number; price:number; status:string; }
 
+async function readFileAsOrders(file: File): Promise<Order[]> {
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.zip')) {
+    // XLSX умеет читать zip — просто передаём как есть
+    const data = await file.arrayBuffer();
+    try {
+      // Пробуем читать zip напрямую через XLSX (xlsx поддерживает zip-контейнеры)
+      const wb = XLSX.read(data, { type: 'array', cellDates: false, raw: true });
+      if (wb.SheetNames.length > 0) {
+        return parseWBExcel(data);
+      }
+    } catch {}
+    // Fallback: вручную находим xlsx внутри zip через сигнатуру
+    const bytes = new Uint8Array(data);
+    // ZIP local file header: 50 4B 03 04
+    // Ищем xlsx файл внутри zip по сигнатуре PK
+    const zip = new DataView(data);
+    let offset = 0;
+    while (offset < bytes.length - 30) {
+      if (zip.getUint32(offset, true) === 0x04034b50) {
+        const nameLen = zip.getUint16(offset + 26, true);
+        const extraLen = zip.getUint16(offset + 28, true);
+        const fileNameBytes = bytes.slice(offset + 30, offset + 30 + nameLen);
+        const fileName = new TextDecoder().decode(fileNameBytes).toLowerCase();
+        const compressedSize = zip.getUint32(offset + 18, true);
+        const dataOffset = offset + 30 + nameLen + extraLen;
+        if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+          const fileData = data.slice(dataOffset, dataOffset + compressedSize);
+          try { return parseWBExcel(fileData); } catch {}
+        }
+        offset = dataOffset + compressedSize;
+      } else { offset++; }
+    }
+    return [];
+  } else {
+    return parseWBExcel(await file.arrayBuffer());
+  }
+}
+
 function parseWBExcel(data: ArrayBuffer): Order[] {
-  const wb = XLSX.read(data, { type:'array', cellDates:true, raw:false });
-  // Ищем лист с заказами
+  const wb = XLSX.read(data, { type:'array', cellDates:false, raw:true });
   const sheetName = wb.SheetNames.find(n =>
-    n.includes('Активн')||n.includes('Все')||n.includes('заказ')
+    n.includes('Активн') || n.includes('Все') || n.includes('заказ')
   ) ?? wb.SheetNames[0];
   const ws = wb.Sheets[sheetName];
 
-  // Метод 1: sheet_to_json без header:1 — пробуем найти строку с "Артикул"
-  const allRows = XLSX.utils.sheet_to_json<any>(ws, { header:1, defval:'', raw:false });
+  // Читаем все строки как массивы
+  const allRows: any[][] = XLSX.utils.sheet_to_json(ws, { header:1, defval:null, raw:true });
 
-  // Ищем строку-заголовок (может быть с 0 по 5 строку)
+  // Ищем строку-заголовок (строка с 'Артикул продавца')
   let headerIdx = -1;
-  for (let i = 0; i < Math.min(allRows.length, 10); i++) {
-    const row = allRows[i] as any[];
-    if (row.some((c:any) => typeof c==='string' && (c.includes('Артикул продавца') || c.includes('Артикул WB')))) {
+  for (let i = 0; i < Math.min(allRows.length, 5); i++) {
+    const row = allRows[i];
+    if (Array.isArray(row) && row.some((c: any) => typeof c === 'string' && c.includes('Артикул продавца'))) {
       headerIdx = i; break;
     }
   }
+  if (headerIdx === -1) return [];
 
-  if (headerIdx === -1) {
-    // Fallback: попробуем sheet_to_json с дефолтными заголовками
-    try {
-      const objRows = XLSX.utils.sheet_to_json<any>(ws, { defval:'', raw:false });
-      if (objRows.length > 0) {
-        const orders: Order[] = [];
-        for (const row of objRows) {
-          // Ищем поля по возможным ключам
-          const sku = row['Артикул продавца'] || row['Артикул'] || '';
-          const name = row['Название'] || '';
-          const brand = row['Бренд'] || '';
-          const dateStr = row['Дата оформления заказа'] || row['Дата оформления'] || '';
-          const price = Number(row['Стоимость'] || 0);
-          const status = row['Статус заказа'] || '';
-          if (!sku || !dateStr) continue;
-          const date = new Date(dateStr);
-          if (isNaN(date.getTime())) continue;
-          orders.push({ sku:String(sku), name:String(name), brand:String(brand),
-            date, hour:date.getHours(), price, status:String(status) });
-        }
-        if (orders.length > 0) return orders;
-      }
-    } catch {}
-    return [];
-  }
-
-  const headers: string[] = allRows[headerIdx] as string[];
-  const col = (name: string) => headers.findIndex(h => typeof h==='string' && h.includes(name));
+  const headers: any[] = allRows[headerIdx];
+  const col = (name: string) => headers.findIndex((h: any) => typeof h === 'string' && h.includes(name));
 
   const skuCol    = col('Артикул продавца');
   const nameCol   = col('Название');
@@ -66,23 +79,44 @@ function parseWBExcel(data: ArrayBuffer): Order[] {
   const priceCol  = col('Стоимость');
   const statusCol = col('Статус заказа');
 
+  if (skuCol === -1 || dateCol === -1) return [];
+
+  const parseDate = (val: any): Date | null => {
+    if (!val) return null;
+    if (val instanceof Date) return val;
+    if (typeof val === 'number') {
+      // Excel date serial
+      const d = new Date((val - 25569) * 86400 * 1000);
+      if (!isNaN(d.getTime())) return d;
+    }
+    if (typeof val === 'string') {
+      // '2026-06-04 23:58:05' or '04.06.2026 23:58:05'
+      const s = val.trim();
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) return new Date(s.replace(' ', 'T'));
+      if (/^\d{2}\.\d{2}\.\d{4}/.test(s)) {
+        const [d, m, y] = s.split(' ')[0].split('.');
+        const time = s.split(' ')[1] || '00:00:00';
+        return new Date(`${y}-${m}-${d}T${time}`);
+      }
+    }
+    return null;
+  };
+
   const orders: Order[] = [];
   for (let i = headerIdx + 1; i < allRows.length; i++) {
-    const row = allRows[i] as any[];
+    const row = allRows[i];
+    if (!Array.isArray(row)) continue;
     const sku = row[skuCol];
     if (!sku || String(sku).trim() === '') continue;
-    const rawDate = row[dateCol];
-    let date: Date | null = null;
-    if (rawDate instanceof Date) date = rawDate;
-    else if (typeof rawDate === 'string' && rawDate.length > 8) date = new Date(rawDate);
-    else if (typeof rawDate === 'number') date = new Date((rawDate - 25569) * 86400000);
+    const date = parseDate(row[dateCol]);
     if (!date || isNaN(date.getTime())) continue;
     orders.push({
-      sku: String(sku).trim(),
-      name: String(row[nameCol] ?? ''),
-      brand: String(row[brandCol] ?? ''),
-      date, hour: date.getHours(),
-      price: Number(row[priceCol] ?? 0),
+      sku:    String(sku).trim(),
+      name:   String(row[nameCol]   ?? ''),
+      brand:  String(row[brandCol]  ?? ''),
+      date,
+      hour:   date.getHours(),
+      price:  Number(row[priceCol]  ?? 0),
       status: String(row[statusCol] ?? ''),
     });
   }
@@ -95,19 +129,16 @@ function FileDropZone({ label, color, onLoad }: { label:string; color:string; on
   const [filename, setFilename] = useState('');
   const handle = useCallback((file: File) => {
     setLoading(true); setFilename(file.name);
-    const reader = new FileReader();
-    reader.onload = e => {
-      try { onLoad(parseWBExcel(e.target!.result as ArrayBuffer), file.name); }
-      catch { onLoad([], file.name); }
-      setLoading(false);
-    };
-    reader.readAsArrayBuffer(file);
+    readFileAsOrders(file)
+      .then(orders => { onLoad(orders, file.name); })
+      .catch(() => { onLoad([], file.name); })
+      .finally(() => setLoading(false));
   }, [onLoad]);
   return (
     <div onDragOver={e=>{e.preventDefault();setDrag(true);}} onDragLeave={()=>setDrag(false)}
       onDrop={e=>{e.preventDefault();setDrag(false);const f=e.dataTransfer.files[0];if(f)handle(f);}}
       style={{border:`2px dashed ${drag?color:'#EDE9FE'}`,borderRadius:'16px',padding:'20px',textAlign:'center',background:drag?color+'10':'#F8F7FF',cursor:'pointer'}}
-      onClick={()=>{const i=document.createElement('input');i.type='file';i.accept='.xlsx,.xls';i.onchange=()=>{if(i.files?.[0])handle(i.files[0]);};i.click();}}>
+      onClick={()=>{const i=document.createElement('input');i.type='file';i.accept='.xlsx,.xls,.zip';i.onchange=()=>{if(i.files?.[0])handle(i.files[0]);};i.click();}}>
       {loading ? <p style={{color:'#9B97CC',fontSize:'13px',margin:0}}>Загружаю...</p>
         : filename ? <div><p style={{fontSize:'12px',fontWeight:700,color,margin:'0 0 2px'}}>✓ {filename}</p><p style={{fontSize:'11px',color:'#9B97CC',margin:0}}>Нажмите для замены</p></div>
         : <div><i className="ti ti-file-spreadsheet" style={{fontSize:'26px',color,display:'block',marginBottom:'6px'}} aria-hidden="true"/><p style={{fontSize:'13px',fontWeight:700,color:'#1a1040',margin:'0 0 3px'}}>{label}</p><p style={{fontSize:'11px',color:'#9B97CC',margin:0}}>xlsx файл WB</p></div>}
