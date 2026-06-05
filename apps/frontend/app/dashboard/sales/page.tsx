@@ -114,37 +114,74 @@ async function decompressDeflate(compressed: ArrayBuffer): Promise<ArrayBuffer> 
 
 async function readFile(file: File): Promise<Order[]> {
   const name = file.name.toLowerCase();
+  const data = await file.arrayBuffer();
+
+  if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+    return parseWBExcel(data);
+  }
+
   if (name.endsWith('.zip')) {
-    const data = await file.arrayBuffer();
     const bytes = new Uint8Array(data);
     const view = new DataView(data);
-    let offset = 0;
-    while (offset < bytes.length - 30) {
-      if (view.getUint32(offset, true) === 0x04034b50) {
-        const compression = view.getUint16(offset + 8, true);
-        const compSize    = view.getUint32(offset + 18, true);
-        const nameLen     = view.getUint16(offset + 26, true);
-        const extraLen    = view.getUint16(offset + 28, true);
-        const fileNameB   = bytes.slice(offset + 30, offset + 30 + nameLen);
-        const fileName    = new TextDecoder().decode(fileNameB).toLowerCase();
-        const dataOffset  = offset + 30 + nameLen + extraLen;
-        if ((fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) && !fileName.startsWith('__')) {
-          const comp = data.slice(dataOffset, dataOffset + compSize);
-          const xlsxData = compression === 8 ? await decompressDeflate(comp) : comp;
-          try {
-            const orders = parseWBExcel(xlsxData);
-            if (orders.length > 0) return orders;
-          } catch {}
-        }
-        offset = dataOffset + compSize;
-      } else { offset++; }
+
+    // Ищем End of Central Directory
+    let eocdOffset = -1;
+    for (let i = bytes.length - 22; i >= 0; i--) {
+      if (bytes[i]===0x50 && bytes[i+1]===0x4B && bytes[i+2]===0x05 && bytes[i+3]===0x06) {
+        eocdOffset = i; break;
+      }
     }
-    return [];
+    if (eocdOffset === -1) return [];
+
+    const cdOffset = view.getUint32(eocdOffset + 16, true);
+    const cdCount  = view.getUint16(eocdOffset + 8, true);
+
+    // Читаем Central Directory
+    let cdPos = cdOffset;
+    const files: Array<{name:string;offset:number;compSize:number;method:number}> = [];
+    for (let i = 0; i < cdCount; i++) {
+      if (view.getUint32(cdPos, true) !== 0x02014B50) break;
+      const method     = view.getUint16(cdPos + 10, true);
+      const compSize   = view.getUint32(cdPos + 20, true);
+      const nameLen    = view.getUint16(cdPos + 28, true);
+      const extraLen   = view.getUint16(cdPos + 30, true);
+      const commentLen = view.getUint16(cdPos + 32, true);
+      const localOffset = view.getUint32(cdPos + 42, true);
+      const fileName   = new TextDecoder().decode(bytes.slice(cdPos + 46, cdPos + 46 + nameLen));
+      files.push({ name: fileName.toLowerCase(), offset: localOffset, compSize, method });
+      cdPos += 46 + nameLen + extraLen + commentLen;
+    }
+
+    const xlsxEntry = files.find(f => (f.name.endsWith('.xlsx')||f.name.endsWith('.xls')) && !f.name.startsWith('__'));
+    if (!xlsxEntry) { console.error('[Sales] No xlsx in zip, files:', files.map(f=>f.name)); return []; }
+
+    const lh = xlsxEntry.offset;
+    const lNameLen  = view.getUint16(lh + 26, true);
+    const lExtraLen = view.getUint16(lh + 28, true);
+    const dataStart = lh + 30 + lNameLen + lExtraLen;
+    const compData  = data.slice(dataStart, dataStart + xlsxEntry.compSize);
+
+    let xlsxData: ArrayBuffer;
+    if (xlsxEntry.method === 0) {
+      xlsxData = compData;
+    } else if (xlsxEntry.method === 8) {
+      try {
+        const blob = new Blob([compData]);
+        const ds = new DecompressionStream('deflate-raw');
+        xlsxData = await new Response(blob.stream().pipeThrough(ds)).arrayBuffer();
+      } catch(e) { console.error('[Sales] Decompress error:', e); return []; }
+    } else {
+      console.error('[Sales] Unknown compression method:', xlsxEntry.method);
+      return [];
+    }
+
+    console.log('[Sales] xlsxData size:', xlsxData.byteLength);
+    try { return parseWBExcel(xlsxData); }
+    catch(e) { console.error('[Sales] Parse error:', e); return []; }
   }
-  return parseWBExcel(await file.arrayBuffer());
+  return [];
 }
 
-// ─── UI компоненты ────────────────────────────────────────────────────────────
 function FileDropZone({ onLoad }: { onLoad: (o: Order[], n: string) => void }) {
   const [drag, setDrag] = useState(false);
   const [loading, setLoading] = useState(false);
