@@ -11,30 +11,80 @@ const fmtMoney = (n: number) => fmtNum(Math.round(n)) + '₽';
 interface Order { sku:string; name:string; brand:string; date:Date; hour:number; price:number; status:string; }
 
 function parseWBExcel(data: ArrayBuffer): Order[] {
-  const wb = XLSX.read(data, { type:'array', cellDates:true });
-  const sheetName = wb.SheetNames.find(n => n.includes('Активн')||n.includes('Все')||n.includes('заказ')) ?? wb.SheetNames[0];
+  const wb = XLSX.read(data, { type:'array', cellDates:true, raw:false });
+  // Ищем лист с заказами
+  const sheetName = wb.SheetNames.find(n =>
+    n.includes('Активн')||n.includes('Все')||n.includes('заказ')
+  ) ?? wb.SheetNames[0];
   const ws = wb.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json<any>(ws, { header:1, defval:null });
-  let headerRow = -1;
-  for (let i = 0; i < Math.min(rows.length, 10); i++) {
-    if (rows[i]?.some((c: any) => typeof c==='string' && c.includes('Артикул'))) { headerRow=i; break; }
+
+  // Метод 1: sheet_to_json без header:1 — пробуем найти строку с "Артикул"
+  const allRows = XLSX.utils.sheet_to_json<any>(ws, { header:1, defval:'', raw:false });
+
+  // Ищем строку-заголовок (может быть с 0 по 5 строку)
+  let headerIdx = -1;
+  for (let i = 0; i < Math.min(allRows.length, 10); i++) {
+    const row = allRows[i] as any[];
+    if (row.some((c:any) => typeof c==='string' && (c.includes('Артикул продавца') || c.includes('Артикул WB')))) {
+      headerIdx = i; break;
+    }
   }
-  if (headerRow===-1) return [];
-  const headers: string[] = rows[headerRow];
+
+  if (headerIdx === -1) {
+    // Fallback: попробуем sheet_to_json с дефолтными заголовками
+    try {
+      const objRows = XLSX.utils.sheet_to_json<any>(ws, { defval:'', raw:false });
+      if (objRows.length > 0) {
+        const orders: Order[] = [];
+        for (const row of objRows) {
+          // Ищем поля по возможным ключам
+          const sku = row['Артикул продавца'] || row['Артикул'] || '';
+          const name = row['Название'] || '';
+          const brand = row['Бренд'] || '';
+          const dateStr = row['Дата оформления заказа'] || row['Дата оформления'] || '';
+          const price = Number(row['Стоимость'] || 0);
+          const status = row['Статус заказа'] || '';
+          if (!sku || !dateStr) continue;
+          const date = new Date(dateStr);
+          if (isNaN(date.getTime())) continue;
+          orders.push({ sku:String(sku), name:String(name), brand:String(brand),
+            date, hour:date.getHours(), price, status:String(status) });
+        }
+        if (orders.length > 0) return orders;
+      }
+    } catch {}
+    return [];
+  }
+
+  const headers: string[] = allRows[headerIdx] as string[];
   const col = (name: string) => headers.findIndex(h => typeof h==='string' && h.includes(name));
-  const skuCol=col('Артикул продавца'), nameCol=col('Название'), brandCol=col('Бренд'),
-        dateCol=col('Дата оформления'), priceCol=col('Стоимость'), statusCol=col('Статус заказа');
+
+  const skuCol    = col('Артикул продавца');
+  const nameCol   = col('Название');
+  const brandCol  = col('Бренд');
+  const dateCol   = col('Дата оформления');
+  const priceCol  = col('Стоимость');
+  const statusCol = col('Статус заказа');
+
   const orders: Order[] = [];
-  for (let i = headerRow+1; i < rows.length; i++) {
-    const row = rows[i];
-    if (!row || !row[skuCol]) continue;
-    let date: Date|null = null;
-    const rd = row[dateCol];
-    if (rd instanceof Date) date=rd;
-    else if (typeof rd==='string' && rd.length>8) date=new Date(rd);
+  for (let i = headerIdx + 1; i < allRows.length; i++) {
+    const row = allRows[i] as any[];
+    const sku = row[skuCol];
+    if (!sku || String(sku).trim() === '') continue;
+    const rawDate = row[dateCol];
+    let date: Date | null = null;
+    if (rawDate instanceof Date) date = rawDate;
+    else if (typeof rawDate === 'string' && rawDate.length > 8) date = new Date(rawDate);
+    else if (typeof rawDate === 'number') date = new Date((rawDate - 25569) * 86400000);
     if (!date || isNaN(date.getTime())) continue;
-    orders.push({ sku:String(row[skuCol]??''), name:String(row[nameCol]??''), brand:String(row[brandCol]??''),
-      date, hour:date.getHours(), price:Number(row[priceCol]??0), status:String(row[statusCol]??'') });
+    orders.push({
+      sku: String(sku).trim(),
+      name: String(row[nameCol] ?? ''),
+      brand: String(row[brandCol] ?? ''),
+      date, hour: date.getHours(),
+      price: Number(row[priceCol] ?? 0),
+      status: String(row[statusCol] ?? ''),
+    });
   }
   return orders;
 }
