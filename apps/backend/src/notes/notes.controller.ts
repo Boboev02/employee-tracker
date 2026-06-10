@@ -1,7 +1,7 @@
 
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { NotesService } from './notes.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/index';
 
 @Controller('api/v1/notes')
 @UseGuards(JwtAuthGuard)
