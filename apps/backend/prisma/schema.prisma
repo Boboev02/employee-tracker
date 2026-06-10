@@ -39,6 +39,7 @@ model User {
   kpisCreated      EmployeeKpi[] @relation("KpiCreator")
   routineTasks     RoutineTask[] @relation("RoutineAssignee")
   routinesCreated  RoutineTask[] @relation("RoutineCreator")
+  notes            Note[]        @relation("UserNotes")
 }
 
 model Role {
