@@ -1,3 +1,4 @@
+import { NotesModule } from './notes/notes.module';
 import 'dotenv/config';
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
@@ -21,6 +22,7 @@ import { JwtAuthGuard }    from './auth/guards/index';
 
 @Module({
   imports: [
+    NotesModule,
     PrismaModule,
     RoutineTasksModule,
     SearchModule, AuthModule, ResetModule,

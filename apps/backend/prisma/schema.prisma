@@ -14,7 +14,8 @@ model Organisation {
   users        User[]
   teams        Team[]
   routineTasks RoutineTask[]
-  kpis         EmployeeKpi[]
+  kpis         EmployeeKpi[]  notes         Note[]   @relation("OrgNotes")
+
 }
 
 model User {
@@ -299,4 +300,22 @@ model EmployeeKpi {
 
   @@unique([orgId, userId, period])
   @@index([orgId, period])
+}
+
+model Note {
+  id         String    @id @default(uuid())
+  userId     String
+  orgId      String
+  title      String    @db.VarChar(255)
+  content    String?   @db.Text
+  status     String    @default("ACTIVE")
+  priority   String    @default("MEDIUM")
+  isPinned   Boolean   @default(false)
+  remindAt   DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  user       User         @relation("UserNotes", fields: [userId], references: [id])
+  org        Organisation @relation("OrgNotes",  fields: [orgId],  references: [id])
+  @@index([userId, status])
+  @@index([userId, isPinned])
 }
