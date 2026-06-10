@@ -14,7 +14,8 @@ model Organisation {
   users        User[]
   teams        Team[]
   routineTasks RoutineTask[]
-  kpis         EmployeeKpi[]  notes         Note[]   @relation("OrgNotes")
+  kpis         EmployeeKpi[]
+  notes        Note[]   @relation("OrgNotes")
 
 }
 
