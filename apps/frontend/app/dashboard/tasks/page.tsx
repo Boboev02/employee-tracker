@@ -1,4 +1,5 @@
 'use client';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePermissions } from '@/lib/usePermissions';
@@ -25,6 +26,7 @@ const avatarColor = (name: string) => AVATAR_COLORS[(name?.charCodeAt(0)??0) % A
 export default function TasksPage() {
   const router  = useRouter();
   const perms   = usePermissions();
+  const isMobile = useIsMobile();
   const [columns, setColumns]     = useState<Record<string,any[]>>({});
   const [loading, setLoading]     = useState(true);
   const [showForm, setShowForm]   = useState(false);

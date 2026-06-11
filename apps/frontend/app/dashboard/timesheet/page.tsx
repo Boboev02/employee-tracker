@@ -1,4 +1,5 @@
 'use client';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -22,6 +23,7 @@ function fmtMin(m: number) {
 
 export default function TimesheetPage() {
   const router = useRouter();
+  const isMobile = useIsMobile();
   const [data, setData]         = useState<any[]>([]);
   const [loading, setLoading]   = useState(true);
   const [days, setDays]         = useState(14);
@@ -58,7 +60,7 @@ export default function TimesheetPage() {
   return (
     <div style={{ minHeight:'100vh', background:'#ECEAF8' }}>
       {/* Header */}
-      <div style={{ background:'white', padding:'16px 28px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:10, boxShadow:'0 4px 16px rgba(127,119,221,0.06)' }}>
+      <div style={{ background:'white', padding: isMobile ? '12px 16px' : '16px 28px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:10, boxShadow:'0 4px 16px rgba(127,119,221,0.06)' }}>
         <div>
           <h1 style={{ fontSize:'18px', fontWeight:800, color:'#1a1040', margin:0 }}>Табель</h1>
           <p style={{ fontSize:'11px', color:'#9B97CC', margin:'2px 0 0' }}>Учёт рабочего времени сотрудников</p>
@@ -81,10 +83,10 @@ export default function TimesheetPage() {
         </div>
       </div>
 
-      <div style={{ padding:'20px 28px', display:'flex', flexDirection:'column', gap:'16px' }}>
+      <div style={{ padding: isMobile ? '12px' : '20px 28px', display:'flex', flexDirection:'column', gap:'16px' }}>
         {/* KPI row */}
         {data.length>0 && (
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'12px' }}>
+          <div style={{ display:'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap:'12px' }}>
             {[
               { l:'Сотрудников', v:data.length, icon:'ti-users', accent:'#7F77DD', accBg:'#EDE9FE', badge:data.length+'чел', badgeC:'#7F77DD', badgeBg:'#EDE9FE' },
               { l:'Присутствовало', v:data.reduce((s:number,r:any)=>s+(r.presentDays??0),0), icon:'ti-calendar', accent:'#16A34A', accBg:'#DCFCE7', badge:'дней', badgeC:'#16A34A', badgeBg:'#DCFCE7' },

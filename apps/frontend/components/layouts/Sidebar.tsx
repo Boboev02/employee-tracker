@@ -1,4 +1,5 @@
 'use client';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, useRef } from 'react';
@@ -34,6 +35,8 @@ function timeAgo(dateStr: string) {
 }
 
 export function Sidebar() {
+  const isMobile = useIsMobile();
+  const [mobileOpen, setMobileOpen] = useState(false);
   const pathname  = usePathname();
   const router    = useRouter();
   const [user, setUser]         = useState<any>(null);
@@ -42,6 +45,7 @@ export function Sidebar() {
   const perms                   = usePermissions();
   const [mounted, setMounted]   = useState(false);
   useEffect(() => setMounted(true), []);
+  useEffect(() => { setMobileOpen(false); }, [pathname]);
 
   // Search
   const [showSearch, setShowSearch] = useState(false);
@@ -134,7 +138,34 @@ export function Sidebar() {
   };
 
   return (
-    <aside style={{ width:'220px', flexShrink:0, display:'flex', flexDirection:'column', height:'100vh', position:'sticky', top:0, background:'#13151c', borderRight:'0.5px solid rgba(255,255,255,0.06)' }}>
+    <>
+      {/* Mobile hamburger button */}
+      {isMobile && (
+        <button
+          onClick={() => setMobileOpen(o => !o)}
+          style={{ position:'fixed', top:'12px', left:'12px', zIndex:1001, width:'40px', height:'40px', borderRadius:'10px', background:'#13151c', border:'0.5px solid rgba(255,255,255,0.1)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 4px 12px rgba(0,0,0,0.3)' }}>
+          <i className={mobileOpen ? 'ti ti-x' : 'ti ti-menu-2'} style={{ fontSize:'18px', color:'#e2e4ed' }} aria-hidden="true"/>
+        </button>
+      )}
+
+      {/* Mobile overlay */}
+      {isMobile && mobileOpen && (
+        <div onClick={() => setMobileOpen(false)}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:999, backdropFilter:'blur(2px)' }}/>
+      )}
+
+      <aside style={{
+        width: '220px', flexShrink: 0, display: 'flex', flexDirection: 'column', height: '100vh',
+        background: '#13151c', borderRight: '0.5px solid rgba(255,255,255,0.06)',
+        ...(isMobile ? {
+          position: 'fixed', top: 0, left: 0, zIndex: 1000,
+          transform: mobileOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform 0.25s cubic-bezier(0.4,0,0.2,1)',
+          boxShadow: mobileOpen ? '4px 0 24px rgba(0,0,0,0.4)' : 'none',
+        } : {
+          position: 'sticky', top: 0,
+        }),
+      }}>
 
       {/* Logo + ThemeToggle */}
       <div style={{ padding:'16px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
@@ -306,6 +337,7 @@ export function Sidebar() {
           </div>
         )}
       </div>
-    </aside>
+          </aside>
+    </>
   );
 }

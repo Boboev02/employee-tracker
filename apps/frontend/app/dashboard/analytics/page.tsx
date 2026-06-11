@@ -1,4 +1,5 @@
 'use client';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
@@ -31,6 +32,7 @@ function KpiCard({ title, value, sub, subColor, icon, accent, accBg, badge, badg
 
 export default function AnalyticsPage() {
   const router = useRouter();
+  const isMobile = useIsMobile();
   const [token, setToken]           = useState('');
   const [stats, setStats]           = useState<any>(null);
   const [byStatus, setByStatus]     = useState<any[]>([]);
@@ -143,7 +145,7 @@ export default function AnalyticsPage() {
   return (
     <div style={{ minHeight:'100vh', background:'#ECEAF8' }}>
       {/* Header */}
-      <div style={{ background:'white', padding:'16px 28px', position:'sticky', top:0, zIndex:10, boxShadow:'0 4px 16px rgba(127,119,221,0.06)' }}>
+      <div style={{ background:'white', padding: isMobile ? '12px 16px' : '16px 28px', position:'sticky', top:0, zIndex:10, boxShadow:'0 4px 16px rgba(127,119,221,0.06)' }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'12px' }}>
           <div>
             <h1 style={{ fontSize:'18px', fontWeight:800, color:'#1a1040', margin:0 }}>Аналитика</h1>
@@ -174,7 +176,7 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      <div style={{ padding:'20px 28px', display:'flex', flexDirection:'column', gap:'16px' }}>
+      <div style={{ padding: isMobile ? '12px' : '20px 28px', display:'flex', flexDirection:'column', gap:'16px' }}>
         {/* KPI */}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:'12px' }}>
           <KpiCard title="Сотрудников" value={stats?.totalUsers} sub={`${stats?.totalUsers??0} в команде`} icon="ti-users" accent="#7F77DD" accBg="#EDE9FE" badge="+0" badgeC="#7F77DD" badgeBg="#EDE9FE"/>
@@ -199,7 +201,7 @@ export default function AnalyticsPage() {
         {/* TASKS TAB */}
         {activeTab==='tasks' && (
           <>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'14px' }}>
+            <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap:'14px' }}>
               <div style={card}>
                 <p style={{ fontSize:'14px', fontWeight:700, color:'#1a1040', margin:'0 0 16px' }}>По статусам</p>
                 {byStatus.length===0 ? <p style={{ color:'#9B97CC', fontSize:'13px', textAlign:'center', padding:'20px' }}>Нет данных</p> : (
@@ -314,7 +316,7 @@ export default function AnalyticsPage() {
             </div>
           ) : (
             <>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'14px' }}>
+              <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap:'14px' }}>
                 <div style={card}>
                   <p style={{ fontSize:'14px', fontWeight:700, color:'#1a1040', margin:'0 0 16px' }}>По платформам</p>
                   {platforms.filter(p=>!selectedPlatform||p.platform===selectedPlatform).map((p:any,i:number)=>(

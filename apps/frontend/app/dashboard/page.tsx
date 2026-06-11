@@ -1,4 +1,5 @@
 'use client';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { WorkSessionWidget } from '@/components/WorkSessionWidget';
@@ -55,6 +56,7 @@ function SectionHeader({ title, open, onToggle }: { title: string; open: boolean
 
 export default function DashboardPage() {
   const router = useRouter();
+  const isMobile = useIsMobile();
   const [token, setToken]           = useState('');
   const [stats, setStats]           = useState<any>(null);
   const [employees, setEmployees]   = useState<any[]>([]);
@@ -146,9 +148,9 @@ export default function DashboardPage() {
   return (
     <div style={pageStyle}>
       {/* ── Header ── */}
-      <div style={{ background:'white', borderBottom:'none', padding:'16px 28px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:10, boxShadow:'0 4px 16px rgba(127,119,221,0.06)' }}>
+      <div style={{ background:'white', borderBottom:'none', padding: isMobile ? '12px 16px' : '16px 28px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:10, boxShadow:'0 4px 16px rgba(127,119,221,0.06)' }}>
         <div>
-          <h1 style={{ fontSize:'18px', fontWeight:800, color:'#1a1040', margin:0, letterSpacing:'-0.5px' }}>{greeting}, {userName}!</h1>
+          <h1 style={{ fontSize: isMobile ? '16px' : '18px', fontWeight:800, color:'#1a1040', margin:0, letterSpacing:'-0.5px' }}>{greeting}, {userName}!</h1>
           <p style={{ fontSize:'11px', color:'#9B97CC', margin:'2px 0 0', display:'flex', alignItems:'center', gap:'6px' }}>
             {now.toLocaleDateString('ru',{weekday:'long',day:'numeric',month:'long'})}
             <span style={{ width:'3px', height:'3px', borderRadius:'50%', background:'#D4D0F0', display:'inline-block' }} />
@@ -174,14 +176,14 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div style={{ padding:'20px 28px', display:'flex', flexDirection:'column', gap:'16px' }}>
+      <div style={{ padding: isMobile ? '12px' : '20px 28px', display:'flex', flexDirection:'column', gap:'16px' }}>
         {token && <WorkSessionWidget token={token} />}
 
         {/* ── СЕКЦИЯ: Обзор ── */}
         <div style={{ background:'white', borderRadius:'20px', padding:'18px 20px', boxShadow:'0 4px 16px rgba(127,119,221,0.08)' }}>
           <SectionHeader title="Обзор" open={openKpi} onToggle={()=>setOpenKpi(v=>!v)} />
           {openKpi && (
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'12px', marginTop:'16px' }}>
+            <div style={{ display:'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap:'12px', marginTop:'16px' }}>
               {[
                 { label:'Сотрудников', value:employees.length||0, sub:onlineCount+' онлайн', subColor:'#16A34A', icon:'ti-users', accent:'#7F77DD', accBg:'#EDE9FE', badge:'+'+onlineCount, badgeColor:'#16A34A', badgeBg:'#DCFCE7' },
                 { label:'Кликов / 7 дней', value:totalClicks>0?totalClicks.toLocaleString('ru'):0, sub:'WB + Ozon', subColor:'#9B97CC', icon:'ti-mouse', accent:'#2563EB', accBg:'#DBEAFE', badge:'+12%', badgeColor:'#16A34A', badgeBg:'#DCFCE7' },

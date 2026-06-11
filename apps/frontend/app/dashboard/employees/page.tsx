@@ -1,4 +1,5 @@
 'use client';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePermissions } from '@/lib/usePermissions';
@@ -24,6 +25,7 @@ const ROLE_LABELS: Record<string,string> = {
 export default function EmployeesPage() {
   const router  = useRouter();
   const perms   = usePermissions();
+  const isMobile = useIsMobile();
   const [employees, setEmployees] = useState<any[]>([]);
   const [presence, setPresence]   = useState<Record<string,any>>({});
   const [wsToken, setWsToken]     = useState<string|null>(null);
@@ -127,7 +129,7 @@ export default function EmployeesPage() {
   return (
     <div style={{ minHeight:'100vh', background:'#ECEAF8' }}>
       {/* Header */}
-      <div style={{ background:'white', padding:'16px 28px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:10, boxShadow:'0 4px 16px rgba(127,119,221,0.06)' }}>
+      <div style={{ background:'white', padding: isMobile ? '12px 16px' : '16px 28px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:10, boxShadow:'0 4px 16px rgba(127,119,221,0.06)' }}>
         <div>
           <h1 style={{ fontSize:'18px', fontWeight:800, color:'#1a1040', margin:0 }}>Сотрудники</h1>
           <p style={{ fontSize:'11px', color:'#9B97CC', margin:'2px 0 0' }}>{employees.length} всего · {onlineCount} онлайн</p>
@@ -146,9 +148,9 @@ export default function EmployeesPage() {
         </div>
       </div>
 
-      <div style={{ padding:'20px 28px', display:'flex', flexDirection:'column', gap:'16px' }}>
+      <div style={{ padding: isMobile ? '12px' : '20px 28px', display:'flex', flexDirection:'column', gap:'16px' }}>
         {/* KPI */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'14px' }}>
+        <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3,1fr)', gap:'14px' }}>
           {[
             { l:'Всего сотрудников', v:employees.length, icon:'ti-users', accent:'#7F77DD', accBg:'#EDE9FE', badge:employees.length+'', badgeC:'#7F77DD', badgeBg:'#EDE9FE' },
             { l:'Онлайн сейчас',     v:onlineCount,       icon:'ti-circle-check', accent:'#16A34A', accBg:'#DCFCE7', badge:'● активны', badgeC:'#16A34A', badgeBg:'#DCFCE7' },
