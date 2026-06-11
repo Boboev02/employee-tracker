@@ -3,177 +3,183 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 
 const API = 'https://employee-tracker.ru';
-
-type NoteStatus = 'ACTIVE' | 'DONE' | 'DEFERRED' | 'ARCHIVED';
+type NoteStatus   = 'ACTIVE' | 'DONE' | 'DEFERRED' | 'ARCHIVED';
 type NotePriority = 'LOW' | 'MEDIUM' | 'HIGH';
-
 interface Note {
   id: string; title: string; content: string;
   status: NoteStatus; priority: NotePriority;
   isPinned: boolean; remindAt: string | null;
+  color?: string;
   createdAt: string; updatedAt: string;
 }
 
-const PRIORITY_LABEL: Record<NotePriority, string> = { LOW: 'Низкий', MEDIUM: 'Средний', HIGH: 'Высокий' };
-const PRIORITY_COLOR: Record<NotePriority, string> = { LOW: '#9B97CC', MEDIUM: '#D97706', HIGH: '#DC2626' };
-const PRIORITY_BG:    Record<NotePriority, string> = { LOW: '#F3F4F6', MEDIUM: '#FEF3C7', HIGH: '#FEE2E2' };
-const STATUS_LABEL:   Record<NoteStatus, string>   = { ACTIVE: 'Активно', DONE: 'Выполнено', DEFERRED: 'Отложено', ARCHIVED: 'Архив' };
+const COLORS = ['#ffffff','#EDE9FE','#DCFCE7','#FEF3C7','#FEE2E2','#DBEAFE','#FCE7F3','#F3F4F6'];
+const COLOR_NAMES: Record<string,string> = {
+  '#ffffff':'Белый','#EDE9FE':'Фиолетовый','#DCFCE7':'Зелёный',
+  '#FEF3C7':'Жёлтый','#FEE2E2':'Красный','#DBEAFE':'Синий',
+  '#FCE7F3':'Розовый','#F3F4F6':'Серый',
+};
+const PRIORITY_COLOR: Record<NotePriority,string> = { LOW:'#9B97CC', MEDIUM:'#D97706', HIGH:'#DC2626' };
+const PRIORITY_LABEL: Record<NotePriority,string> = { LOW:'Низкий', MEDIUM:'Средний', HIGH:'Высокий' };
+const PRIORITY_BG:    Record<NotePriority,string> = { LOW:'#EDE9FE', MEDIUM:'#FEF3C7', HIGH:'#FEE2E2' };
 
 function fmtDate(s: string) {
   const d = new Date(s);
-  return d.toLocaleDateString('ru', { day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString('ru', { day:'numeric', month:'short' });
 }
 function isToday(s: string | null) {
   if (!s) return false;
-  const d = new Date(s), now = new Date();
-  return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  const d = new Date(s), n = new Date();
+  return d.getDate()===n.getDate() && d.getMonth()===n.getMonth() && d.getFullYear()===n.getFullYear();
 }
 
 export default function NotebookPage() {
   const router = useRouter();
-  const [token, setToken] = useState('');
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [tab, setTab] = useState<'active' | 'done' | 'archived'>('active');
-  const [search, setSearch] = useState('');
-  const [quickInput, setQuickInput] = useState('');
-  const [editId, setEditId] = useState<string | null>(null);
+  const [token, setToken]       = useState('');
+  const [notes, setNotes]       = useState<Note[]>([]);
+  const [tab, setTab]           = useState<'active'|'done'|'archived'>('active');
+  const [search, setSearch]     = useState('');
+  const [editId, setEditId]     = useState<string|null>(null);
   const [editData, setEditData] = useState<Partial<Note>>({});
-  const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState<Partial<Note>>({ status: 'ACTIVE', priority: 'MEDIUM', isPinned: false });
-  const [loading, setLoading] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [newNote, setNewNote]   = useState({ title:'', content:'', priority:'MEDIUM' as NotePriority, color:'#ffffff', remindAt:'' });
+  const [showNew, setShowNew]   = useState(false);
+  const [hoverId, setHoverId]   = useState<string|null>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const t = localStorage.getItem('access_token');
     if (!t) { router.push('/login'); return; }
-    setToken(t);
-    load(t);
+    setToken(t); load(t);
   }, []);
-
-  const load = useCallback(async (t?: string) => {
-    const tk = t || token;
-    if (!tk) return;
-    try {
-      const statusParam = tab === 'active' ? '' : tab === 'done' ? '&status=DONE' : '&status=ARCHIVED';
-      const q = search ? `&search=${encodeURIComponent(search)}` : '';
-      const res = await fetch(`${API}/api/v1/notes?${statusParam}${q}`, { headers: { Authorization: `Bearer ${tk}` } });
-      if (res.ok) setNotes(await res.json());
-    } catch {}
-  }, [token, tab, search]);
 
   useEffect(() => { if (token) load(); }, [tab, search]);
 
-  const quickAdd = async (e: React.KeyboardEvent) => {
-    if (e.key !== 'Enter' || !quickInput.trim()) return;
-    setLoading(true);
+  const load = async (t?: string) => {
+    const tk = t || token; if (!tk) return;
     try {
-      const res = await fetch(`${API}/api/v1/notes`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ title: quickInput.trim(), status: 'ACTIVE', priority: 'MEDIUM' }),
-      });
-      if (res.ok) { setQuickInput(''); load(); }
-    } finally { setLoading(false); }
+      const params = tab === 'done' ? '?status=DONE' : tab === 'archived' ? '?status=ARCHIVED' : '';
+      const q = search ? (params ? '&' : '?') + `search=${encodeURIComponent(search)}` : '';
+      const res = await fetch(`${API}/api/v1/notes${params}${q}`, { headers:{ Authorization:`Bearer ${tk}` }});
+      if (res.ok) setNotes(await res.json());
+    } catch {}
   };
 
-  const saveNote = async () => {
-    if (!formData.title?.trim()) return;
-    setLoading(true);
+  const create = async () => {
+    if (!newNote.title.trim()) return;
     try {
       const res = await fetch(`${API}/api/v1/notes`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(formData),
+        method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${token}`},
+        body: JSON.stringify({ title:newNote.title, content:newNote.content, priority:newNote.priority,
+          status:'ACTIVE', isPinned:false, color:newNote.color,
+          remindAt: newNote.remindAt || null }),
       });
-      if (res.ok) { setShowForm(false); setFormData({ status: 'ACTIVE', priority: 'MEDIUM', isPinned: false }); load(); }
-    } finally { setLoading(false); }
+      if (res.ok) { setNewNote({title:'',content:'',priority:'MEDIUM',color:'#ffffff',remindAt:''}); setShowNew(false); load(); }
+    } catch {}
   };
 
-  const updateNote = async (id: string, data: Partial<Note>) => {
+  const update = async (id: string, data: Partial<Note>) => {
     try {
       const res = await fetch(`${API}/api/v1/notes/${id}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        method:'PATCH', headers:{'Content-Type':'application/json', Authorization:`Bearer ${token}`},
         body: JSON.stringify(data),
       });
       if (res.ok) load();
     } catch {}
   };
 
-  const deleteNote = async (id: string) => {
+  const del = async (id: string) => {
     if (!confirm('Удалить заметку?')) return;
-    try {
-      await fetch(`${API}/api/v1/notes/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
-      load();
-    } catch {}
+    try { await fetch(`${API}/api/v1/notes/${id}`, { method:'DELETE', headers:{ Authorization:`Bearer ${token}` }}); load(); } catch {}
   };
 
   const saveEdit = async () => {
     if (!editId) return;
-    await updateNote(editId, editData);
+    await update(editId, editData);
     setEditId(null); setEditData({});
   };
 
-  // Группировка заметок
-  const pinned   = notes.filter(n => n.isPinned && n.status !== 'ARCHIVED');
-  const remindToday = notes.filter(n => !n.isPinned && isToday(n.remindAt) && n.status !== 'ARCHIVED');
-  const rest     = notes.filter(n => !n.isPinned && !isToday(n.remindAt));
+  const handleKey = (e: React.KeyboardEvent) => {
+    if (e.key==='Enter' && (e.metaKey || e.ctrlKey)) create();
+    if (e.key==='Escape') { setShowNew(false); setNewNote({title:'',content:'',priority:'MEDIUM',color:'#ffffff',remindAt:''}); }
+  };
 
-  const card: React.CSSProperties = { background: 'white', borderRadius: '20px', boxShadow: '0 4px 16px rgba(127,119,221,0.08)' };
-  const tabBtn = (id: typeof tab, lbl: string) => (
-    <button onClick={() => setTab(id)} style={{ padding: '7px 18px', borderRadius: '20px', fontSize: '12px', fontWeight: tab===id?700:500, border: 'none', cursor: 'pointer', background: tab===id?'linear-gradient(135deg,#7F77DD,#5248C5)':'transparent', color: tab===id?'white':'#9B97CC', transition: 'all 0.2s', boxShadow: tab===id?'0 4px 10px rgba(127,119,221,0.3)':'none' }}>{lbl}</button>
-  );
+  // Группировка
+  const pinned  = notes.filter(n => n.isPinned);
+  const remind  = notes.filter(n => !n.isPinned && isToday(n.remindAt));
+  const rest    = notes.filter(n => !n.isPinned && !isToday(n.remindAt));
 
-  const NoteCard = ({ note }: { note: Note }) => {
-    const isEditing = editId === note.id;
+  const card: React.CSSProperties = { background:'white', borderRadius:'20px', boxShadow:'0 4px 16px rgba(127,119,221,0.08)' };
+
+  // Pinterest card component
+  const PinCard = ({ note }: { note: Note }) => {
+    const isEdit = editId === note.id;
+    const bg = note.color || '#ffffff';
+    const isHover = hoverId === note.id;
+
     return (
-      <div style={{ ...card, padding: '16px', marginBottom: '10px', border: note.isPinned ? '1px solid #EDE9FE' : '0.5px solid #F3F0FF', position: 'relative' }}>
-        {note.isPinned && <span style={{ position: 'absolute', top: '12px', right: '12px', fontSize: '16px' }}>📌</span>}
-        {isToday(note.remindAt) && !note.isPinned && <span style={{ position: 'absolute', top: '12px', right: '12px', fontSize: '16px' }}>⏰</span>}
+      <div onMouseEnter={() => setHoverId(note.id)} onMouseLeave={() => setHoverId(null)}
+        style={{ background: bg, borderRadius:'16px', padding:'16px', marginBottom:'12px', boxShadow: isHover ? '0 8px 24px rgba(127,119,221,0.16)' : '0 2px 8px rgba(0,0,0,0.06)', transition:'all 0.2s', border: note.isPinned ? '2px solid #7F77DD' : '1.5px solid rgba(0,0,0,0.06)', cursor:'pointer', breakInside:'avoid' }}>
 
-        {isEditing ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <input value={editData.title ?? note.title} onChange={e => setEditData(p => ({...p, title: e.target.value}))}
-              style={{ fontSize: '14px', fontWeight: 700, border: '1px solid #EDE9FE', borderRadius: '10px', padding: '8px 12px', outline: 'none', color: '#1a1040' }}/>
-            <textarea value={editData.content ?? note.content ?? ''} onChange={e => setEditData(p => ({...p, content: e.target.value}))}
-              rows={3} style={{ fontSize: '13px', border: '1px solid #EDE9FE', borderRadius: '10px', padding: '8px 12px', outline: 'none', resize: 'vertical', color: '#6B7280', fontFamily: 'inherit' }}/>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <select value={editData.status ?? note.status} onChange={e => setEditData(p => ({...p, status: e.target.value as NoteStatus}))}
-                style={{ flex: 1, border: '1px solid #EDE9FE', borderRadius: '8px', padding: '6px 8px', fontSize: '12px', outline: 'none' }}>
-                {(['ACTIVE','DONE','DEFERRED','ARCHIVED'] as NoteStatus[]).map(s => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
-              </select>
-              <select value={editData.priority ?? note.priority} onChange={e => setEditData(p => ({...p, priority: e.target.value as NotePriority}))}
-                style={{ flex: 1, border: '1px solid #EDE9FE', borderRadius: '8px', padding: '6px 8px', fontSize: '12px', outline: 'none' }}>
-                {(['LOW','MEDIUM','HIGH'] as NotePriority[]).map(p => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}
-              </select>
-              <input type="datetime-local" value={editData.remindAt ? editData.remindAt.slice(0,16) : note.remindAt?.slice(0,16) ?? ''}
-                onChange={e => setEditData(p => ({...p, remindAt: e.target.value || null}))}
-                style={{ flex: 1, border: '1px solid #EDE9FE', borderRadius: '8px', padding: '6px 8px', fontSize: '12px', outline: 'none' }}/>
+        {isEdit ? (
+          <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
+            <input value={editData.title ?? note.title} onChange={e=>setEditData(p=>({...p,title:e.target.value}))}
+              style={{fontSize:'14px',fontWeight:700,border:'1.5px solid #EDE9FE',borderRadius:'10px',padding:'8px 12px',outline:'none',color:'#1a1040',background:'rgba(255,255,255,0.8)'}}/>
+            <textarea value={editData.content ?? note.content ?? ''} onChange={e=>setEditData(p=>({...p,content:e.target.value}))}
+              rows={4} style={{fontSize:'13px',border:'1.5px solid #EDE9FE',borderRadius:'10px',padding:'8px 12px',outline:'none',resize:'vertical',color:'#6B7280',fontFamily:'inherit',background:'rgba(255,255,255,0.8)'}}
+              placeholder="Текст заметки..."/>
+            <div style={{display:'flex',gap:'6px'}}>
+              {(['LOW','MEDIUM','HIGH'] as NotePriority[]).map(p => (
+                <button key={p} onClick={()=>setEditData(x=>({...x,priority:p}))}
+                  style={{flex:1,padding:'6px',borderRadius:'8px',fontSize:'11px',fontWeight:(editData.priority??note.priority)===p?700:400,border:'none',cursor:'pointer',background:(editData.priority??note.priority)===p?PRIORITY_BG[p]:'#F8F7FF',color:(editData.priority??note.priority)===p?PRIORITY_COLOR[p]:'#9B97CC'}}>
+                  {PRIORITY_LABEL[p]}
+                </button>
+              ))}
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#6B7280', cursor: 'pointer' }}>
-              <input type="checkbox" checked={editData.isPinned ?? note.isPinned} onChange={e => setEditData(p => ({...p, isPinned: e.target.checked}))}/>
-              Закрепить
-            </label>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button onClick={saveEdit} style={{ flex: 1, background: 'linear-gradient(135deg,#7F77DD,#5248C5)', color: 'white', border: 'none', borderRadius: '10px', padding: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>Сохранить</button>
-              <button onClick={() => { setEditId(null); setEditData({}); }} style={{ flex: 1, background: '#F8F7FF', color: '#9B97CC', border: 'none', borderRadius: '10px', padding: '8px', fontSize: '13px', cursor: 'pointer' }}>Отмена</button>
+            <div style={{display:'flex',gap:'4px',flexWrap:'wrap'}}>
+              {COLORS.map(c=>(
+                <div key={c} onClick={()=>setEditData(p=>({...p,color:c}))}
+                  style={{width:'24px',height:'24px',borderRadius:'50%',background:c,border:(editData.color??note.color??'#ffffff')===c?'2.5px solid #7F77DD':'1.5px solid rgba(0,0,0,0.1)',cursor:'pointer',transition:'transform 0.1s',transform:(editData.color??note.color??'#ffffff')===c?'scale(1.2)':'scale(1)'}}/>
+              ))}
+            </div>
+            <input type="datetime-local" value={editData.remindAt!==undefined ? (editData.remindAt?.slice(0,16)??'') : (note.remindAt?.slice(0,16)??'')}
+              onChange={e=>setEditData(p=>({...p,remindAt:e.target.value||null}))}
+              style={{border:'1.5px solid #EDE9FE',borderRadius:'8px',padding:'6px 10px',fontSize:'12px',outline:'none'}}/>
+            <div style={{display:'flex',gap:'8px'}}>
+              <button onClick={saveEdit} style={{flex:1,background:'linear-gradient(135deg,#7F77DD,#5248C5)',color:'white',border:'none',borderRadius:'10px',padding:'10px',fontSize:'13px',fontWeight:700,cursor:'pointer'}}>Сохранить</button>
+              <button onClick={()=>{setEditId(null);setEditData({});}} style={{padding:'10px 14px',background:'#F8F7FF',color:'#9B97CC',border:'none',borderRadius:'10px',fontSize:'13px',cursor:'pointer'}}>✕</button>
             </div>
           </div>
         ) : (
           <>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '8px' }}>
-              <input type="checkbox" checked={note.status === 'DONE'} onChange={e => updateNote(note.id, { status: e.target.checked ? 'DONE' : 'ACTIVE' })}
-                style={{ marginTop: '3px', accentColor: '#7F77DD', width: '16px', height: '16px', cursor: 'pointer', flexShrink: 0 }}/>
-              <p style={{ fontSize: '14px', fontWeight: 700, color: note.status === 'DONE' ? '#9B97CC' : '#1a1040', margin: 0, textDecoration: note.status === 'DONE' ? 'line-through' : 'none', flex: 1, paddingRight: '24px' }}>{note.title}</p>
+            <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:'8px'}}>
+              <div style={{display:'flex',alignItems:'center',gap:'8px',flex:1}}>
+                <input type="checkbox" checked={note.status==='DONE'}
+                  onChange={e=>update(note.id,{status:e.target.checked?'DONE':'ACTIVE'})}
+                  style={{width:'16px',height:'16px',accentColor:'#7F77DD',cursor:'pointer',flexShrink:0}}/>
+                <p style={{fontSize:'14px',fontWeight:700,color:note.status==='DONE'?'#9B97CC':'#1a1040',margin:0,textDecoration:note.status==='DONE'?'line-through':'none',lineHeight:1.3}}>
+                  {note.isPinned && <span style={{marginRight:'4px'}}>📌</span>}
+                  {note.title}
+                </p>
+              </div>
             </div>
-            {note.content && <p style={{ fontSize: '13px', color: '#6B7280', margin: '0 0 10px 26px', lineHeight: 1.5 }}>{note.content}</p>}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '26px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '10px', fontWeight: 600, color: PRIORITY_COLOR[note.priority], background: PRIORITY_BG[note.priority], padding: '2px 8px', borderRadius: '20px' }}>{PRIORITY_LABEL[note.priority]}</span>
-              {note.remindAt && <span style={{ fontSize: '10px', color: isToday(note.remindAt) ? '#DC2626' : '#9B97CC', background: isToday(note.remindAt) ? '#FEE2E2' : '#F8F7FF', padding: '2px 8px', borderRadius: '20px' }}>⏰ {fmtDate(note.remindAt)}</span>}
-              <span style={{ fontSize: '10px', color: '#C4C0E8', marginLeft: 'auto' }}>{fmtDate(note.updatedAt)}</span>
+
+            {note.content && <p style={{fontSize:'13px',color:'#6B7280',margin:'0 0 10px 24px',lineHeight:1.6,whiteSpace:'pre-wrap'}}>{note.content}</p>}
+
+            <div style={{display:'flex',alignItems:'center',gap:'6px',flexWrap:'wrap',marginLeft:'24px',marginBottom:'10px'}}>
+              <span style={{fontSize:'10px',fontWeight:600,color:PRIORITY_COLOR[note.priority],background:PRIORITY_BG[note.priority],padding:'2px 8px',borderRadius:'20px'}}>{PRIORITY_LABEL[note.priority]}</span>
+              {note.remindAt && <span style={{fontSize:'10px',color:isToday(note.remindAt)?'#DC2626':'#9B97CC',background:isToday(note.remindAt)?'#FEE2E2':'rgba(0,0,0,0.05)',padding:'2px 8px',borderRadius:'20px'}}>⏰ {fmtDate(note.remindAt)}</span>}
+              <span style={{fontSize:'10px',color:'#C4C0E8',marginLeft:'auto'}}>{fmtDate(note.updatedAt)}</span>
             </div>
-            <div style={{ display: 'flex', gap: '6px', marginTop: '12px', marginLeft: '26px' }}>
-              <button onClick={() => { setEditId(note.id); setEditData({}); }} style={{ fontSize: '11px', color: '#7F77DD', background: '#EDE9FE', border: 'none', borderRadius: '8px', padding: '4px 10px', cursor: 'pointer' }}>✏️ Редактировать</button>
-              <button onClick={() => updateNote(note.id, { isPinned: !note.isPinned })} style={{ fontSize: '11px', color: '#6B7280', background: '#F8F7FF', border: 'none', borderRadius: '8px', padding: '4px 10px', cursor: 'pointer' }}>{note.isPinned ? '📌 Открепить' : '📌 Закрепить'}</button>
-              {note.status !== 'ARCHIVED' && <button onClick={() => updateNote(note.id, { status: 'ARCHIVED' })} style={{ fontSize: '11px', color: '#6B7280', background: '#F8F7FF', border: 'none', borderRadius: '8px', padding: '4px 10px', cursor: 'pointer' }}>📦 В архив</button>}
-              <button onClick={() => deleteNote(note.id)} style={{ fontSize: '11px', color: '#DC2626', background: '#FEE2E2', border: 'none', borderRadius: '8px', padding: '4px 10px', cursor: 'pointer' }}>🗑</button>
+
+            <div style={{display:'flex',gap:'4px',opacity:isHover?1:0,transition:'opacity 0.2s',marginLeft:'24px'}}>
+              <button onClick={()=>{setEditId(note.id);setEditData({});}} title="Редактировать"
+                style={{padding:'5px 8px',borderRadius:'8px',border:'none',background:'rgba(127,119,221,0.1)',color:'#7F77DD',cursor:'pointer',fontSize:'12px'}}>✏️</button>
+              <button onClick={()=>update(note.id,{isPinned:!note.isPinned})} title={note.isPinned?'Открепить':'Закрепить'}
+                style={{padding:'5px 8px',borderRadius:'8px',border:'none',background:'rgba(0,0,0,0.05)',color:'#6B7280',cursor:'pointer',fontSize:'12px'}}>📌</button>
+              <button onClick={()=>update(note.id,{status:'ARCHIVED'})} title="В архив"
+                style={{padding:'5px 8px',borderRadius:'8px',border:'none',background:'rgba(0,0,0,0.05)',color:'#6B7280',cursor:'pointer',fontSize:'12px'}}>📦</button>
+              <button onClick={()=>del(note.id)} title="Удалить"
+                style={{padding:'5px 8px',borderRadius:'8px',border:'none',background:'rgba(220,38,38,0.1)',color:'#DC2626',cursor:'pointer',fontSize:'12px'}}>🗑</button>
             </div>
           </>
         )}
@@ -181,104 +187,142 @@ export default function NotebookPage() {
     );
   };
 
-  const Section = ({ emoji, title, items }: { emoji: string; title: string; items: Note[] }) =>
-    items.length === 0 ? null : (
-      <div style={{ marginBottom: '20px' }}>
-        <p style={{ fontSize: '12px', fontWeight: 700, color: '#9B97CC', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{emoji} {title} · {items.length}</p>
-        {items.map(n => <NoteCard key={n.id} note={n}/>)}
-      </div>
-    );
+  const MasonryGrid = ({ items }: { items: Note[] }) => (
+    <div style={{ columns:'3 280px', columnGap:'12px' }}>
+      {items.map(n => <PinCard key={n.id} note={n}/>)}
+    </div>
+  );
 
   return (
-    <div style={{ minHeight: '100vh', background: '#ECEAF8' }}>
+    <div style={{minHeight:'100vh',background:'#ECEAF8'}}>
+
       {/* Header */}
-      <div style={{ background: 'white', padding: '16px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 10, boxShadow: '0 4px 16px rgba(127,119,221,0.06)' }}>
-        <div>
-          <h1 style={{ fontSize: '18px', fontWeight: 800, color: '#1a1040', margin: 0 }}>📓 Мой блокнот</h1>
-          <p style={{ fontSize: '11px', color: '#9B97CC', margin: '2px 0 0' }}>Личное пространство — только вы видите свои заметки</p>
-        </div>
-        <div style={{ display: 'flex', gap: '4px', background: '#F8F7FF', borderRadius: '20px', padding: '3px' }}>
-          {tabBtn('active', '📝 Активные')}
-          {tabBtn('done', '✅ Выполненные')}
-          {tabBtn('archived', '📦 Архив')}
-        </div>
-      </div>
-
-      <div style={{ padding: '20px 28px', maxWidth: '800px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
-        {/* Быстрый ввод */}
-        <div style={{ ...card, padding: '16px 20px' }}>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: showForm ? '16px' : '0' }}>
-            <input ref={inputRef} value={quickInput} onChange={e => setQuickInput(e.target.value)} onKeyDown={quickAdd}
-              placeholder="Не забыть отправить документы поставщику... (Enter для сохранения)"
-              style={{ flex: 1, border: '1.5px solid #EDE9FE', borderRadius: '12px', padding: '10px 16px', fontSize: '14px', outline: 'none', color: '#1a1040', background: '#F8F7FF' }}/>
-            <button onClick={() => setShowForm(!showForm)} style={{ background: 'linear-gradient(135deg,#7F77DD,#5248C5)', color: 'white', border: 'none', borderRadius: '12px', padding: '10px 18px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 4px 10px rgba(127,119,221,0.3)' }}>
-              {showForm ? '✕ Закрыть' : '+ Новая заметка'}
-            </button>
-          </div>
-
-          {showForm && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid #F3F0FF', paddingTop: '16px' }}>
-              <input value={formData.title ?? ''} onChange={e => setFormData(p => ({...p, title: e.target.value}))} placeholder="Заголовок заметки *"
-                style={{ border: '1px solid #EDE9FE', borderRadius: '10px', padding: '10px 14px', fontSize: '14px', fontWeight: 600, outline: 'none', color: '#1a1040' }}/>
-              <textarea value={formData.content ?? ''} onChange={e => setFormData(p => ({...p, content: e.target.value}))} placeholder="Текст заметки (необязательно)"
-                rows={3} style={{ border: '1px solid #EDE9FE', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', outline: 'none', resize: 'vertical', color: '#6B7280', fontFamily: 'inherit' }}/>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
-                <select value={formData.status} onChange={e => setFormData(p => ({...p, status: e.target.value as NoteStatus}))}
-                  style={{ border: '1px solid #EDE9FE', borderRadius: '8px', padding: '8px', fontSize: '12px', outline: 'none' }}>
-                  {(['ACTIVE','DONE','DEFERRED'] as NoteStatus[]).map(s => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
-                </select>
-                <select value={formData.priority} onChange={e => setFormData(p => ({...p, priority: e.target.value as NotePriority}))}
-                  style={{ border: '1px solid #EDE9FE', borderRadius: '8px', padding: '8px', fontSize: '12px', outline: 'none' }}>
-                  {(['LOW','MEDIUM','HIGH'] as NotePriority[]).map(p => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}
-                </select>
-                <input type="datetime-local" value={formData.remindAt?.slice(0,16) ?? ''} onChange={e => setFormData(p => ({...p, remindAt: e.target.value || null}))}
-                  style={{ border: '1px solid #EDE9FE', borderRadius: '8px', padding: '8px', fontSize: '12px', outline: 'none' }}/>
-              </div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#6B7280', cursor: 'pointer' }}>
-                <input type="checkbox" checked={formData.isPinned ?? false} onChange={e => setFormData(p => ({...p, isPinned: e.target.checked}))}/> 📌 Закрепить заметку
-              </label>
-              <button onClick={saveNote} disabled={loading} style={{ background: 'linear-gradient(135deg,#7F77DD,#5248C5)', color: 'white', border: 'none', borderRadius: '12px', padding: '12px', fontSize: '14px', fontWeight: 700, cursor: 'pointer', opacity: loading ? 0.7 : 1 }}>Сохранить заметку</button>
-            </div>
-          )}
+      <div style={{background:'white',padding:'14px 28px',display:'flex',alignItems:'center',gap:'16px',position:'sticky',top:0,zIndex:10,boxShadow:'0 4px 16px rgba(127,119,221,0.06)'}}>
+        <div style={{flex:1}}>
+          <h1 style={{fontSize:'18px',fontWeight:800,color:'#1a1040',margin:0}}>📓 Мой блокнот</h1>
+          <p style={{fontSize:'11px',color:'#9B97CC',margin:'2px 0 0'}}>{notes.length} заметок · только вы видите это пространство</p>
         </div>
 
         {/* Поиск */}
-        <div style={{ ...card, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <i className="ti ti-search" style={{ fontSize: '16px', color: '#9B97CC' }} aria-hidden="true"/>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск по заметкам..."
-            style={{ flex: 1, border: 'none', outline: 'none', fontSize: '14px', color: '#1a1040', background: 'transparent' }}/>
-          {search && <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', color: '#9B97CC', cursor: 'pointer', fontSize: '16px' }}>✕</button>}
+        <div style={{display:'flex',alignItems:'center',gap:'8px',background:'#F8F7FF',borderRadius:'20px',padding:'8px 16px',flex:1,maxWidth:'320px'}}>
+          <i className="ti ti-search" style={{fontSize:'14px',color:'#9B97CC'}} aria-hidden="true"/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Поиск..."
+            style={{border:'none',outline:'none',fontSize:'13px',color:'#1a1040',background:'transparent',flex:1}}/>
+          {search && <button onClick={()=>setSearch('')} style={{background:'none',border:'none',color:'#9B97CC',cursor:'pointer',padding:0,fontSize:'14px'}}>✕</button>}
         </div>
 
-        {/* Список заметок */}
+        {/* Табы */}
+        <div style={{display:'flex',gap:'3px',background:'#F8F7FF',borderRadius:'20px',padding:'3px'}}>
+          {([['active','📝 Активные'],['done','✅ Выполненные'],['archived','📦 Архив']] as const).map(([id,lbl])=>(
+            <button key={id} onClick={()=>setTab(id)} style={{padding:'7px 14px',borderRadius:'18px',fontSize:'12px',fontWeight:tab===id?700:500,border:'none',cursor:'pointer',background:tab===id?'linear-gradient(135deg,#7F77DD,#5248C5)':'transparent',color:tab===id?'white':'#9B97CC',transition:'all 0.2s'}}>{lbl}</button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{padding:'20px 28px'}}>
+
+        {/* Быстрое создание — Pinterest стиль */}
+        {!showNew ? (
+          <div onClick={()=>{setShowNew(true);setTimeout(()=>titleRef.current?.focus(),50);}}
+            style={{background:'white',borderRadius:'20px',padding:'16px 20px',boxShadow:'0 2px 8px rgba(0,0,0,0.06)',border:'1.5px dashed #EDE9FE',cursor:'pointer',display:'flex',alignItems:'center',gap:'12px',marginBottom:'20px',transition:'all 0.2s',maxWidth:'600px',margin:'0 auto 20px'}}>
+            <div style={{width:'36px',height:'36px',borderRadius:'12px',background:'linear-gradient(135deg,#7F77DD,#5248C5)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 4px 10px rgba(127,119,221,0.3)'}}>
+              <i className="ti ti-plus" style={{fontSize:'18px',color:'white'}} aria-hidden="true"/>
+            </div>
+            <span style={{fontSize:'14px',color:'#9B97CC'}}>Создать заметку... <span style={{fontSize:'11px',color:'#C4C0E8'}}>(⌘+Enter для сохранения)</span></span>
+          </div>
+        ) : (
+          <div style={{background:'white',borderRadius:'20px',padding:'20px',boxShadow:'0 8px 32px rgba(127,119,221,0.16)',border:'1.5px solid #7F77DD',marginBottom:'20px',maxWidth:'600px',margin:'0 auto 20px'}} onKeyDown={handleKey}>
+            <div style={{display:'flex',gap:'8px',marginBottom:'12px',flexWrap:'wrap'}}>
+              {COLORS.map(c=>(
+                <div key={c} onClick={()=>setNewNote(p=>({...p,color:c}))}
+                  style={{width:'26px',height:'26px',borderRadius:'50%',background:c,border:newNote.color===c?'3px solid #7F77DD':'1.5px solid rgba(0,0,0,0.1)',cursor:'pointer',transition:'transform 0.1s',transform:newNote.color===c?'scale(1.2)':'scale(1)'}}/>
+              ))}
+            </div>
+            <input ref={titleRef} value={newNote.title} onChange={e=>setNewNote(p=>({...p,title:e.target.value}))}
+              placeholder="Заголовок заметки *"
+              style={{width:'100%',fontSize:'16px',fontWeight:700,border:'none',outline:'none',color:'#1a1040',background:'transparent',marginBottom:'10px',boxSizing:'border-box'}}/>
+            <textarea value={newNote.content} onChange={e=>setNewNote(p=>({...p,content:e.target.value}))}
+              placeholder="Добавить текст... (необязательно)" rows={3}
+              style={{width:'100%',fontSize:'14px',border:'none',outline:'none',resize:'none',color:'#6B7280',fontFamily:'inherit',background:'transparent',marginBottom:'12px',boxSizing:'border-box'}}/>
+            <div style={{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}}>
+              <div style={{display:'flex',gap:'4px'}}>
+                {(['LOW','MEDIUM','HIGH'] as NotePriority[]).map(p=>(
+                  <button key={p} onClick={()=>setNewNote(x=>({...x,priority:p}))}
+                    style={{padding:'5px 10px',borderRadius:'20px',fontSize:'11px',fontWeight:newNote.priority===p?700:400,border:'none',cursor:'pointer',background:newNote.priority===p?PRIORITY_BG[p]:'#F8F7FF',color:newNote.priority===p?PRIORITY_COLOR[p]:'#9B97CC',transition:'all 0.15s'}}>
+                    {PRIORITY_LABEL[p]}
+                  </button>
+                ))}
+              </div>
+              <input type="datetime-local" value={newNote.remindAt} onChange={e=>setNewNote(p=>({...p,remindAt:e.target.value}))}
+                style={{border:'1px solid #EDE9FE',borderRadius:'8px',padding:'5px 8px',fontSize:'12px',outline:'none',color:'#6B7280'}}/>
+              <div style={{marginLeft:'auto',display:'flex',gap:'8px'}}>
+                <button onClick={()=>{setShowNew(false);setNewNote({title:'',content:'',priority:'MEDIUM',color:'#ffffff',remindAt:''});}}
+                  style={{padding:'8px 14px',borderRadius:'10px',border:'none',background:'#F8F7FF',color:'#9B97CC',cursor:'pointer',fontSize:'13px'}}>Отмена</button>
+                <button onClick={create} disabled={!newNote.title.trim()}
+                  style={{padding:'8px 20px',borderRadius:'10px',border:'none',background:'linear-gradient(135deg,#7F77DD,#5248C5)',color:'white',cursor:'pointer',fontSize:'13px',fontWeight:700,opacity:newNote.title.trim()?1:0.5,boxShadow:'0 4px 10px rgba(127,119,221,0.3)'}}>Сохранить ⌘↵</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Сетка заметок Pinterest */}
         {tab === 'active' && (
           <>
-            <Section emoji="📌" title="Закреплённые" items={pinned}/>
-            <Section emoji="⏰" title="Напоминания сегодня" items={remindToday}/>
-            <Section emoji="📝" title="Активные" items={rest}/>
+            {pinned.length > 0 && (
+              <div style={{marginBottom:'24px'}}>
+                <p style={{fontSize:'11px',fontWeight:700,color:'#9B97CC',textTransform:'uppercase',letterSpacing:'0.5px',margin:'0 0 12px',display:'flex',alignItems:'center',gap:'6px'}}>
+                  📌 Закреплённые · {pinned.length}
+                </p>
+                <MasonryGrid items={pinned}/>
+              </div>
+            )}
+            {remind.length > 0 && (
+              <div style={{marginBottom:'24px'}}>
+                <p style={{fontSize:'11px',fontWeight:700,color:'#DC2626',textTransform:'uppercase',letterSpacing:'0.5px',margin:'0 0 12px',display:'flex',alignItems:'center',gap:'6px'}}>
+                  ⏰ Напоминания сегодня · {remind.length}
+                </p>
+                <MasonryGrid items={remind}/>
+              </div>
+            )}
+            {rest.length > 0 && (
+              <div>
+                {(pinned.length > 0 || remind.length > 0) && (
+                  <p style={{fontSize:'11px',fontWeight:700,color:'#9B97CC',textTransform:'uppercase',letterSpacing:'0.5px',margin:'0 0 12px',display:'flex',alignItems:'center',gap:'6px'}}>
+                    📝 Остальные · {rest.length}
+                  </p>
+                )}
+                <MasonryGrid items={rest}/>
+              </div>
+            )}
             {notes.length === 0 && (
-              <div style={{ ...card, padding: '60px', textAlign: 'center' }}>
-                <div style={{ fontSize: '48px', marginBottom: '16px' }}>📓</div>
-                <p style={{ fontSize: '16px', fontWeight: 700, color: '#1a1040', margin: '0 0 8px' }}>Блокнот пуст</p>
-                <p style={{ fontSize: '13px', color: '#9B97CC', margin: 0 }}>Нажмите «+ Новая заметка» или напишите и нажмите Enter</p>
+              <div style={{textAlign:'center',padding:'80px 20px'}}>
+                <div style={{fontSize:'64px',marginBottom:'16px'}}>📓</div>
+                <p style={{fontSize:'18px',fontWeight:700,color:'#1a1040',margin:'0 0 8px'}}>Блокнот пуст</p>
+                <p style={{fontSize:'14px',color:'#9B97CC',margin:'0 0 20px'}}>Нажмите на поле выше чтобы создать первую заметку</p>
+                <button onClick={()=>{setShowNew(true);setTimeout(()=>titleRef.current?.focus(),50);}}
+                  style={{background:'linear-gradient(135deg,#7F77DD,#5248C5)',color:'white',border:'none',borderRadius:'20px',padding:'12px 28px',fontSize:'14px',fontWeight:700,cursor:'pointer',boxShadow:'0 4px 16px rgba(127,119,221,0.3)'}}>
+                  + Создать первую заметку
+                </button>
               </div>
             )}
           </>
         )}
-        {tab === 'done' && (
-          <>
-            <Section emoji="✅" title="Выполненные" items={notes}/>
-            {notes.length === 0 && <div style={{ ...card, padding: '40px', textAlign: 'center' }}><p style={{ color: '#9B97CC', fontSize: '14px', margin: 0 }}>Нет выполненных заметок</p></div>}
-          </>
-        )}
-        {tab === 'archived' && (
-          <>
-            <Section emoji="📦" title="Архив" items={notes}/>
-            {notes.length === 0 && <div style={{ ...card, padding: '40px', textAlign: 'center' }}><p style={{ color: '#9B97CC', fontSize: '14px', margin: 0 }}>Архив пуст</p></div>}
-          </>
+        {(tab === 'done' || tab === 'archived') && (
+          notes.length === 0
+            ? <div style={{textAlign:'center',padding:'60px'}}><p style={{color:'#9B97CC',fontSize:'14px'}}>Нет записей</p></div>
+            : <MasonryGrid items={notes}/>
         )}
       </div>
+
+      {/* Floating button */}
+      {!showNew && (
+        <button onClick={()=>{setShowNew(true);setTimeout(()=>titleRef.current?.focus(),50);}}
+          style={{position:'fixed',bottom:'28px',right:'28px',width:'56px',height:'56px',borderRadius:'50%',background:'linear-gradient(135deg,#7F77DD,#5248C5)',color:'white',border:'none',fontSize:'24px',cursor:'pointer',boxShadow:'0 8px 24px rgba(127,119,221,0.4)',display:'flex',alignItems:'center',justifyContent:'center',transition:'transform 0.2s',zIndex:100}}
+          onMouseEnter={e=>(e.currentTarget.style.transform='scale(1.1)')}
+          onMouseLeave={e=>(e.currentTarget.style.transform='scale(1)')}>
+          <i className="ti ti-plus" style={{fontSize:'22px'}} aria-hidden="true"/>
+        </button>
+      )}
     </div>
   );
 }
