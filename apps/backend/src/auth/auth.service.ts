@@ -53,7 +53,9 @@ export class AuthService {
 
     let orgId: string;
     if (dto.orgName) {
-      const org = await this.prisma.organisation.create({ data: { name: dto.orgName } });
+      const trialEnd = new Date();
+      trialEnd.setDate(trialEnd.getDate() + 14);
+      const org = await this.prisma.organisation.create({ data: { name: dto.orgName, plan: 'TRIAL', trialEndsAt: trialEnd } });
       orgId = org.id;
     } else if ((dto as any).orgId) {
       orgId = (dto as any).orgId;

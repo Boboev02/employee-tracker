@@ -57,6 +57,7 @@ function SectionHeader({ title, open, onToggle }: { title: string; open: boolean
 export default function DashboardPage() {
   const router = useRouter();
   const isMobile = useIsMobile();
+  const [trialDays, setTrialDays] = useState<number|null>(null);
   const [token, setToken]           = useState('');
   const [stats, setStats]           = useState<any>(null);
   const [employees, setEmployees]   = useState<any[]>([]);
@@ -74,6 +75,16 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const t = localStorage.getItem('access_token');
+    const u = localStorage.getItem('user');
+    if (u) {
+      try {
+        const parsed = JSON.parse(u);
+        if (parsed.org?.trialEndsAt) {
+          const days = Math.ceil((new Date(parsed.org.trialEndsAt).getTime() - Date.now()) / 86400000);
+          if (days > 0 && days <= 14) setTrialDays(days);
+        }
+      } catch {}
+    }
     if (!t) { router.push('/login'); return; }
     setToken(t); loadAll(t);
     const iv = setInterval(() => { loadAll(t); setNow(new Date()); }, 60000);
@@ -177,6 +188,18 @@ export default function DashboardPage() {
       </div>
 
       <div style={{ padding: isMobile ? '12px' : '20px 28px', display:'flex', flexDirection:'column', gap:'16px' }}>
+        {trialDays !== null && (
+          <div style={{background:'linear-gradient(135deg,#7F77DD,#5248C5)',borderRadius:'16px',padding:'14px 20px',display:'flex',alignItems:'center',gap:'14px',boxShadow:'0 4px 16px rgba(127,119,221,0.25)'}}>
+            <span style={{fontSize:'24px'}}>🎁</span>
+            <div style={{flex:1}}>
+              <p style={{fontSize:'13px',fontWeight:700,color:'white',margin:0}}>Пробный период: осталось {trialDays} {trialDays===1?'день':trialDays<5?'дня':'дней'}</p>
+              <p style={{fontSize:'11px',color:'rgba(255,255,255,0.75)',margin:0}}>Для продолжения работы подключите подписку</p>
+            </div>
+            <button onClick={()=>router.push('/dashboard/settings')} style={{background:'white',color:'#7F77DD',border:'none',borderRadius:'10px',padding:'8px 16px',fontSize:'12px',fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>
+              Подключить →
+            </button>
+          </div>
+        )}
         {token && <WorkSessionWidget token={token} />}
 
         {/* ── СЕКЦИЯ: Обзор ── */}
