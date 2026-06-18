@@ -117,6 +117,10 @@ export default function LoginPage() {
                 </>
               )}
             </button>
+          <p style={{fontSize:'12px',color:'#C4C0E8',textAlign:'center',marginTop:'16px',marginBottom:0}}>
+            Нет аккаунта?{' '}
+            <a href="/register" style={{color:'#7F77DD',fontWeight:600,textDecoration:'none'}}>Начать бесплатно →</a>
+          </p>
           </form>
         </div>
 

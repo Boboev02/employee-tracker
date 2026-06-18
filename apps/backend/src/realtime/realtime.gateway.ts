@@ -7,7 +7,7 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { PresenceService } from './presence.service';
 
-@WebSocketGateway({ cors: { origin: ['https://employee-tracker.ru', 'http://localhost:3000'], credentials: true }, namespace: '/realtime' })
+@WebSocketGateway({ cors: { origin: ['https://employee-tracker.ru', 'https://www.employee-tracker.ru', 'http://localhost:3000'], credentials: true }, namespace: '/realtime' })
 export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server: Server;
 

@@ -287,16 +287,20 @@ export default function SalesPage() {
   const [selectedSkus, setSelectedSkus]     = useState<string[]>([]);
 
   // Устанавливаем периоды при загрузке файла
+  // Сливаем новые данные с существующими при загрузке файла
   const handleLoad = useCallback((o: Order[], name: string) => {
-    setOrders(o);
+    setOrders(prev => {
+      // Уникальный ключ: sku + дата + статус
+      const existingKeys = new Set(prev.map(x => x.sku + '|' + x.date.toISOString() + '|' + x.status));
+      const newOrders = o.filter(x => !existingKeys.has(x.sku + '|' + x.date.toISOString() + '|' + x.status));
+      const merged = [...prev, ...newOrders];
+      if (merged.length > 0) saveToStorage(merged, name);
+      return merged;
+    });
     setFilename(name);
     setSelectedSkus([]);
-    if (o.length > 0) {
-      saveToStorage(o, name);
-      setSavedAt(new Date());
-    }
+    setSavedAt(new Date());
     const days = Array.from(new Set(o.map(x => x.dayKey))).sort();
-    // По умолчанию: последний день = A, предпоследний = B
     if (days.length >= 2) {
       setPeriodA([days[days.length - 1]]);
       setPeriodB([days[days.length - 2]]);
@@ -426,7 +430,10 @@ export default function SalesPage() {
                 <i className="ti ti-file-spreadsheet" style={{ fontSize: '18px', color: '#7F77DD' }} aria-hidden="true"/>
                 <div>
                   <p style={{ fontSize: '12px', fontWeight: 700, color: '#1a1040', margin: 0 }}>{filename}</p>
-                  <button onClick={() => { setOrders([]); setFilename(''); }} style={{ fontSize: '11px', color: '#DC2626', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>✕ Загрузить другой файл</button>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', color: '#9B97CC' }}>{orders.length.toLocaleString('ru')} заказов</span>
+                    <button onClick={() => { localStorage.removeItem('wb_sales_data'); setOrders([]); setFilename(''); setSavedAt(null); }} style={{ fontSize: '11px', color: '#DC2626', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>✕ Очистить все данные</button>
+                  </div>
                 </div>
               </div>
 

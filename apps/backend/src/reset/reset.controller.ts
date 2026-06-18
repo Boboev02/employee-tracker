@@ -1,9 +1,10 @@
-import { Controller, Post, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Post, UseGuards, ForbiddenException, UnauthorizedException, Body } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/index';
 import { CurrentUser } from '../auth/decorators/index';
 import { PrismaService } from '../prisma/prisma.service';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
+import * as bcrypt from 'bcrypt';
 
 @Controller('api/v1/reset')
 @UseGuards(JwtAuthGuard)
@@ -14,10 +15,26 @@ export class ResetController {
   ) {}
 
   @Post()
-  async resetAll(@CurrentUser() user: any) {
+  async resetAll(@CurrentUser() user: any, @Body() body: { password?: string; confirm?: string }) {
     if (!user?.roles?.includes('ADMIN') && !user?.roles?.includes('SUPER_ADMIN')) {
       throw new ForbiddenException('Access denied');
     }
+
+    // Требуем подтверждение паролем
+    if (!body?.password) {
+      throw new UnauthorizedException('Для сброса данных необходимо подтвердить пароль');
+    }
+
+    // Проверяем текстовое подтверждение
+    if (body?.confirm !== 'УДАЛИТЬ ВСЕ ДАННЫЕ') {
+      throw new UnauthorizedException('Введите текст подтверждения: УДАЛИТЬ ВСЕ ДАННЫЕ');
+    }
+
+    // Проверяем пароль пользователя
+    const dbUser = await this.prisma.user.findUnique({ where: { id: user.sub } });
+    if (!dbUser) throw new UnauthorizedException('Пользователь не найден');
+    const valid = await bcrypt.compare(body.password, dbUser.password);
+    if (!valid) throw new UnauthorizedException('Неверный пароль');
 
     const orgId = user.orgId;
 

@@ -1,9 +1,9 @@
 FROM node:20-alpine
 WORKDIR /app
 COPY package*.json ./
-COPY node_modules ./node_modules
-COPY .next ./.next
-COPY public ./public
-COPY next.config.ts ./
+RUN npm install
+COPY . .
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
 EXPOSE 3000
 CMD ["node_modules/.bin/next", "start"]
