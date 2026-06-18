@@ -6,6 +6,7 @@ import { SearchModule } from './search/search.module';
 import { RoutineTasksModule } from './routine-tasks/routine-tasks.module';
 import { PrismaModule }    from './prisma/prisma.module';
 import { AuthModule }      from './auth/auth.module';
+import { WbReviewsModule } from './wb-reviews/wb-reviews.module';
 import { ResetModule } from './reset/reset.module';
 import { KpiModule } from './kpi/kpi.module';
 import { HealthModule }    from './health/health.module';
@@ -26,6 +27,7 @@ import { JwtAuthGuard }    from './auth/guards/index';
     PrismaModule,
     RoutineTasksModule,
     SearchModule, AuthModule, ResetModule,
+    WbReviewsModule,
     HealthModule,
     KpiModule,
     TasksModule, EmployeesModule, RealtimeModule,
