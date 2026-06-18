@@ -20,6 +20,7 @@ const NAV = [
   { href: '/dashboard/routines',     icon: 'ti-repeat',           label: 'Рутины',         admin: false },
   { href: '/dashboard/kpi',          icon: 'ti-target',           label: 'KPI',            admin: true  },
   { href: '/dashboard/sales',        icon: 'ti-chart-arrows',     label: 'Продажи WB',     admin: true  },
+  { href: '/dashboard/reviews',      icon: 'ti-star',             label: 'Отзывы WB',      admin: true  },
   { href: '/dashboard/notebook', icon: 'ti-notebook', label: 'Мой блокнот', admin: false },
   { href: '/dashboard/settings',     icon: 'ti-settings',         label: 'Настройки',      admin: true  },
 ];
