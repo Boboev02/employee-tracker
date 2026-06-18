@@ -1,0 +1,54 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image
+        run: |
+          cd apps/backend
+          docker buildx build --platform linux/amd64 -t et_backend:latest --load .
+
+      - name: Build frontend image
+        run: |
+          cd apps/frontend
+          npm install
+          npm run build
+          docker buildx build --platform linux/amd64 -t et_frontend:latest --load .
+
+      - name: Save images
+        run: |
+          docker save et_backend:latest | gzip > /tmp/et_backend.tar.gz
+          docker save et_frontend:latest | gzip > /tmp/et_frontend.tar.gz
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Upload and deploy
+        run: |
+          scp -i ~/.ssh/id_ed25519 /tmp/et_backend.tar.gz ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/tmp/
+          scp -i ~/.ssh/id_ed25519 /tmp/et_frontend.tar.gz ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/tmp/
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} '
+            docker load < /tmp/et_backend.tar.gz
+            docker load < /tmp/et_frontend.tar.gz
+            cd /root/employee-tracker
+            docker compose up -d
+            /usr/local/bin/update-nginx.sh
+            rm /tmp/et_backend.tar.gz /tmp/et_frontend.tar.gz
+            echo "Deploy complete!"
+          '
