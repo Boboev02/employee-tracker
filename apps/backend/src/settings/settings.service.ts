@@ -78,7 +78,6 @@ export class SettingsService {
     }
     return minutes;
   }
-}
 
   // WB API токен
   private wbKey(orgId: string) { return 'settings:wb_token:' + orgId; }
@@ -90,3 +89,4 @@ export class SettingsService {
   async setWbToken(orgId: string, token: string): Promise<void> {
     await this.redis.set(this.wbKey(orgId), token);
   }
+}
