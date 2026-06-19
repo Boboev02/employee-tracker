@@ -7,11 +7,19 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { PresenceService } from './presence.service';
 
+interface CallRoom {
+  roomId: string;
+  orgId: string;
+  createdBy: string;
+  participants: Map<string, { userId: string; userName: string; socketId: string }>;
+}
+
 @WebSocketGateway({ cors: { origin: ['https://employee-tracker.ru', 'https://www.employee-tracker.ru', 'http://localhost:3000'], credentials: true }, namespace: '/realtime' })
 export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server: Server;
 
-  private socketToUser = new Map<string, { userId: string; orgId: string }>();
+  private socketToUser = new Map<string, { userId: string; orgId: string; userName?: string }>();
+  private callRooms = new Map<string, CallRoom>();
 
   constructor(
     private readonly jwt: JwtService,
@@ -27,18 +35,17 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       const payload = this.jwt.verify(token, { secret: process.env.JWT_ACCESS_SECRET });
       const userId = payload.sub;
       const orgId  = payload.orgId;
+      const userName = payload.name ?? payload.email ?? 'User';
 
-      this.socketToUser.set(socket.id, { userId, orgId });
+      this.socketToUser.set(socket.id, { userId, orgId, userName });
       socket.join('org:' + orgId);
       socket.join('user:' + userId);
 
       await this.presence.setOnline(userId, orgId);
 
-      // Send current presence snapshot to newly connected client
       const snapshot = await this.presence.getOrgPresence(orgId);
       socket.emit('presence:snapshot', snapshot);
 
-      // Notify org members that this user is online
       this.server.to('org:' + orgId).emit('presence:update', {
         userId, status: 'ONLINE', lastActivityAt: Date.now(),
       });
@@ -51,8 +58,15 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   async handleDisconnect(socket: Socket) {
     const user = this.socketToUser.get(socket.id);
-    this.socketToUser.delete(socket.id); // всегда удаляем даже если user не найден
+    this.socketToUser.delete(socket.id);
     if (!user) return;
+
+    // Покидаем все звонки в которых были
+    for (const [roomId, room] of this.callRooms.entries()) {
+      if (room.participants.has(user.userId)) {
+        this.leaveCallRoom(socket, roomId, user.userId);
+      }
+    }
 
     await this.presence.setOffline(user.userId, user.orgId);
 
@@ -87,8 +101,83 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     });
   }
 
-  // Called by other services to broadcast task updates
   broadcastTaskUpdate(orgId: string, payload: any) {
     this.server.to('org:' + orgId).emit('task:update', payload);
+  }
+
+  // ==================== ВИДЕОЗВОНКИ (WebRTC signaling) ====================
+
+  @SubscribeMessage('call:join')
+  handleCallJoin(@ConnectedSocket() socket: Socket, @MessageBody() data: { roomId: string }) {
+    const user = this.socketToUser.get(socket.id);
+    if (!user) return;
+
+    const { roomId } = data;
+    let room = this.callRooms.get(roomId);
+
+    if (!room) {
+      room = { roomId, orgId: user.orgId, createdBy: user.userId, participants: new Map() };
+      this.callRooms.set(roomId, room);
+    }
+
+    // Лимит 10 человек
+    if (room.participants.size >= 10 && !room.participants.has(user.userId)) {
+      socket.emit('call:error', { message: 'Комната заполнена (максимум 10 участников)' });
+      return;
+    }
+
+    const existingParticipants = Array.from(room.participants.values())
+      .filter(p => p.userId !== user.userId);
+
+    room.participants.set(user.userId, { userId: user.userId, userName: user.userName ?? 'User', socketId: socket.id });
+    socket.join('call:' + roomId);
+
+    // Отправляем новому участнику список уже подключённых
+    socket.emit('call:participants', { participants: existingParticipants });
+
+    // Уведомляем остальных о новом участнике
+    socket.to('call:' + roomId).emit('call:user-joined', {
+      userId: user.userId,
+      userName: user.userName ?? 'User',
+      socketId: socket.id,
+    });
+
+    console.log(`Call ${roomId}: ${user.userId} joined (${room.participants.size} participants)`);
+  }
+
+  @SubscribeMessage('call:leave')
+  handleCallLeave(@ConnectedSocket() socket: Socket, @MessageBody() data: { roomId: string }) {
+    const user = this.socketToUser.get(socket.id);
+    if (!user) return;
+    this.leaveCallRoom(socket, data.roomId, user.userId);
+  }
+
+  private leaveCallRoom(socket: Socket, roomId: string, userId: string) {
+    const room = this.callRooms.get(roomId);
+    if (!room) return;
+
+    room.participants.delete(userId);
+    socket.leave('call:' + roomId);
+    socket.to('call:' + roomId).emit('call:user-left', { userId });
+
+    if (room.participants.size === 0) {
+      this.callRooms.delete(roomId);
+    }
+    console.log(`Call ${roomId}: ${userId} left (${room.participants.size} remaining)`);
+  }
+
+  // WebRTC signaling relay — offer/answer/ice candidates передаются точечно по socketId
+  @SubscribeMessage('call:signal')
+  handleCallSignal(@ConnectedSocket() socket: Socket, @MessageBody() data: { targetSocketId: string; signal: any; fromUserId: string }) {
+    this.server.to(data.targetSocketId).emit('call:signal', {
+      signal: data.signal,
+      fromUserId: data.fromUserId,
+      fromSocketId: socket.id,
+    });
+  }
+
+  @SubscribeMessage('call:toggle-media')
+  handleToggleMedia(@ConnectedSocket() socket: Socket, @MessageBody() data: { roomId: string; userId: string; kind: 'audio' | 'video' | 'screen'; enabled: boolean }) {
+    socket.to('call:' + data.roomId).emit('call:media-toggled', data);
   }
 }
