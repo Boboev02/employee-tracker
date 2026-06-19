@@ -12,20 +12,56 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build backend image
+      - name: Install backend dependencies
+        run: cd apps/backend && npm install
+
+      - name: Install frontend dependencies  
+        run: cd apps/frontend && npm install
+
+      - name: Build frontend
+        run: cd apps/frontend && npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+
+      - name: Create CI Dockerfiles
         run: |
-          cd apps/backend
-          docker buildx build --platform linux/amd64 -t et_backend:latest --load .
+          cat > apps/backend/Dockerfile.ci << 'DOCKERFILE'
+          FROM node:22-alpine
+          WORKDIR /app
+          COPY apps/backend/package*.json ./
+          COPY apps/backend/node_modules ./node_modules
+          COPY apps/backend/ .
+          RUN npx prisma generate
+          RUN npm run build
+          EXPOSE 3001
+          CMD ["node", "dist/main.api.js"]
+          DOCKERFILE
+
+          cat > apps/frontend/Dockerfile.ci << 'DOCKERFILE'
+          FROM node:20-alpine
+          WORKDIR /app
+          COPY apps/frontend/package*.json ./
+          COPY apps/frontend/node_modules ./node_modules
+          COPY apps/frontend/.next ./.next
+          COPY apps/frontend/public ./public
+          COPY apps/frontend/next.config.ts ./
+          EXPOSE 3000
+          CMD ["node_modules/.bin/next", "start"]
+          DOCKERFILE
+
+      - name: Build backend image
+        run: docker buildx build --platform linux/amd64 -t et_backend:latest --load -f apps/backend/Dockerfile.ci .
 
       - name: Build frontend image
-        run: |
-          cd apps/frontend
-          npm install
-          npm run build
-          docker buildx build --platform linux/amd64 -t et_frontend:latest --load .
+        run: docker buildx build --platform linux/amd64 -t et_frontend:latest --load -f apps/frontend/Dockerfile.ci .
 
       - name: Save images
         run: |
