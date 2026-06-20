@@ -1,17 +1,40 @@
-import { Controller, Post, Get, Body, Param } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/index';
 import { v4 as uuidv4 } from 'uuid';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
 
 @Controller('api/v1/calls')
 export class CallsController {
+  constructor(@InjectRedis() private readonly redis: Redis) {}
+
+  private roomKey(roomId: string) { return 'call:room:' + roomId; }
+
   @Post('create')
-  createRoom(@CurrentUser() user: any, @Body() body: { title?: string }) {
+  async createRoom(@CurrentUser() user: any, @Body() body: { title?: string }) {
     const roomId = uuidv4();
-    return {
+    const room = {
       roomId,
       title: body?.title ?? 'Видеозвонок',
+      orgId: user.orgId,
       createdBy: user.sub,
-      url: `/dashboard/calls/${roomId}`,
+      createdAt: Date.now(),
     };
+    // Комната живёт 24 часа в Redis
+    await this.redis.set(this.roomKey(roomId), JSON.stringify(room), 'EX', 60 * 60 * 24);
+    return { ...room, url: `/dashboard/calls/${roomId}` };
+  }
+
+  @Get(':roomId/check')
+  async checkAccess(@CurrentUser() user: any, @Param('roomId') roomId: string) {
+    const raw = await this.redis.get(this.roomKey(roomId));
+    if (!raw) {
+      throw new NotFoundException('Звонок не найден или истёк (комнаты живут 24 часа)');
+    }
+    const room = JSON.parse(raw);
+    if (room.orgId !== user.orgId) {
+      throw new ForbiddenException('У вас нет доступа к этому звонку');
+    }
+    return { ok: true, title: room.title };
   }
 }

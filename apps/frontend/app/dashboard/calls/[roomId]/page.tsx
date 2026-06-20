@@ -1,0 +1,595 @@
+'use client';
+export const dynamic = 'force-dynamic';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter, useParams } from 'next/navigation';
+import { io, Socket } from 'socket.io-client';
+
+interface Participant {
+  userId: string;
+  userName: string;
+  socketId: string;
+  stream?: MediaStream;
+  audioEnabled: boolean;
+  videoEnabled: boolean;
+  isScreenShare: boolean;
+}
+
+interface MediaDeviceOption {
+  deviceId: string;
+  label: string;
+}
+
+const ICE_SERVERS = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+  ],
+};
+
+type Stage = 'checking' | 'lobby' | 'call' | 'error';
+
+export default function CallRoomPage() {
+  const router = useRouter();
+  const params = useParams();
+  const roomId = params.roomId as string;
+
+  const [stage, setStage] = useState<Stage>('checking');
+  const [error, setError] = useState('');
+  const [callTitle, setCallTitle] = useState('Видеозвонок');
+
+  const [myUserId, setMyUserId] = useState('');
+  const [myUserName, setMyUserName] = useState('');
+
+  // Lobby state
+  const [lobbyStream, setLobbyStream] = useState<MediaStream | null>(null);
+  const [lobbyAudioOn, setLobbyAudioOn] = useState(true);
+  const [lobbyVideoOn, setLobbyVideoOn] = useState(true);
+  const [cameras, setCameras] = useState<MediaDeviceOption[]>([]);
+  const [microphones, setMicrophones] = useState<MediaDeviceOption[]>([]);
+  const [selectedCamera, setSelectedCamera] = useState('');
+  const [selectedMic, setSelectedMic] = useState('');
+  const [deviceError, setDeviceError] = useState('');
+  const [joining, setJoining] = useState(false);
+
+  // Call state
+  const [connecting, setConnecting] = useState(true);
+  const [participants, setParticipants] = useState<Map<string, Participant>>(new Map());
+  const [audioOn, setAudioOn] = useState(true);
+  const [videoOn, setVideoOn] = useState(true);
+  const [screenSharing, setScreenSharing] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const socketRef = useRef<Socket | null>(null);
+  const lobbyVideoRef = useRef<HTMLVideoElement>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const pendingCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
+  const myUserIdRef = useRef('');
+  const tokenRef = useRef('');
+
+  // ===== Шаг 1: Проверка доступа к комнате =====
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    if (!token) { router.push('/login'); return; }
+    tokenRef.current = token;
+
+    const userStr = localStorage.getItem('user');
+    let userId = '', userName = 'Сотрудник';
+    try {
+      const u = JSON.parse(userStr ?? '{}');
+      userId = u.id ?? '';
+      userName = u.name ?? u.email ?? 'Сотрудник';
+    } catch {}
+    setMyUserId(userId);
+    myUserIdRef.current = userId;
+    setMyUserName(userName);
+
+    (async () => {
+      try {
+        const checkRes = await fetch(`https://employee-tracker.ru/api/v1/calls/${roomId}/check`, {
+          headers: { Authorization: 'Bearer ' + token },
+        });
+        if (!checkRes.ok) {
+          const errData = await checkRes.json().catch(() => ({}));
+          setError(errData.message ?? 'Не удалось подключиться к звонку');
+          setStage('error');
+          return;
+        }
+        const data = await checkRes.json().catch(() => ({}));
+        if (data.title) setCallTitle(data.title);
+        setStage('lobby');
+      } catch (e: any) {
+        setError('Ошибка соединения с сервером');
+        setStage('error');
+      }
+    })();
+  }, []);
+
+  // ===== Шаг 2: В lobby — получаем устройства и превью =====
+  useEffect(() => {
+    if (stage !== 'lobby') return;
+    let mounted = true;
+
+    (async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: { echoCancellation: true, noiseSuppression: true },
+        });
+        if (!mounted) { stream.getTracks().forEach(t => t.stop()); return; }
+        setLobbyStream(stream);
+        if (lobbyVideoRef.current) lobbyVideoRef.current.srcObject = stream;
+
+        const camTrack = stream.getVideoTracks()[0];
+        const micTrack = stream.getAudioTracks()[0];
+        if (camTrack) setSelectedCamera(camTrack.getSettings().deviceId ?? '');
+        if (micTrack) setSelectedMic(micTrack.getSettings().deviceId ?? '');
+
+        // Список устройств (после получения разрешения — лейблы будут не пустые)
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        setCameras(devices.filter(d => d.kind === 'videoinput').map(d => ({ deviceId: d.deviceId, label: d.label || 'Камера' })));
+        setMicrophones(devices.filter(d => d.kind === 'audioinput').map(d => ({ deviceId: d.deviceId, label: d.label || 'Микрофон' })));
+      } catch (e: any) {
+        if (e.name === 'NotAllowedError') {
+          setDeviceError('Доступ к камере/микрофону запрещён. Разрешите доступ в настройках браузера и обновите страницу.');
+        } else if (e.name === 'NotFoundError') {
+          setDeviceError('Камера или микрофон не найдены на этом устройстве.');
+        } else {
+          setDeviceError('Не удалось получить доступ к камере/микрофону: ' + e.message);
+        }
+      }
+    })();
+
+    return () => { mounted = false; };
+  }, [stage]);
+
+  const switchDevice = async (kind: 'camera' | 'mic', deviceId: string) => {
+    if (!lobbyStream) return;
+    try {
+      const constraints: MediaStreamConstraints = kind === 'camera'
+        ? { video: { deviceId: { exact: deviceId } }, audio: false }
+        : { video: false, audio: { deviceId: { exact: deviceId }, echoCancellation: true, noiseSuppression: true } };
+      const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+      const newTrack = kind === 'camera' ? newStream.getVideoTracks()[0] : newStream.getAudioTracks()[0];
+
+      if (kind === 'camera') {
+        lobbyStream.getVideoTracks().forEach(t => { t.stop(); lobbyStream.removeTrack(t); });
+        lobbyStream.addTrack(newTrack);
+        setSelectedCamera(deviceId);
+      } else {
+        lobbyStream.getAudioTracks().forEach(t => { t.stop(); lobbyStream.removeTrack(t); });
+        lobbyStream.addTrack(newTrack);
+        setSelectedMic(deviceId);
+      }
+      if (lobbyVideoRef.current) lobbyVideoRef.current.srcObject = lobbyStream;
+    } catch (e) {
+      console.warn('Failed to switch device', e);
+    }
+  };
+
+  const toggleLobbyAudio = () => {
+    const enabled = !lobbyAudioOn;
+    setLobbyAudioOn(enabled);
+    lobbyStream?.getAudioTracks().forEach(t => { t.enabled = enabled; });
+  };
+
+  const toggleLobbyVideo = () => {
+    const enabled = !lobbyVideoOn;
+    setLobbyVideoOn(enabled);
+    lobbyStream?.getVideoTracks().forEach(t => { t.enabled = enabled; });
+  };
+
+  // ===== Шаг 3: Вход в звонок из lobby =====
+  const joinCall = () => {
+    if (!lobbyStream) return;
+    setJoining(true);
+    localStreamRef.current = lobbyStream;
+    setAudioOn(lobbyAudioOn);
+    setVideoOn(lobbyVideoOn);
+    setStage('call');
+    setTimeout(() => {
+      if (localVideoRef.current) localVideoRef.current.srcObject = lobbyStream;
+      connectSocket(tokenRef.current, myUserIdRef.current, myUserName);
+    }, 50);
+  };
+
+  const cleanup = () => {
+    localStreamRef.current?.getTracks().forEach(t => t.stop());
+    lobbyStream?.getTracks().forEach(t => t.stop());
+    screenStreamRef.current?.getTracks().forEach(t => t.stop());
+    peersRef.current.forEach(pc => pc.close());
+    peersRef.current.clear();
+    pendingCandidatesRef.current.clear();
+    socketRef.current?.emit('call:leave', { roomId });
+    socketRef.current?.disconnect();
+  };
+
+  useEffect(() => {
+    return () => { cleanup(); };
+  }, []);
+
+  const createPeerConnection = useCallback((targetSocketId: string, targetUserId: string) => {
+    const existing = peersRef.current.get(targetSocketId);
+    if (existing) return existing;
+
+    const pc = new RTCPeerConnection(ICE_SERVERS);
+
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(track => {
+        pc.addTrack(track, localStreamRef.current!);
+      });
+    }
+
+    pc.onicecandidate = (event) => {
+      if (event.candidate && socketRef.current) {
+        socketRef.current.emit('call:signal', {
+          targetSocketId,
+          fromUserId: myUserIdRef.current,
+          signal: { type: 'ice-candidate', candidate: event.candidate.toJSON() },
+        });
+      }
+    };
+
+    pc.ontrack = (event) => {
+      const incomingStream = event.streams[0];
+      setParticipants(prev => {
+        const next = new Map(prev);
+        const p = next.get(targetUserId);
+        if (p) next.set(targetUserId, { ...p, stream: incomingStream });
+        return next;
+      });
+    };
+
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === 'failed') pc.restartIce();
+    };
+
+    peersRef.current.set(targetSocketId, pc);
+    return pc;
+  }, []);
+
+  const flushPendingCandidates = async (socketId: string, pc: RTCPeerConnection) => {
+    const pending = pendingCandidatesRef.current.get(socketId);
+    if (pending && pending.length > 0) {
+      for (const candidate of pending) {
+        try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch {}
+      }
+      pendingCandidatesRef.current.delete(socketId);
+    }
+  };
+
+  const connectSocket = (token: string, userId: string, userName: string) => {
+    const socket = io('https://employee-tracker.ru/realtime', {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+    });
+    socketRef.current = socket;
+
+    socket.on('connect', () => { socket.emit('call:join', { roomId }); });
+
+    socket.on('call:error', (data: { message: string }) => {
+      setError(data.message);
+      setStage('error');
+    });
+
+    socket.on('call:participants', async (data: { participants: any[] }) => {
+      setConnecting(false);
+      for (const p of data.participants) {
+        setParticipants(prev => {
+          const next = new Map(prev);
+          next.set(p.userId, { userId: p.userId, userName: p.userName, socketId: p.socketId, audioEnabled: true, videoEnabled: true, isScreenShare: false });
+          return next;
+        });
+        const pc = createPeerConnection(p.socketId, p.userId);
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        socket.emit('call:signal', { targetSocketId: p.socketId, fromUserId: userId, signal: { type: 'offer', sdp: offer } });
+      }
+    });
+
+    socket.on('call:user-joined', (data: { userId: string; userName: string; socketId: string }) => {
+      setParticipants(prev => {
+        const next = new Map(prev);
+        next.set(data.userId, { userId: data.userId, userName: data.userName, socketId: data.socketId, audioEnabled: true, videoEnabled: true, isScreenShare: false });
+        return next;
+      });
+    });
+
+    socket.on('call:user-left', (data: { userId: string }) => {
+      setParticipants(prev => {
+        const next = new Map(prev);
+        const p = next.get(data.userId);
+        if (p) {
+          peersRef.current.get(p.socketId)?.close();
+          peersRef.current.delete(p.socketId);
+          pendingCandidatesRef.current.delete(p.socketId);
+        }
+        next.delete(data.userId);
+        return next;
+      });
+    });
+
+    socket.on('call:signal', async (data: { signal: any; fromUserId: string; fromSocketId: string }) => {
+      const { signal, fromUserId, fromSocketId } = data;
+      if (signal.type === 'offer') {
+        let pc = peersRef.current.get(fromSocketId);
+        if (!pc) pc = createPeerConnection(fromSocketId, fromUserId);
+        await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+        await flushPendingCandidates(fromSocketId, pc);
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        socket.emit('call:signal', { targetSocketId: fromSocketId, fromUserId: userId, signal: { type: 'answer', sdp: answer } });
+      } else if (signal.type === 'answer') {
+        const pc = peersRef.current.get(fromSocketId);
+        if (pc) { await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp)); await flushPendingCandidates(fromSocketId, pc); }
+      } else if (signal.type === 'ice-candidate') {
+        const pc = peersRef.current.get(fromSocketId);
+        if (pc && pc.remoteDescription) {
+          try { await pc.addIceCandidate(new RTCIceCandidate(signal.candidate)); } catch {}
+        } else {
+          const arr = pendingCandidatesRef.current.get(fromSocketId) ?? [];
+          arr.push(signal.candidate);
+          pendingCandidatesRef.current.set(fromSocketId, arr);
+        }
+      }
+    });
+
+    socket.on('call:media-toggled', (data: { userId: string; kind: string; enabled: boolean }) => {
+      setParticipants(prev => {
+        const next = new Map(prev);
+        const p = next.get(data.userId);
+        if (p) {
+          if (data.kind === 'audio') next.set(data.userId, { ...p, audioEnabled: data.enabled });
+          if (data.kind === 'video') next.set(data.userId, { ...p, videoEnabled: data.enabled });
+          if (data.kind === 'screen') next.set(data.userId, { ...p, isScreenShare: data.enabled });
+        }
+        return next;
+      });
+    });
+
+    socket.io.on('reconnect', () => { socket.emit('call:join', { roomId }); });
+
+    setTimeout(() => setConnecting(false), 5000);
+  };
+
+  const toggleAudio = () => {
+    const enabled = !audioOn;
+    setAudioOn(enabled);
+    localStreamRef.current?.getAudioTracks().forEach(t => { t.enabled = enabled; });
+    socketRef.current?.emit('call:toggle-media', { roomId, userId: myUserIdRef.current, kind: 'audio', enabled });
+  };
+
+  const toggleVideo = () => {
+    const enabled = !videoOn;
+    setVideoOn(enabled);
+    localStreamRef.current?.getVideoTracks().forEach(t => { t.enabled = enabled; });
+    socketRef.current?.emit('call:toggle-media', { roomId, userId: myUserIdRef.current, kind: 'video', enabled });
+  };
+
+  const toggleScreenShare = async () => {
+    if (screenSharing) {
+      screenStreamRef.current?.getTracks().forEach(t => t.stop());
+      screenStreamRef.current = null;
+      const camTrack = localStreamRef.current?.getVideoTracks()[0];
+      if (camTrack) {
+        peersRef.current.forEach(pc => {
+          const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+          sender?.replaceTrack(camTrack);
+        });
+      }
+      setScreenSharing(false);
+      socketRef.current?.emit('call:toggle-media', { roomId, userId: myUserIdRef.current, kind: 'screen', enabled: false });
+    } else {
+      try {
+        const screenStream = await (navigator.mediaDevices as any).getDisplayMedia({ video: true });
+        screenStreamRef.current = screenStream;
+        const screenTrack = screenStream.getVideoTracks()[0];
+        peersRef.current.forEach(pc => {
+          const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+          sender?.replaceTrack(screenTrack);
+        });
+        screenTrack.onended = () => toggleScreenShare();
+        setScreenSharing(true);
+        socketRef.current?.emit('call:toggle-media', { roomId, userId: myUserIdRef.current, kind: 'screen', enabled: true });
+      } catch {}
+    }
+  };
+
+  const leaveCall = () => {
+    cleanup();
+    router.push('/dashboard');
+  };
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(`https://employee-tracker.ru/dashboard/calls/${roomId}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  // ===================== RENDER =====================
+
+  if (stage === 'checking') {
+    return (
+      <div style={{ minHeight: '100vh', background: '#0F0A26', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ color: '#9B97CC', fontSize: '14px' }}>Проверка доступа...</div>
+      </div>
+    );
+  }
+
+  if (stage === 'error') {
+    return (
+      <div style={{ minHeight: '100vh', background: '#1a1040', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ fontSize: '48px' }}>⚠️</div>
+        <p style={{ color: 'white', fontSize: '16px', textAlign: 'center', maxWidth: '400px' }}>{error}</p>
+        <button onClick={() => router.push('/dashboard')} style={{ background: '#7F77DD', color: 'white', border: 'none', borderRadius: '12px', padding: '10px 24px', fontSize: '14px', fontWeight: 700, cursor: 'pointer' }}>
+          Вернуться в дашборд
+        </button>
+      </div>
+    );
+  }
+
+  if (stage === 'lobby') {
+    return (
+      <div style={{ minHeight: '100vh', background: '#0F0A26', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+        <div style={{ maxWidth: '560px', width: '100%', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={{ textAlign: 'center' }}>
+            <h1 style={{ color: 'white', fontSize: '20px', fontWeight: 700, margin: 0 }}>{callTitle}</h1>
+            <p style={{ color: '#9B97CC', fontSize: '13px', margin: '4px 0 0' }}>Проверьте камеру и микрофон перед входом</p>
+          </div>
+
+          {/* Превью камеры */}
+          <div style={{ position: 'relative', background: '#1a1040', borderRadius: '20px', overflow: 'hidden', aspectRatio: '16/9' }}>
+            <video ref={lobbyVideoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)', display: lobbyVideoOn ? 'block' : 'none' }} />
+            {(!lobbyVideoOn || !lobbyStream) && (
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: '#7F77DD', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '28px', fontWeight: 700 }}>
+                  {myUserName.charAt(0).toUpperCase()}
+                </div>
+              </div>
+            )}
+
+            {/* Контролы поверх превью */}
+            <div style={{ position: 'absolute', bottom: '14px', left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: '12px' }}>
+              <button onClick={toggleLobbyAudio} style={lobbyCtrlStyle(lobbyAudioOn)}>{lobbyAudioOn ? '🎤' : '🔇'}</button>
+              <button onClick={toggleLobbyVideo} style={lobbyCtrlStyle(lobbyVideoOn)}>{lobbyVideoOn ? '📹' : '📷'}</button>
+            </div>
+          </div>
+
+          {deviceError && (
+            <div style={{ background: 'rgba(220,38,38,0.15)', border: '1px solid rgba(220,38,38,0.4)', borderRadius: '12px', padding: '12px 16px' }}>
+              <p style={{ color: '#FCA5A5', fontSize: '13px', margin: 0 }}>{deviceError}</p>
+            </div>
+          )}
+
+          {/* Выбор устройств */}
+          {lobbyStream && (cameras.length > 1 || microphones.length > 1) && (
+            <div style={{ display: 'flex', gap: '10px' }}>
+              {cameras.length > 1 && (
+                <select value={selectedCamera} onChange={e => switchDevice('camera', e.target.value)}
+                  style={{ flex: 1, background: 'rgba(255,255,255,0.08)', color: 'white', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '10px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}>
+                  {cameras.map(c => <option key={c.deviceId} value={c.deviceId} style={{ color: 'black' }}>{c.label}</option>)}
+                </select>
+              )}
+              {microphones.length > 1 && (
+                <select value={selectedMic} onChange={e => switchDevice('mic', e.target.value)}
+                  style={{ flex: 1, background: 'rgba(255,255,255,0.08)', color: 'white', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '10px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}>
+                  {microphones.map(m => <option key={m.deviceId} value={m.deviceId} style={{ color: 'black' }}>{m.label}</option>)}
+                </select>
+              )}
+            </div>
+          )}
+
+          <button onClick={joinCall} disabled={!lobbyStream || joining}
+            style={{ background: lobbyStream ? 'linear-gradient(135deg,#7F77DD,#5248C5)' : 'rgba(255,255,255,0.1)', color: 'white', border: 'none', borderRadius: '14px', padding: '14px', fontSize: '15px', fontWeight: 700, cursor: lobbyStream ? 'pointer' : 'not-allowed', opacity: joining ? 0.7 : 1 }}>
+            {joining ? 'Подключение...' : lobbyStream ? 'Войти в звонок' : 'Ожидание доступа к камере...'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // stage === 'call'
+  const participantList = Array.from(participants.values());
+  const totalCount = participantList.length + 1;
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#0F0A26', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.03)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: connecting ? '#D97706' : '#16A34A' }} />
+          <span style={{ color: 'white', fontSize: '14px', fontWeight: 600 }}>
+            {connecting ? 'Подключение...' : `${callTitle} · ${totalCount} участник${totalCount === 1 ? '' : totalCount < 5 ? 'а' : 'ов'}`}
+          </span>
+        </div>
+        <button onClick={copyLink} style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', borderRadius: '10px', padding: '7px 14px', fontSize: '12px', cursor: 'pointer' }}>
+          {copied ? '✓ Скопировано' : '🔗 Скопировать ссылку'}
+        </button>
+      </div>
+
+      <div style={{ flex: 1, padding: '16px', display: 'grid', gridTemplateColumns: `repeat(${Math.min(Math.ceil(Math.sqrt(totalCount)), 4)}, 1fr)`, gap: '12px', alignContent: 'center' }}>
+        <div style={{ position: 'relative', background: '#1a1040', borderRadius: '16px', overflow: 'hidden', aspectRatio: '16/9' }}>
+          <video ref={localVideoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
+          {!videoOn && (
+            <div style={{ position: 'absolute', inset: 0, background: '#1a1040', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#7F77DD', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '24px', fontWeight: 700 }}>
+                {myUserName.charAt(0).toUpperCase()}
+              </div>
+            </div>
+          )}
+          <div style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'rgba(0,0,0,0.5)', borderRadius: '8px', padding: '4px 10px', color: 'white', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {!audioOn && <span>🔇</span>}
+            {myUserName} (вы)
+          </div>
+        </div>
+
+        {participantList.map(p => (
+          <RemoteVideo key={p.userId} participant={p} />
+        ))}
+      </div>
+
+      <div style={{ padding: '20px', display: 'flex', justifyContent: 'center', gap: '14px' }}>
+        <button onClick={toggleAudio} style={ctrlBtnStyle(audioOn)}>{audioOn ? '🎤' : '🔇'}</button>
+        <button onClick={toggleVideo} style={ctrlBtnStyle(videoOn)}>{videoOn ? '📹' : '📷'}</button>
+        <button onClick={toggleScreenShare} style={ctrlBtnStyle(!screenSharing, screenSharing ? '#7F77DD' : undefined)}>🖥️</button>
+        <button onClick={leaveCall} style={{ width: '52px', height: '52px', borderRadius: '50%', background: '#DC2626', border: 'none', color: 'white', fontSize: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📞</button>
+      </div>
+    </div>
+  );
+}
+
+function lobbyCtrlStyle(active: boolean) {
+  return {
+    width: '44px', height: '44px', borderRadius: '50%',
+    background: active ? 'rgba(255,255,255,0.15)' : '#DC2626',
+    border: 'none', color: 'white', fontSize: '18px', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    backdropFilter: 'blur(8px)',
+  } as React.CSSProperties;
+}
+
+function ctrlBtnStyle(active: boolean, activeColor?: string) {
+  return {
+    width: '52px', height: '52px', borderRadius: '50%',
+    background: active ? 'rgba(255,255,255,0.1)' : '#DC2626',
+    border: activeColor ? `2px solid ${activeColor}` : 'none',
+    color: 'white', fontSize: '20px', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  } as React.CSSProperties;
+}
+
+function RemoteVideo({ participant }: { participant: Participant }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (videoRef.current && participant.stream) {
+      videoRef.current.srcObject = participant.stream;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [participant.stream]);
+
+  const hasVideo = participant.stream && participant.stream.getVideoTracks().length > 0 && participant.videoEnabled !== false;
+
+  return (
+    <div style={{ position: 'relative', background: '#1a1040', borderRadius: '16px', overflow: 'hidden', aspectRatio: '16/9' }}>
+      <video ref={videoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', display: hasVideo ? 'block' : 'none' }} />
+      {!hasVideo && (
+        <div style={{ position: 'absolute', inset: 0, background: '#1a1040', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#5248C5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '24px', fontWeight: 700 }}>
+            {participant.userName.charAt(0).toUpperCase()}
+          </div>
+        </div>
+      )}
+      <div style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'rgba(0,0,0,0.5)', borderRadius: '8px', padding: '4px 10px', color: 'white', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        {participant.audioEnabled === false && <span>🔇</span>}
+        {participant.userName}
+        {!participant.stream && <span style={{ color: '#D97706' }}> · подключение...</span>}
+      </div>
+    </div>
+  );
+}

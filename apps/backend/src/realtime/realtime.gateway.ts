@@ -6,6 +6,8 @@ import {
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { PresenceService } from './presence.service';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
 
 interface CallRoom {
   roomId: string;
@@ -24,6 +26,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   constructor(
     private readonly jwt: JwtService,
     private readonly presence: PresenceService,
+    @InjectRedis() private readonly redis: Redis,
   ) {}
 
   async handleConnection(socket: Socket) {
@@ -108,11 +111,24 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   // ==================== ВИДЕОЗВОНКИ (WebRTC signaling) ====================
 
   @SubscribeMessage('call:join')
-  handleCallJoin(@ConnectedSocket() socket: Socket, @MessageBody() data: { roomId: string }) {
+  async handleCallJoin(@ConnectedSocket() socket: Socket, @MessageBody() data: { roomId: string }) {
     const user = this.socketToUser.get(socket.id);
     if (!user) return;
 
     const { roomId } = data;
+
+    // Проверяем что комната существует и принадлежит той же организации
+    const roomRaw = await this.redis.get('call:room:' + roomId);
+    if (!roomRaw) {
+      socket.emit('call:error', { message: 'Звонок не найден или истёк' });
+      return;
+    }
+    const roomMeta = JSON.parse(roomRaw);
+    if (roomMeta.orgId !== user.orgId) {
+      socket.emit('call:error', { message: 'У вас нет доступа к этому звонку' });
+      return;
+    }
+
     let room = this.callRooms.get(roomId);
 
     if (!room) {
