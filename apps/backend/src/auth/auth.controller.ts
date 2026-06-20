@@ -1,14 +1,17 @@
-import { Controller, Post, Get, Body, Req, Res, HttpCode, UnauthorizedException } from '@nestjs/common';
+import { Controller, Post, Get, Body, Req, Res, HttpCode, UnauthorizedException, Logger } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { AuthService }   from './auth.service';
 import { TokenService }  from './token.service';
 import { Public, CurrentUser } from './decorators/index';
+import { AuditService } from '../audit/audit.service';
 
 @Controller('api/v1/auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
   constructor(
     private readonly auth:   AuthService,
     private readonly tokens: TokenService,
+    private readonly audit:  AuditService,
   ) {}
 
   @Public()
@@ -21,8 +24,25 @@ export class AuthController {
   @Post('login')
   @HttpCode(200)
   async login(@Body() body: { email: string; password: string }, @Req() req: Request, @Res() res: Response) {
-    const result = await this.auth.login(body.email, body.password, req.ip, req.headers['user-agent']);
-    return res.json(result);
+    try {
+      const result = await this.auth.login(body.email, body.password, req.ip, req.headers['user-agent']);
+      this.audit.log({
+        orgId: result.user?.orgId,
+        userId: result.user?.id,
+        userName: result.user?.name ?? body.email,
+        action: 'login',
+        category: 'auth',
+        details: { email: body.email },
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'] as string,
+      });
+      return res.json(result);
+    } catch (e: any) {
+      const status = e?.status ?? 500;
+      const message = e?.message ?? 'Internal server error';
+      this.logger?.error?.('[login]', e);
+      return res.status(status).json({ error: true, message });
+    }
   }
 
   // Extension refresh — accepts expired access token
@@ -52,7 +72,17 @@ export class AuthController {
   async logout(@Req() req: Request, @Res() res: Response) {
     const user = (req as any).user;
     const token = req.headers.authorization?.slice(7) ?? '';
-    if (user) await this.auth.logout(user.id ?? user.sub, token);
+    if (user) {
+      await this.auth.logout(user.id ?? user.sub, token);
+      this.audit.log({
+        orgId: user.orgId,
+        userId: user.id ?? user.sub,
+        userName: user.name ?? user.email,
+        action: 'logout',
+        category: 'auth',
+        ipAddress: req.ip,
+      });
+    }
     return res.status(204).send();
   }
 

@@ -8,6 +8,7 @@ import { JwtService } from '@nestjs/jwt';
 import { PresenceService } from './presence.service';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
+import { AuditService } from '../audit/audit.service';
 
 interface CallRoom {
   roomId: string;
@@ -28,6 +29,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     private readonly jwt: JwtService,
     private readonly presence: PresenceService,
     @InjectRedis() private readonly redis: Redis,
+    private readonly audit: AuditService,
   ) {}
 
   async handleConnection(socket: Socket) {
@@ -248,6 +250,8 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     // Уведомляем удаляемого участника
     this.server.to(target.socketId).emit('call:kicked', { message: 'Вас удалил из звонка организатор' });
 
+    this.audit.log({ orgId: user.orgId, userId: user.userId, userName: user.userName, action: 'call.kick_participant', category: 'calls', details: { roomId: data.roomId, targetUserId: data.targetUserId, targetUserName: target.userName } });
+
     // Удаляем из комнаты
     room.participants.delete(data.targetUserId);
     this.server.to('call:' + data.roomId).emit('call:user-left', { userId: data.targetUserId });
@@ -268,6 +272,8 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       socket.emit('call:error', { message: 'Только организатор может завершить встречу для всех' });
       return;
     }
+
+    this.audit.log({ orgId: user.orgId, userId: user.userId, userName: user.userName, action: 'call.end_for_all', category: 'calls', details: { roomId: data.roomId, participantsCount: room.participants.size } });
 
     this.server.to('call:' + data.roomId).emit('call:ended', { message: 'Организатор завершил встречу' });
     room.participants.clear();

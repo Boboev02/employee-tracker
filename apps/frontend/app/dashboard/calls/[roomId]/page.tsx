@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
+import { useIsMobile } from '@/hooks/useIsMobile';
 // MediaPipe загружается динамически через CDN script тег (UMD-модуль, не поддерживает ES import)
 
 interface Participant {
@@ -35,6 +36,7 @@ type Stage = 'checking' | 'lobby' | 'call' | 'error';
 
 export default function CallRoomPage() {
   const router = useRouter();
+  const isMobile = useIsMobile(768);
   const params = useParams();
   const roomId = params.roomId as string;
 
@@ -967,10 +969,10 @@ export default function CallRoomPage() {
           </span>
         </div>
       )}
-      <div style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.03)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: statusColor, animation: networkStatus !== 'online' ? 'pulse 1.5s infinite' : undefined }} />
-          <span style={{ color: 'white', fontSize: '14px', fontWeight: 600 }}>
+      <div style={{ padding: isMobile ? '10px 12px' : '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.03)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, overflow: 'hidden' }}>
+          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: statusColor, animation: networkStatus !== 'online' ? 'pulse 1.5s infinite' : undefined, flexShrink: 0 }} />
+          <span style={{ color: 'white', fontSize: isMobile ? '12px' : '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {statusText}
           </span>
           {!connecting && networkStatus === 'online' && (
@@ -986,11 +988,13 @@ export default function CallRoomPage() {
           )}
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <button onClick={toggleFullscreen} style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', borderRadius: '10px', padding: '7px 14px', fontSize: '12px', cursor: 'pointer' }}>
-            {isFullscreen ? '⤓ Свернуть' : '⤢ На весь экран'}
-          </button>
-          <button onClick={copyLink} style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', borderRadius: '10px', padding: '7px 14px', fontSize: '12px', cursor: 'pointer' }}>
-            {copied ? '✓ Скопировано' : '🔗 Скопировать ссылку'}
+          {!isMobile && (
+            <button onClick={toggleFullscreen} style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', borderRadius: '10px', padding: '7px 14px', fontSize: '12px', cursor: 'pointer' }}>
+              {isFullscreen ? '⤓ Свернуть' : '⤢ На весь экран'}
+            </button>
+          )}
+          <button onClick={copyLink} style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', borderRadius: '10px', padding: isMobile ? '7px 10px' : '7px 14px', fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            {isMobile ? (copied ? '✓' : '🔗') : (copied ? '✓ Скопировано' : '🔗 Скопировать ссылку')}
           </button>
         </div>
       </div>
@@ -1004,7 +1008,7 @@ export default function CallRoomPage() {
                   <PinnedRemoteVideo participant={pinnedParticipant} isSpeaking={speakingUserId === pinnedParticipant.userId} onUnpin={() => togglePin(pinnedParticipant.userId)} />
                 )}
               </div>
-              <div style={{ width: '180px', display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto' }}>
+              <div style={{ width: isMobile ? '90px' : '180px', display: 'flex', flexDirection: 'column', gap: isMobile ? '6px' : '10px', overflowY: 'auto' }}>
                 {!pinnedIsSelf && (
                   <div style={{ aspectRatio: '16/9' }}>{renderSelfTile(false)}</div>
                 )}
@@ -1016,7 +1020,7 @@ export default function CallRoomPage() {
               </div>
             </div>
           ) : (
-            <div style={{ flex: 1, padding: '16px', display: 'grid', gridTemplateColumns: `repeat(${Math.min(Math.ceil(Math.sqrt(totalCount)), 4)}, 1fr)`, gap: '12px', alignContent: 'center' }}>
+            <div style={{ flex: 1, padding: isMobile ? '8px' : '16px', display: 'grid', gridTemplateColumns: `repeat(${isMobile ? Math.min(Math.ceil(Math.sqrt(totalCount)), 2) : Math.min(Math.ceil(Math.sqrt(totalCount)), 4)}, 1fr)`, gap: isMobile ? '6px' : '12px', alignContent: 'center' }}>
               <div style={{ aspectRatio: '16/9' }}>{renderSelfTile(false)}</div>
               {participantList.map(p => (
                 <RemoteVideo key={p.userId} participant={p} isSpeaking={speakingUserId === p.userId} onPin={() => togglePin(p.userId)} />
@@ -1024,27 +1028,45 @@ export default function CallRoomPage() {
             </div>
           )}
 
-          <div style={{ padding: '20px', display: 'flex', justifyContent: 'center', gap: '14px' }}>
-            <button onClick={toggleAudio} style={ctrlBtnStyle(audioOn)}>{audioOn ? '🎤' : '🔇'}</button>
-            <button onClick={toggleVideo} style={ctrlBtnStyle(videoOn)}>{videoOn ? '📹' : '📷'}</button>
-            <button onClick={toggleScreenShare} style={ctrlBtnStyle(!screenSharing, screenSharing ? '#7F77DD' : undefined)}>🖥️</button>
-            <button onClick={toggleBackgroundBlur} disabled={bgProcessing || screenSharing} title="Размыть фон"
-              style={{ ...ctrlBtnStyle(bgMode === 'none', bgMode === 'blur' ? '#7F77DD' : undefined), opacity: (bgProcessing || screenSharing) ? 0.5 : 1 }}>
-              {bgProcessing ? '⏳' : '🌫️'}
-            </button>
-            <button onClick={toggleHandRaise} style={ctrlBtnStyle(!handRaised, handRaised ? '#D97706' : undefined)}>✋</button>
-            <button onClick={() => openSidePanel('participants')} style={ctrlBtnStyle(sidePanel !== 'participants')}>
+          <div style={{ padding: isMobile ? '12px' : '20px', display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: isMobile ? '8px' : '14px' }}>
+            <button onClick={toggleAudio} style={ctrlBtnStyle(audioOn, undefined, isMobile ? 44 : 52)}>{audioOn ? '🎤' : '🔇'}</button>
+            <button onClick={toggleVideo} style={ctrlBtnStyle(videoOn, undefined, isMobile ? 44 : 52)}>{videoOn ? '📹' : '📷'}</button>
+            {!isMobile && (
+              <button onClick={toggleScreenShare} style={ctrlBtnStyle(!screenSharing, screenSharing ? '#7F77DD' : undefined)}>🖥️</button>
+            )}
+            {!isMobile && (
+              <button onClick={toggleBackgroundBlur} disabled={bgProcessing || screenSharing} title="Размыть фон"
+                style={{ ...ctrlBtnStyle(bgMode === 'none', bgMode === 'blur' ? '#7F77DD' : undefined), opacity: (bgProcessing || screenSharing) ? 0.5 : 1 }}>
+                {bgProcessing ? '⏳' : '🌫️'}
+              </button>
+            )}
+            <button onClick={toggleHandRaise} style={ctrlBtnStyle(!handRaised, handRaised ? '#D97706' : undefined, isMobile ? 44 : 52)}>✋</button>
+            <button onClick={() => openSidePanel('participants')} style={ctrlBtnStyle(sidePanel !== 'participants', undefined, isMobile ? 44 : 52)}>
               👥{participantList.length > 0 && <span style={badgeStyle}>{totalCount}</span>}
             </button>
-            <button onClick={() => openSidePanel('chat')} style={{ ...ctrlBtnStyle(sidePanel !== 'chat'), position: 'relative' }}>
+            <button onClick={() => openSidePanel('chat')} style={{ ...ctrlBtnStyle(sidePanel !== 'chat', undefined, isMobile ? 44 : 52), position: 'relative' }}>
               💬{unreadChat > 0 && <span style={{ ...badgeStyle, background: '#DC2626' }}>{unreadChat}</span>}
             </button>
-            <button onClick={leaveCall} style={{ width: '52px', height: '52px', borderRadius: '50%', background: '#DC2626', border: 'none', color: 'white', fontSize: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📞</button>
+            <button onClick={leaveCall} style={{ width: (isMobile ? 44 : 52) + 'px', height: (isMobile ? 44 : 52) + 'px', borderRadius: '50%', background: '#DC2626', border: 'none', color: 'white', fontSize: isMobile ? '16px' : '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>📞</button>
           </div>
+          {isMobile && (
+            <div style={{ padding: '0 12px 12px', display: 'flex', justifyContent: 'center', gap: '8px' }}>
+              <button onClick={toggleScreenShare} style={{ ...ctrlBtnStyle(!screenSharing, screenSharing ? '#7F77DD' : undefined, 40), borderRadius: '20px', width: 'auto', padding: '0 16px', fontSize: '13px' }}>
+                🖥️ Экран
+              </button>
+              <button onClick={toggleBackgroundBlur} disabled={bgProcessing || screenSharing}
+                style={{ ...ctrlBtnStyle(bgMode === 'none', bgMode === 'blur' ? '#7F77DD' : undefined, 40), borderRadius: '20px', width: 'auto', padding: '0 16px', fontSize: '13px', opacity: (bgProcessing || screenSharing) ? 0.5 : 1 }}>
+                {bgProcessing ? '⏳' : '🌫️'} Фон
+              </button>
+            </div>
+          )}
         </div>
 
         {sidePanel !== 'none' && (
-          <div style={{ width: '300px', background: 'rgba(255,255,255,0.03)', borderLeft: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column' }}>
+          <div style={isMobile ? {
+            position: 'fixed', inset: 0, zIndex: 50,
+            background: '#0F0A26', display: 'flex', flexDirection: 'column',
+          } : { width: '300px', background: 'rgba(255,255,255,0.03)', borderLeft: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ color: 'white', fontSize: '14px', fontWeight: 700 }}>
                 {sidePanel === 'participants' ? `Участники (${totalCount})` : 'Чат'}
@@ -1169,14 +1191,14 @@ function lobbyCtrlStyle(active: boolean) {
   } as React.CSSProperties;
 }
 
-function ctrlBtnStyle(active: boolean, activeColor?: string) {
+function ctrlBtnStyle(active: boolean, activeColor?: string, size: number = 52) {
   return {
-    width: '52px', height: '52px', borderRadius: '50%',
+    width: size + 'px', height: size + 'px', borderRadius: '50%',
     background: active ? 'rgba(255,255,255,0.1)' : '#DC2626',
     border: activeColor ? `2px solid ${activeColor}` : 'none',
-    color: 'white', fontSize: '20px', cursor: 'pointer',
+    color: 'white', fontSize: size <= 42 ? '16px' : '20px', cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    position: 'relative',
+    position: 'relative', flexShrink: 0,
   } as React.CSSProperties;
 }
 

@@ -24,6 +24,7 @@ const NAV = [
   { href: '/dashboard/calls',        icon: 'ti-video',            label: 'Видеозвонки',    admin: false },
   { href: '/dashboard/notebook', icon: 'ti-notebook', label: 'Мой блокнот', admin: false },
   { href: '/dashboard/settings',     icon: 'ti-settings',         label: 'Настройки',      admin: true  },
+  { href: '/dashboard/audit',        icon: 'ti-shield-lock',      label: 'Журнал действий', admin: true  },
 ];
 
 function timeAgo(dateStr: string) {

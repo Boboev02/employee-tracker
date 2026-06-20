@@ -323,3 +323,36 @@ model Note {
   @@index([userId, status])
   @@index([userId, isPinned])
 }
+
+model AuditLog {
+  id         String    @id @default(uuid())
+  orgId      String
+  userId     String?
+  userName   String?
+  action     String    // например "login", "task.create", "employee.delete"
+  category   String    // "auth", "tasks", "employees", "calls", "reviews", "settings"...
+  details    String?   @db.Text // JSON строка с деталями
+  ipAddress  String?
+  userAgent  String?   @db.Text
+  createdAt  DateTime  @default(now())
+
+  @@index([orgId, createdAt])
+  @@index([orgId, category])
+  @@index([orgId, userId])
+}
+
+model ErrorLog {
+  id          String    @id @default(uuid())
+  orgId       String?
+  userId      String?
+  endpoint    String?
+  method      String?
+  statusCode  Int?
+  message     String    @db.Text
+  stack       String?   @db.Text
+  body        String?   @db.Text
+  createdAt   DateTime  @default(now())
+
+  @@index([orgId, createdAt])
+  @@index([createdAt])
+}

@@ -3,10 +3,14 @@ import { CurrentUser } from '../auth/decorators/index';
 import { v4 as uuidv4 } from 'uuid';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
+import { AuditService } from '../audit/audit.service';
 
 @Controller('api/v1/calls')
 export class CallsController {
-  constructor(@InjectRedis() private readonly redis: Redis) {}
+  constructor(
+    @InjectRedis() private readonly redis: Redis,
+    private readonly audit: AuditService,
+  ) {}
 
   private roomKey(roomId: string) { return 'call:room:' + roomId; }
 
@@ -22,6 +26,7 @@ export class CallsController {
     };
     // Комната живёт 24 часа в Redis
     await this.redis.set(this.roomKey(roomId), JSON.stringify(room), 'EX', 60 * 60 * 24);
+    this.audit.log({ orgId: user.orgId, userId: user.sub, userName: user.name ?? user.email, action: 'call.create', category: 'calls', details: { roomId, title: room.title } });
     return { ...room, url: `/dashboard/calls/${roomId}` };
   }
 

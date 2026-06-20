@@ -2,11 +2,15 @@ import { Controller, Get, Post, Patch, Delete, Body, Param, Query, HttpCode, Use
 import { EmployeesService } from './employees.service';
 import { CurrentUser, RequirePermissions } from '../auth/decorators/index';
 import { RbacGuard } from '../auth/guards/index';
+import { AuditService } from '../audit/audit.service';
 
 @Controller('api/v1/employees')
 @UseGuards(RbacGuard)
 export class EmployeesController {
-  constructor(private readonly employees: EmployeesService) {}
+  constructor(
+    private readonly employees: EmployeesService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Get()
   @RequirePermissions('user:read:all', 'user:read:team')
@@ -23,8 +27,10 @@ export class EmployeesController {
 
   @Post('invite')
   @RequirePermissions('user:invite')
-  invite(@CurrentUser() user: any, @Body() body: any) {
-    return this.employees.invite(user.orgId, body);
+  async invite(@CurrentUser() user: any, @Body() body: any) {
+    const result = await this.employees.invite(user.orgId, body);
+    this.audit.log({ orgId: user.orgId, userId: user.id, userName: user.name, action: 'employee.invite', category: 'employees', details: { email: body.email, name: body.name } });
+    return result;
   }
 
   @Patch(':id/reset-password')
@@ -54,7 +60,9 @@ export class EmployeesController {
   @Delete(':id')
   @HttpCode(204)
   @RequirePermissions('user:delete')
-  delete(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.employees.delete(id, user.orgId, user.id);
+  async delete(@CurrentUser() user: any, @Param('id') id: string) {
+    const result = await this.employees.delete(id, user.orgId, user.id);
+    this.audit.log({ orgId: user.orgId, userId: user.id, userName: user.name, action: 'employee.delete', category: 'employees', details: { targetUserId: id } });
+    return result;
   }
 }
