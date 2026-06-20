@@ -66,6 +66,12 @@ export default function CallRoomPage() {
   const [speakingUserId, setSpeakingUserId] = useState<string | null>(null);
   const [mySpeaking, setMySpeaking] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [sidePanel, setSidePanel] = useState<'none' | 'participants' | 'chat'>('none');
+  const [chatMessages, setChatMessages] = useState<{ id: string; userId: string; userName: string; text: string; timestamp: number }[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [handRaised, setHandRaised] = useState(false);
+  const [raisedHands, setRaisedHands] = useState<Set<string>>(new Set());
+  const [unreadChat, setUnreadChat] = useState(0);
 
   const socketRef = useRef<Socket | null>(null);
   const lobbyVideoRef = useRef<HTMLVideoElement>(null);
@@ -80,6 +86,7 @@ export default function CallRoomPage() {
   const analysersRef = useRef<Map<string, { analyser: AnalyserNode; data: Uint8Array<ArrayBuffer> }>>(new Map());
   const speakingCheckIntervalRef = useRef<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   // ===== Шаг 1: Проверка доступа к комнате =====
   useEffect(() => {
@@ -417,6 +424,21 @@ export default function CallRoomPage() {
       });
     });
 
+    socket.on('call:chat-message', (msg: { id: string; userId: string; userName: string; text: string; timestamp: number }) => {
+      setChatMessages(prev => [...prev, msg]);
+      if (msg.userId !== userId) {
+        setUnreadChat(prev => prev + 1);
+      }
+    });
+
+    socket.on('call:hand-raised', (data: { userId: string; raised: boolean }) => {
+      setRaisedHands(prev => {
+        const next = new Set(prev);
+        if (data.raised) next.add(data.userId); else next.delete(data.userId);
+        return next;
+      });
+    });
+
     socket.io.on('reconnect', () => { socket.emit('call:join', { roomId }); });
 
     setTimeout(() => setConnecting(false), 5000);
@@ -482,6 +504,29 @@ export default function CallRoomPage() {
     document.addEventListener('fullscreenchange', handler);
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
+
+  const sendChatMessage = () => {
+    if (!chatInput.trim() || !socketRef.current) return;
+    socketRef.current.emit('call:chat-message', { roomId, text: chatInput.trim() });
+    setChatInput('');
+  };
+
+  const toggleHandRaise = () => {
+    const raised = !handRaised;
+    setHandRaised(raised);
+    socketRef.current?.emit('call:hand-raise', { roomId, raised });
+  };
+
+  const openSidePanel = (panel: 'participants' | 'chat') => {
+    setSidePanel(prev => prev === panel ? 'none' : panel);
+    if (panel === 'chat') setUnreadChat(0);
+  };
+
+  useEffect(() => {
+    if (sidePanel === 'chat') {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatMessages, sidePanel]);
 
   const leaveCall = () => {
     cleanup();
@@ -633,45 +678,126 @@ export default function CallRoomPage() {
         </div>
       </div>
 
-      {hasPinned ? (
-        // === Раскладка с закреплённым участником ===
-        <div style={{ flex: 1, padding: '16px', display: 'flex', gap: '12px', minHeight: 0 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            {pinnedIsSelf ? renderSelfTile(true) : pinnedParticipant && (
-              <PinnedRemoteVideo participant={pinnedParticipant} isSpeaking={speakingUserId === pinnedParticipant.userId} onUnpin={() => togglePin(pinnedParticipant.userId)} />
-            )}
-          </div>
-          {/* Полоска маленьких превью остальных участников */}
-          <div style={{ width: '180px', display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto' }}>
-            {!pinnedIsSelf && (
-              <div style={{ aspectRatio: '16/9' }}>{renderSelfTile(false)}</div>
-            )}
-            {participantList.filter(p => p.userId !== pinnedUserId).map(p => (
-              <div key={p.userId} style={{ aspectRatio: '16/9' }}>
-                <RemoteVideo participant={p} isSpeaking={speakingUserId === p.userId} onPin={() => togglePin(p.userId)} />
+      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          {hasPinned ? (
+            <div style={{ flex: 1, padding: '16px', display: 'flex', gap: '12px', minHeight: 0 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {pinnedIsSelf ? renderSelfTile(true) : pinnedParticipant && (
+                  <PinnedRemoteVideo participant={pinnedParticipant} isSpeaking={speakingUserId === pinnedParticipant.userId} onUnpin={() => togglePin(pinnedParticipant.userId)} />
+                )}
               </div>
-            ))}
+              <div style={{ width: '180px', display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto' }}>
+                {!pinnedIsSelf && (
+                  <div style={{ aspectRatio: '16/9' }}>{renderSelfTile(false)}</div>
+                )}
+                {participantList.filter(p => p.userId !== pinnedUserId).map(p => (
+                  <div key={p.userId} style={{ aspectRatio: '16/9' }}>
+                    <RemoteVideo participant={p} isSpeaking={speakingUserId === p.userId} onPin={() => togglePin(p.userId)} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div style={{ flex: 1, padding: '16px', display: 'grid', gridTemplateColumns: `repeat(${Math.min(Math.ceil(Math.sqrt(totalCount)), 4)}, 1fr)`, gap: '12px', alignContent: 'center' }}>
+              <div style={{ aspectRatio: '16/9' }}>{renderSelfTile(false)}</div>
+              {participantList.map(p => (
+                <RemoteVideo key={p.userId} participant={p} isSpeaking={speakingUserId === p.userId} onPin={() => togglePin(p.userId)} />
+              ))}
+            </div>
+          )}
+
+          <div style={{ padding: '20px', display: 'flex', justifyContent: 'center', gap: '14px' }}>
+            <button onClick={toggleAudio} style={ctrlBtnStyle(audioOn)}>{audioOn ? '🎤' : '🔇'}</button>
+            <button onClick={toggleVideo} style={ctrlBtnStyle(videoOn)}>{videoOn ? '📹' : '📷'}</button>
+            <button onClick={toggleScreenShare} style={ctrlBtnStyle(!screenSharing, screenSharing ? '#7F77DD' : undefined)}>🖥️</button>
+            <button onClick={toggleHandRaise} style={ctrlBtnStyle(!handRaised, handRaised ? '#D97706' : undefined)}>✋</button>
+            <button onClick={() => openSidePanel('participants')} style={ctrlBtnStyle(sidePanel !== 'participants')}>
+              👥{participantList.length > 0 && <span style={badgeStyle}>{totalCount}</span>}
+            </button>
+            <button onClick={() => openSidePanel('chat')} style={{ ...ctrlBtnStyle(sidePanel !== 'chat'), position: 'relative' }}>
+              💬{unreadChat > 0 && <span style={{ ...badgeStyle, background: '#DC2626' }}>{unreadChat}</span>}
+            </button>
+            <button onClick={leaveCall} style={{ width: '52px', height: '52px', borderRadius: '50%', background: '#DC2626', border: 'none', color: 'white', fontSize: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📞</button>
           </div>
         </div>
-      ) : (
-        // === Обычная сетка ===
-        <div style={{ flex: 1, padding: '16px', display: 'grid', gridTemplateColumns: `repeat(${Math.min(Math.ceil(Math.sqrt(totalCount)), 4)}, 1fr)`, gap: '12px', alignContent: 'center' }}>
-          <div style={{ aspectRatio: '16/9' }}>{renderSelfTile(false)}</div>
-          {participantList.map(p => (
-            <RemoteVideo key={p.userId} participant={p} isSpeaking={speakingUserId === p.userId} onPin={() => togglePin(p.userId)} />
-          ))}
-        </div>
-      )}
 
-      <div style={{ padding: '20px', display: 'flex', justifyContent: 'center', gap: '14px' }}>
-        <button onClick={toggleAudio} style={ctrlBtnStyle(audioOn)}>{audioOn ? '🎤' : '🔇'}</button>
-        <button onClick={toggleVideo} style={ctrlBtnStyle(videoOn)}>{videoOn ? '📹' : '📷'}</button>
-        <button onClick={toggleScreenShare} style={ctrlBtnStyle(!screenSharing, screenSharing ? '#7F77DD' : undefined)}>🖥️</button>
-        <button onClick={leaveCall} style={{ width: '52px', height: '52px', borderRadius: '50%', background: '#DC2626', border: 'none', color: 'white', fontSize: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📞</button>
+        {sidePanel !== 'none' && (
+          <div style={{ width: '300px', background: 'rgba(255,255,255,0.03)', borderLeft: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ color: 'white', fontSize: '14px', fontWeight: 700 }}>
+                {sidePanel === 'participants' ? `Участники (${totalCount})` : 'Чат'}
+              </span>
+              <button onClick={() => setSidePanel('none')} style={{ background: 'none', border: 'none', color: '#9B97CC', fontSize: '18px', cursor: 'pointer' }}>✕</button>
+            </div>
+
+            {sidePanel === 'participants' && (
+              <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 8px', borderRadius: '10px' }}>
+                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#7F77DD', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '13px', fontWeight: 700 }}>
+                    {myUserName.charAt(0).toUpperCase()}
+                  </div>
+                  <span style={{ color: 'white', fontSize: '13px', flex: 1 }}>{myUserName} (вы)</span>
+                  {handRaised && <span>✋</span>}
+                  {!audioOn && <span style={{ color: '#9B97CC' }}>🔇</span>}
+                </div>
+                {participantList.map(p => (
+                  <div key={p.userId} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 8px', borderRadius: '10px' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#5248C5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '13px', fontWeight: 700 }}>
+                      {p.userName.charAt(0).toUpperCase()}
+                    </div>
+                    <span style={{ color: 'white', fontSize: '13px', flex: 1 }}>{p.userName}</span>
+                    {raisedHands.has(p.userId) && <span>✋</span>}
+                    {p.audioEnabled === false && <span style={{ color: '#9B97CC' }}>🔇</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {sidePanel === 'chat' && (
+              <>
+                <div style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {chatMessages.length === 0 && (
+                    <p style={{ color: '#9B97CC', fontSize: '12px', textAlign: 'center', marginTop: '20px' }}>Сообщений пока нет</p>
+                  )}
+                  {chatMessages.map(msg => {
+                    const isMe = msg.userId === myUserIdRef.current;
+                    return (
+                      <div key={msg.id} style={{ alignSelf: isMe ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
+                        {!isMe && <div style={{ fontSize: '11px', color: '#9B97CC', marginBottom: '2px' }}>{msg.userName}</div>}
+                        <div style={{ background: isMe ? '#7F77DD' : 'rgba(255,255,255,0.08)', color: 'white', borderRadius: '12px', padding: '8px 12px', fontSize: '13px', wordBreak: 'break-word' }}>
+                          {msg.text}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div ref={chatEndRef} />
+                </div>
+                <div style={{ padding: '12px', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', gap: '8px' }}>
+                  <input
+                    value={chatInput}
+                    onChange={e => setChatInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && sendChatMessage()}
+                    placeholder="Написать сообщение..."
+                    style={{ flex: 1, background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: '10px', padding: '9px 12px', fontSize: '13px', color: 'white', outline: 'none' }}
+                  />
+                  <button onClick={sendChatMessage} style={{ background: '#7F77DD', border: 'none', borderRadius: '10px', padding: '9px 14px', color: 'white', cursor: 'pointer', fontSize: '13px' }}>→</button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
 }
+
+const badgeStyle: React.CSSProperties = {
+  position: 'absolute', top: '-4px', right: '-4px',
+  background: '#7F77DD', color: 'white', borderRadius: '10px',
+  fontSize: '10px', fontWeight: 700, minWidth: '18px', height: '18px',
+  display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px',
+};
 
 const unpinBtnStyle: React.CSSProperties = {
   position: 'absolute', top: '10px', right: '10px',
@@ -696,6 +822,7 @@ function ctrlBtnStyle(active: boolean, activeColor?: string) {
     border: activeColor ? `2px solid ${activeColor}` : 'none',
     color: 'white', fontSize: '20px', cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
+    position: 'relative',
   } as React.CSSProperties;
 }
 

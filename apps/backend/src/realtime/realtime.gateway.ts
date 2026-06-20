@@ -196,4 +196,30 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   handleToggleMedia(@ConnectedSocket() socket: Socket, @MessageBody() data: { roomId: string; userId: string; kind: 'audio' | 'video' | 'screen'; enabled: boolean }) {
     socket.to('call:' + data.roomId).emit('call:media-toggled', data);
   }
+
+  // Текстовый чат во время звонка
+  @SubscribeMessage('call:chat-message')
+  handleChatMessage(@ConnectedSocket() socket: Socket, @MessageBody() data: { roomId: string; text: string }) {
+    const user = this.socketToUser.get(socket.id);
+    if (!user) return;
+
+    const message = {
+      id: Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+      userId: user.userId,
+      userName: user.userName ?? 'User',
+      text: data.text.slice(0, 1000), // лимит длины сообщения
+      timestamp: Date.now(),
+    };
+
+    // Отправляем всем в комнате включая отправителя (для подтверждения доставки)
+    this.server.to('call:' + data.roomId).emit('call:chat-message', message);
+  }
+
+  // Поднятие руки
+  @SubscribeMessage('call:hand-raise')
+  handleHandRaise(@ConnectedSocket() socket: Socket, @MessageBody() data: { roomId: string; raised: boolean }) {
+    const user = this.socketToUser.get(socket.id);
+    if (!user) return;
+    socket.to('call:' + data.roomId).emit('call:hand-raised', { userId: user.userId, raised: data.raised });
+  }
 }
