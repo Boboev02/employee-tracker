@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
+// MediaPipe загружается динамически через CDN script тег (UMD-модуль, не поддерживает ES import)
 
 interface Participant {
   userId: string;
@@ -79,6 +80,8 @@ export default function CallRoomPage() {
   const [roomLocked, setRoomLocked] = useState(false);
   const [forceMuted, setForceMuted] = useState(false);
   const [connectionQuality, setConnectionQuality] = useState<'good' | 'medium' | 'poor'>('good');
+  const [bgMode, setBgMode] = useState<'none' | 'blur'>('none');
+  const [bgProcessing, setBgProcessing] = useState(false);
 
   const socketRef = useRef<Socket | null>(null);
   const lobbyVideoRef = useRef<HTMLVideoElement>(null);
@@ -94,6 +97,12 @@ export default function CallRoomPage() {
   const speakingCheckIntervalRef = useRef<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const segmenterRef = useRef<any>(null);
+  const bgCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const bgVideoElRef = useRef<HTMLVideoElement | null>(null);
+  const bgRafRef = useRef<number | null>(null);
+  const originalCamTrackRef = useRef<MediaStreamTrack | null>(null);
+  const bgCanvasStreamRef = useRef<MediaStream | null>(null);
 
   // ===== Шаг 1: Проверка доступа к комнате =====
   useEffect(() => {
@@ -223,6 +232,10 @@ export default function CallRoomPage() {
   };
 
   const cleanup = () => {
+    if (bgRafRef.current) cancelAnimationFrame(bgRafRef.current);
+    segmenterRef.current?.close();
+    bgCanvasStreamRef.current?.getTracks().forEach(t => t.stop());
+    originalCamTrackRef.current?.stop();
     localStreamRef.current?.getTracks().forEach(t => t.stop());
     lobbyStream?.getTracks().forEach(t => t.stop());
     screenStreamRef.current?.getTracks().forEach(t => t.stop());
@@ -638,6 +651,140 @@ export default function CallRoomPage() {
     return () => clearInterval(interval);
   }, [stage]);
 
+  // ===== Виртуальный фон (блюр) через MediaPipe Selfie Segmentation =====
+  const loadMediaPipeScript = (): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      if ((window as any).SelfieSegmentation) {
+        resolve((window as any).SelfieSegmentation);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js';
+      script.crossOrigin = 'anonymous';
+      script.onload = () => {
+        if ((window as any).SelfieSegmentation) resolve((window as any).SelfieSegmentation);
+        else reject(new Error('SelfieSegmentation not found on window after script load'));
+      };
+      script.onerror = () => reject(new Error('Failed to load MediaPipe script'));
+      document.head.appendChild(script);
+    });
+  };
+
+  const stopBackgroundBlur = useCallback(() => {
+    if (bgRafRef.current) { cancelAnimationFrame(bgRafRef.current); bgRafRef.current = null; }
+    segmenterRef.current?.close();
+    segmenterRef.current = null;
+    bgCanvasStreamRef.current?.getTracks().forEach(t => t.stop());
+    bgCanvasStreamRef.current = null;
+
+    // Возвращаем оригинальный видеотрек камеры во все peer connections и в превью
+    if (originalCamTrackRef.current && localStreamRef.current) {
+      const oldTrack = localStreamRef.current.getVideoTracks()[0];
+      if (oldTrack && oldTrack !== originalCamTrackRef.current) {
+        localStreamRef.current.removeTrack(oldTrack);
+        oldTrack.stop();
+      }
+      if (!localStreamRef.current.getVideoTracks().includes(originalCamTrackRef.current)) {
+        localStreamRef.current.addTrack(originalCamTrackRef.current);
+      }
+      if (localVideoRef.current) localVideoRef.current.srcObject = localStreamRef.current;
+      peersRef.current.forEach(pc => {
+        const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+        sender?.replaceTrack(originalCamTrackRef.current!);
+      });
+    }
+  }, []);
+
+  const startBackgroundBlur = useCallback(async () => {
+    if (!localStreamRef.current) return;
+    setBgProcessing(true);
+    try {
+      const camTrack = localStreamRef.current.getVideoTracks()[0];
+      if (!camTrack) return;
+      if (!originalCamTrackRef.current) originalCamTrackRef.current = camTrack;
+
+      // Скрытый video элемент — источник кадров для MediaPipe
+      const videoEl = document.createElement('video');
+      videoEl.srcObject = new MediaStream([originalCamTrackRef.current]);
+      videoEl.muted = true;
+      videoEl.playsInline = true;
+      await videoEl.play();
+      bgVideoElRef.current = videoEl;
+
+      const settings = originalCamTrackRef.current.getSettings();
+      const width = settings.width ?? 1280;
+      const height = settings.height ?? 720;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d')!;
+      bgCanvasRef.current = canvas;
+
+      const SelfieSegmentationClass = await loadMediaPipeScript();
+      const segmenter = new SelfieSegmentationClass({
+        locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`,
+      });
+      segmenter.setOptions({ modelSelection: 1 });
+
+      segmenter.onResults((results: any) => {
+        ctx.save();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // Рисуем маску сегментации (человек = непрозрачный)
+        ctx.drawImage(results.segmentationMask, 0, 0, canvas.width, canvas.height);
+
+        // Composite: оставляем только область человека из исходного видео
+        ctx.globalCompositeOperation = 'source-in';
+        ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+
+        // Рисуем блюрнутый фон позади человека
+        ctx.globalCompositeOperation = 'destination-over';
+        ctx.filter = 'blur(12px)';
+        ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+        ctx.filter = 'none';
+        ctx.restore();
+      });
+      segmenterRef.current = segmenter;
+
+      const processFrame = async () => {
+        if (!segmenterRef.current || !bgVideoElRef.current) return;
+        await segmenter.send({ image: bgVideoElRef.current });
+        bgRafRef.current = requestAnimationFrame(processFrame);
+      };
+      processFrame();
+
+      // Создаём поток из canvas и заменяем трек камеры на него
+      await new Promise(r => setTimeout(r, 300)); // даём время на первые кадры
+      const canvasStream = canvas.captureStream(30);
+      bgCanvasStreamRef.current = canvasStream;
+      const blurredTrack = canvasStream.getVideoTracks()[0];
+
+      localStreamRef.current.removeTrack(camTrack);
+      localStreamRef.current.addTrack(blurredTrack);
+      if (localVideoRef.current) localVideoRef.current.srcObject = localStreamRef.current;
+
+      peersRef.current.forEach(pc => {
+        const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+        sender?.replaceTrack(blurredTrack);
+      });
+    } catch (e) {
+      console.warn('Background blur failed', e);
+      setBgMode('none');
+    } finally {
+      setBgProcessing(false);
+    }
+  }, []);
+
+  const toggleBackgroundBlur = () => {
+    if (bgMode === 'blur') {
+      stopBackgroundBlur();
+      setBgMode('none');
+    } else {
+      setBgMode('blur');
+      startBackgroundBlur();
+    }
+  };
+
   const sendChatMessage = () => {
     if (!chatInput.trim() || !socketRef.current) return;
     socketRef.current.emit('call:chat-message', { roomId, text: chatInput.trim() });
@@ -881,6 +1028,10 @@ export default function CallRoomPage() {
             <button onClick={toggleAudio} style={ctrlBtnStyle(audioOn)}>{audioOn ? '🎤' : '🔇'}</button>
             <button onClick={toggleVideo} style={ctrlBtnStyle(videoOn)}>{videoOn ? '📹' : '📷'}</button>
             <button onClick={toggleScreenShare} style={ctrlBtnStyle(!screenSharing, screenSharing ? '#7F77DD' : undefined)}>🖥️</button>
+            <button onClick={toggleBackgroundBlur} disabled={bgProcessing || screenSharing} title="Размыть фон"
+              style={{ ...ctrlBtnStyle(bgMode === 'none', bgMode === 'blur' ? '#7F77DD' : undefined), opacity: (bgProcessing || screenSharing) ? 0.5 : 1 }}>
+              {bgProcessing ? '⏳' : '🌫️'}
+            </button>
             <button onClick={toggleHandRaise} style={ctrlBtnStyle(!handRaised, handRaised ? '#D97706' : undefined)}>✋</button>
             <button onClick={() => openSidePanel('participants')} style={ctrlBtnStyle(sidePanel !== 'participants')}>
               👥{participantList.length > 0 && <span style={badgeStyle}>{totalCount}</span>}
