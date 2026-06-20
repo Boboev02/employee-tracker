@@ -148,8 +148,8 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     room.participants.set(user.userId, { userId: user.userId, userName: user.userName ?? 'User', socketId: socket.id });
     socket.join('call:' + roomId);
 
-    // Отправляем новому участнику список уже подключённых
-    socket.emit('call:participants', { participants: existingParticipants });
+    // Отправляем новому участнику список уже подключённых + кто организатор
+    socket.emit('call:participants', { participants: existingParticipants, hostUserId: room.createdBy });
 
     // Уведомляем остальных о новом участнике
     socket.to('call:' + roomId).emit('call:user-joined', {
@@ -221,5 +221,49 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     const user = this.socketToUser.get(socket.id);
     if (!user) return;
     socket.to('call:' + data.roomId).emit('call:hand-raised', { userId: user.userId, raised: data.raised });
+  }
+
+  // Организатор удаляет участника из звонка
+  @SubscribeMessage('call:kick')
+  handleKick(@ConnectedSocket() socket: Socket, @MessageBody() data: { roomId: string; targetUserId: string }) {
+    const user = this.socketToUser.get(socket.id);
+    if (!user) return;
+
+    const room = this.callRooms.get(data.roomId);
+    if (!room || room.createdBy !== user.userId) {
+      socket.emit('call:error', { message: 'Только организатор может удалять участников' });
+      return;
+    }
+
+    const target = room.participants.get(data.targetUserId);
+    if (!target) return;
+
+    // Уведомляем удаляемого участника
+    this.server.to(target.socketId).emit('call:kicked', { message: 'Вас удалил из звонка организатор' });
+
+    // Удаляем из комнаты
+    room.participants.delete(data.targetUserId);
+    this.server.to('call:' + data.roomId).emit('call:user-left', { userId: data.targetUserId });
+
+    // Отключаем сокет от комнаты
+    const targetSocket = this.server.sockets.sockets.get(target.socketId);
+    targetSocket?.leave('call:' + data.roomId);
+  }
+
+  // Организатор завершает встречу для всех
+  @SubscribeMessage('call:end-for-all')
+  handleEndForAll(@ConnectedSocket() socket: Socket, @MessageBody() data: { roomId: string }) {
+    const user = this.socketToUser.get(socket.id);
+    if (!user) return;
+
+    const room = this.callRooms.get(data.roomId);
+    if (!room || room.createdBy !== user.userId) {
+      socket.emit('call:error', { message: 'Только организатор может завершить встречу для всех' });
+      return;
+    }
+
+    this.server.to('call:' + data.roomId).emit('call:ended', { message: 'Организатор завершил встречу' });
+    room.participants.clear();
+    this.callRooms.delete(data.roomId);
   }
 }

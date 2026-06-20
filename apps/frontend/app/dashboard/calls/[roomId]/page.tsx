@@ -72,6 +72,8 @@ export default function CallRoomPage() {
   const [handRaised, setHandRaised] = useState(false);
   const [raisedHands, setRaisedHands] = useState<Set<string>>(new Set());
   const [unreadChat, setUnreadChat] = useState(0);
+  const [hostUserId, setHostUserId] = useState<string | null>(null);
+  const [kickedMessage, setKickedMessage] = useState('');
 
   const socketRef = useRef<Socket | null>(null);
   const lobbyVideoRef = useRef<HTMLVideoElement>(null);
@@ -347,8 +349,10 @@ export default function CallRoomPage() {
       setStage('error');
     });
 
-    socket.on('call:participants', async (data: { participants: any[] }) => {
+    socket.on('call:participants', async (data: { participants: any[]; hostUserId?: string }) => {
       setConnecting(false);
+      if (data.hostUserId) setHostUserId(data.hostUserId);
+      if (!data.hostUserId) setHostUserId(userId); // если участников не было — я создал, я и хост
       for (const p of data.participants) {
         setParticipants(prev => {
           const next = new Map(prev);
@@ -439,6 +443,16 @@ export default function CallRoomPage() {
       });
     });
 
+    socket.on('call:kicked', (data: { message: string }) => {
+      setKickedMessage(data.message);
+      cleanup();
+    });
+
+    socket.on('call:ended', (data: { message: string }) => {
+      setKickedMessage(data.message);
+      cleanup();
+    });
+
     socket.io.on('reconnect', () => { socket.emit('call:join', { roomId }); });
 
     setTimeout(() => setConnecting(false), 5000);
@@ -505,6 +519,18 @@ export default function CallRoomPage() {
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
 
+  const isHost = hostUserId === myUserIdRef.current;
+
+  const kickParticipant = (targetUserId: string) => {
+    if (!confirm('Удалить участника из звонка?')) return;
+    socketRef.current?.emit('call:kick', { roomId, targetUserId });
+  };
+
+  const endCallForAll = () => {
+    if (!confirm('Завершить встречу для всех участников?')) return;
+    socketRef.current?.emit('call:end-for-all', { roomId });
+  };
+
   const sendChatMessage = () => {
     if (!chatInput.trim() || !socketRef.current) return;
     socketRef.current.emit('call:chat-message', { roomId, text: chatInput.trim() });
@@ -545,6 +571,18 @@ export default function CallRoomPage() {
     return (
       <div style={{ minHeight: '100vh', background: '#0F0A26', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ color: '#9B97CC', fontSize: '14px' }}>Проверка доступа...</div>
+      </div>
+    );
+  }
+
+  if (kickedMessage) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#1a1040', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ fontSize: '48px' }}>👋</div>
+        <p style={{ color: 'white', fontSize: '16px', textAlign: 'center', maxWidth: '400px' }}>{kickedMessage}</p>
+        <button onClick={() => router.push('/dashboard')} style={{ background: '#7F77DD', color: 'white', border: 'none', borderRadius: '12px', padding: '10px 24px', fontSize: '14px', fontWeight: 700, cursor: 'pointer' }}>
+          Вернуться в дашборд
+        </button>
       </div>
     );
   }
@@ -737,7 +775,7 @@ export default function CallRoomPage() {
                   <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#7F77DD', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '13px', fontWeight: 700 }}>
                     {myUserName.charAt(0).toUpperCase()}
                   </div>
-                  <span style={{ color: 'white', fontSize: '13px', flex: 1 }}>{myUserName} (вы)</span>
+                  <span style={{ color: 'white', fontSize: '13px', flex: 1 }}>{myUserName} (вы) {isHost && '👑'}</span>
                   {handRaised && <span>✋</span>}
                   {!audioOn && <span style={{ color: '#9B97CC' }}>🔇</span>}
                 </div>
@@ -746,11 +784,22 @@ export default function CallRoomPage() {
                     <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#5248C5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '13px', fontWeight: 700 }}>
                       {p.userName.charAt(0).toUpperCase()}
                     </div>
-                    <span style={{ color: 'white', fontSize: '13px', flex: 1 }}>{p.userName}</span>
+                    <span style={{ color: 'white', fontSize: '13px', flex: 1 }}>{p.userName} {hostUserId === p.userId && '👑'}</span>
                     {raisedHands.has(p.userId) && <span>✋</span>}
                     {p.audioEnabled === false && <span style={{ color: '#9B97CC' }}>🔇</span>}
+                    {isHost && hostUserId !== p.userId && (
+                      <button onClick={() => kickParticipant(p.userId)} title="Удалить из звонка"
+                        style={{ background: 'rgba(220,38,38,0.15)', border: 'none', borderRadius: '6px', padding: '4px 8px', color: '#DC2626', fontSize: '11px', cursor: 'pointer' }}>
+                        ✕
+                      </button>
+                    )}
                   </div>
                 ))}
+                {isHost && (
+                  <button onClick={endCallForAll} style={{ width: '100%', marginTop: '16px', background: 'rgba(220,38,38,0.15)', border: '1px solid rgba(220,38,38,0.4)', borderRadius: '10px', padding: '10px', color: '#FCA5A5', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}>
+                    Завершить встречу для всех
+                  </button>
+                )}
               </div>
             )}
 
