@@ -62,6 +62,10 @@ export default function CallRoomPage() {
   const [videoOn, setVideoOn] = useState(true);
   const [screenSharing, setScreenSharing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [pinnedUserId, setPinnedUserId] = useState<string | null>(null); // null = я сам не запинен, 'self' = я запинен
+  const [speakingUserId, setSpeakingUserId] = useState<string | null>(null);
+  const [mySpeaking, setMySpeaking] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const socketRef = useRef<Socket | null>(null);
   const lobbyVideoRef = useRef<HTMLVideoElement>(null);
@@ -72,6 +76,10 @@ export default function CallRoomPage() {
   const screenStreamRef = useRef<MediaStream | null>(null);
   const myUserIdRef = useRef('');
   const tokenRef = useRef('');
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analysersRef = useRef<Map<string, { analyser: AnalyserNode; data: Uint8Array<ArrayBuffer> }>>(new Map());
+  const speakingCheckIntervalRef = useRef<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // ===== Шаг 1: Проверка доступа к комнате =====
   useEffect(() => {
@@ -195,6 +203,7 @@ export default function CallRoomPage() {
     setStage('call');
     setTimeout(() => {
       if (localVideoRef.current) localVideoRef.current.srcObject = lobbyStream;
+      setupAudioAnalysis(lobbyStream, 'self');
       connectSocket(tokenRef.current, myUserIdRef.current, myUserName);
     }, 50);
   };
@@ -244,6 +253,7 @@ export default function CallRoomPage() {
         if (p) next.set(targetUserId, { ...p, stream: incomingStream });
         return next;
       });
+      setupAudioAnalysis(incomingStream, targetUserId);
     };
 
     pc.onconnectionstatechange = () => {
@@ -252,6 +262,58 @@ export default function CallRoomPage() {
 
     peersRef.current.set(targetSocketId, pc);
     return pc;
+  }, []);
+
+  // Анализ уровня звука для определения "кто говорит"
+  const setupAudioAnalysis = useCallback((stream: MediaStream, key: string) => {
+    if (!stream.getAudioTracks().length) return;
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new AudioContext();
+      }
+      const ctx = audioContextRef.current;
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.6;
+      source.connect(analyser);
+      const data = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount));
+      analysersRef.current.set(key, { analyser, data });
+    } catch (e) {
+      console.warn('Audio analysis setup failed', e);
+    }
+  }, []);
+
+  // Периодически проверяем у кого громче звук — определяем "говорящего"
+  useEffect(() => {
+    speakingCheckIntervalRef.current = window.setInterval(() => {
+      let maxVolume = 0;
+      let maxKey: string | null = null;
+      const SPEAKING_THRESHOLD = 18;
+
+      analysersRef.current.forEach(({ analyser, data }, key) => {
+        analyser.getByteFrequencyData(data);
+        const avg = data.reduce((a, b) => a + b, 0) / data.length;
+        if (avg > maxVolume) { maxVolume = avg; maxKey = key; }
+      });
+
+      if (maxVolume > SPEAKING_THRESHOLD && maxKey) {
+        if (maxKey === 'self') {
+          setMySpeaking(true);
+          setSpeakingUserId(null);
+        } else {
+          setMySpeaking(false);
+          setSpeakingUserId(maxKey);
+        }
+      } else {
+        setMySpeaking(false);
+        setSpeakingUserId(null);
+      }
+    }, 400);
+
+    return () => {
+      if (speakingCheckIntervalRef.current) window.clearInterval(speakingCheckIntervalRef.current);
+    };
   }, []);
 
   const flushPendingCandidates = async (socketId: string, pc: RTCPeerConnection) => {
@@ -313,6 +375,8 @@ export default function CallRoomPage() {
         next.delete(data.userId);
         return next;
       });
+      analysersRef.current.delete(data.userId);
+      if (pinnedUserId === data.userId) setPinnedUserId(null);
     });
 
     socket.on('call:signal', async (data: { signal: any; fromUserId: string; fromSocketId: string }) => {
@@ -400,6 +464,24 @@ export default function CallRoomPage() {
       } catch {}
     }
   };
+
+  const togglePin = (userId: string | null) => {
+    setPinnedUserId(prev => prev === userId ? null : userId);
+  };
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen?.().then(() => setIsFullscreen(true)).catch(() => {});
+    } else {
+      document.exitFullscreen?.().then(() => setIsFullscreen(false)).catch(() => {});
+    }
+  };
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
 
   const leaveCall = () => {
     cleanup();
@@ -498,8 +580,42 @@ export default function CallRoomPage() {
   const participantList = Array.from(participants.values());
   const totalCount = participantList.length + 1;
 
+  // Кто закреплён? 'self' — я, userId — конкретный участник, null — никто (обычная сетка)
+  const pinnedIsSelf = pinnedUserId === 'self';
+  const pinnedParticipant = pinnedUserId && pinnedUserId !== 'self' ? participants.get(pinnedUserId) : null;
+  const hasPinned = pinnedIsSelf || !!pinnedParticipant;
+
+  const renderSelfTile = (big: boolean) => (
+    <div
+      onClick={() => togglePin('self')}
+      style={{
+        position: 'relative', background: '#1a1040', borderRadius: '16px', overflow: 'hidden',
+        width: '100%', height: '100%',
+        cursor: 'pointer',
+        border: mySpeaking ? '3px solid #16A34A' : '3px solid transparent',
+        transition: 'border-color 0.15s',
+      }}
+    >
+      <video ref={localVideoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: big ? 'contain' : 'cover', transform: 'scaleX(-1)' }} />
+      {!videoOn && (
+        <div style={{ position: 'absolute', inset: 0, background: '#1a1040', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: big ? '96px' : '64px', height: big ? '96px' : '64px', borderRadius: '50%', background: '#7F77DD', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: big ? '36px' : '24px', fontWeight: 700 }}>
+            {myUserName.charAt(0).toUpperCase()}
+          </div>
+        </div>
+      )}
+      <div style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'rgba(0,0,0,0.5)', borderRadius: '8px', padding: '4px 10px', color: 'white', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        {!audioOn && <span>🔇</span>}
+        {myUserName} (вы)
+      </div>
+      {big && (
+        <button onClick={(e) => { e.stopPropagation(); togglePin('self'); }} style={unpinBtnStyle}>✕ Открепить</button>
+      )}
+    </div>
+  );
+
   return (
-    <div style={{ minHeight: '100vh', background: '#0F0A26', display: 'flex', flexDirection: 'column' }}>
+    <div ref={containerRef} style={{ minHeight: '100vh', background: '#0F0A26', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.03)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: connecting ? '#D97706' : '#16A34A' }} />
@@ -507,31 +623,45 @@ export default function CallRoomPage() {
             {connecting ? 'Подключение...' : `${callTitle} · ${totalCount} участник${totalCount === 1 ? '' : totalCount < 5 ? 'а' : 'ов'}`}
           </span>
         </div>
-        <button onClick={copyLink} style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', borderRadius: '10px', padding: '7px 14px', fontSize: '12px', cursor: 'pointer' }}>
-          {copied ? '✓ Скопировано' : '🔗 Скопировать ссылку'}
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button onClick={toggleFullscreen} style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', borderRadius: '10px', padding: '7px 14px', fontSize: '12px', cursor: 'pointer' }}>
+            {isFullscreen ? '⤓ Свернуть' : '⤢ На весь экран'}
+          </button>
+          <button onClick={copyLink} style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', borderRadius: '10px', padding: '7px 14px', fontSize: '12px', cursor: 'pointer' }}>
+            {copied ? '✓ Скопировано' : '🔗 Скопировать ссылку'}
+          </button>
+        </div>
       </div>
 
-      <div style={{ flex: 1, padding: '16px', display: 'grid', gridTemplateColumns: `repeat(${Math.min(Math.ceil(Math.sqrt(totalCount)), 4)}, 1fr)`, gap: '12px', alignContent: 'center' }}>
-        <div style={{ position: 'relative', background: '#1a1040', borderRadius: '16px', overflow: 'hidden', aspectRatio: '16/9' }}>
-          <video ref={localVideoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
-          {!videoOn && (
-            <div style={{ position: 'absolute', inset: 0, background: '#1a1040', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#7F77DD', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '24px', fontWeight: 700 }}>
-                {myUserName.charAt(0).toUpperCase()}
+      {hasPinned ? (
+        // === Раскладка с закреплённым участником ===
+        <div style={{ flex: 1, padding: '16px', display: 'flex', gap: '12px', minHeight: 0 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {pinnedIsSelf ? renderSelfTile(true) : pinnedParticipant && (
+              <PinnedRemoteVideo participant={pinnedParticipant} isSpeaking={speakingUserId === pinnedParticipant.userId} onUnpin={() => togglePin(pinnedParticipant.userId)} />
+            )}
+          </div>
+          {/* Полоска маленьких превью остальных участников */}
+          <div style={{ width: '180px', display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto' }}>
+            {!pinnedIsSelf && (
+              <div style={{ aspectRatio: '16/9' }}>{renderSelfTile(false)}</div>
+            )}
+            {participantList.filter(p => p.userId !== pinnedUserId).map(p => (
+              <div key={p.userId} style={{ aspectRatio: '16/9' }}>
+                <RemoteVideo participant={p} isSpeaking={speakingUserId === p.userId} onPin={() => togglePin(p.userId)} />
               </div>
-            </div>
-          )}
-          <div style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'rgba(0,0,0,0.5)', borderRadius: '8px', padding: '4px 10px', color: 'white', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            {!audioOn && <span>🔇</span>}
-            {myUserName} (вы)
+            ))}
           </div>
         </div>
-
-        {participantList.map(p => (
-          <RemoteVideo key={p.userId} participant={p} />
-        ))}
-      </div>
+      ) : (
+        // === Обычная сетка ===
+        <div style={{ flex: 1, padding: '16px', display: 'grid', gridTemplateColumns: `repeat(${Math.min(Math.ceil(Math.sqrt(totalCount)), 4)}, 1fr)`, gap: '12px', alignContent: 'center' }}>
+          <div style={{ aspectRatio: '16/9' }}>{renderSelfTile(false)}</div>
+          {participantList.map(p => (
+            <RemoteVideo key={p.userId} participant={p} isSpeaking={speakingUserId === p.userId} onPin={() => togglePin(p.userId)} />
+          ))}
+        </div>
+      )}
 
       <div style={{ padding: '20px', display: 'flex', justifyContent: 'center', gap: '14px' }}>
         <button onClick={toggleAudio} style={ctrlBtnStyle(audioOn)}>{audioOn ? '🎤' : '🔇'}</button>
@@ -542,6 +672,12 @@ export default function CallRoomPage() {
     </div>
   );
 }
+
+const unpinBtnStyle: React.CSSProperties = {
+  position: 'absolute', top: '10px', right: '10px',
+  background: 'rgba(0,0,0,0.6)', color: 'white', border: 'none',
+  borderRadius: '8px', padding: '4px 10px', fontSize: '11px', cursor: 'pointer',
+};
 
 function lobbyCtrlStyle(active: boolean) {
   return {
@@ -563,7 +699,7 @@ function ctrlBtnStyle(active: boolean, activeColor?: string) {
   } as React.CSSProperties;
 }
 
-function RemoteVideo({ participant }: { participant: Participant }) {
+function RemoteVideo({ participant, isSpeaking, onPin }: { participant: Participant; isSpeaking: boolean; onPin: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -576,7 +712,15 @@ function RemoteVideo({ participant }: { participant: Participant }) {
   const hasVideo = participant.stream && participant.stream.getVideoTracks().length > 0 && participant.videoEnabled !== false;
 
   return (
-    <div style={{ position: 'relative', background: '#1a1040', borderRadius: '16px', overflow: 'hidden', aspectRatio: '16/9' }}>
+    <div
+      onClick={onPin}
+      style={{
+        position: 'relative', background: '#1a1040', borderRadius: '16px', overflow: 'hidden', aspectRatio: '16/9',
+        cursor: 'pointer',
+        border: isSpeaking ? '3px solid #16A34A' : '3px solid transparent',
+        transition: 'border-color 0.15s',
+      }}
+    >
       <video ref={videoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', display: hasVideo ? 'block' : 'none' }} />
       {!hasVideo && (
         <div style={{ position: 'absolute', inset: 0, background: '#1a1040', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -590,6 +734,41 @@ function RemoteVideo({ participant }: { participant: Participant }) {
         {participant.userName}
         {!participant.stream && <span style={{ color: '#D97706' }}> · подключение...</span>}
       </div>
+    </div>
+  );
+}
+
+function PinnedRemoteVideo({ participant, isSpeaking, onUnpin }: { participant: Participant; isSpeaking: boolean; onUnpin: () => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (videoRef.current && participant.stream) {
+      videoRef.current.srcObject = participant.stream;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [participant.stream]);
+
+  const hasVideo = participant.stream && participant.stream.getVideoTracks().length > 0 && participant.videoEnabled !== false;
+
+  return (
+    <div style={{
+      position: 'relative', background: '#1a1040', borderRadius: '16px', overflow: 'hidden', height: '100%',
+      border: isSpeaking ? '3px solid #16A34A' : '3px solid transparent',
+      transition: 'border-color 0.15s',
+    }}>
+      <video ref={videoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'contain', display: hasVideo ? 'block' : 'none' }} />
+      {!hasVideo && (
+        <div style={{ position: 'absolute', inset: 0, background: '#1a1040', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: '96px', height: '96px', borderRadius: '50%', background: '#5248C5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '36px', fontWeight: 700 }}>
+            {participant.userName.charAt(0).toUpperCase()}
+          </div>
+        </div>
+      )}
+      <div style={{ position: 'absolute', bottom: '14px', left: '14px', background: 'rgba(0,0,0,0.5)', borderRadius: '8px', padding: '6px 12px', color: 'white', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        {participant.audioEnabled === false && <span>🔇</span>}
+        {participant.userName}
+      </div>
+      <button onClick={onUnpin} style={unpinBtnStyle}>✕ Открепить</button>
     </div>
   );
 }
