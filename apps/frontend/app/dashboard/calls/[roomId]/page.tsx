@@ -76,6 +76,9 @@ export default function CallRoomPage() {
   const [kickedMessage, setKickedMessage] = useState('');
   const [networkStatus, setNetworkStatus] = useState<'online' | 'offline' | 'reconnecting'>('online');
   const [socketConnected, setSocketConnected] = useState(true);
+  const [roomLocked, setRoomLocked] = useState(false);
+  const [forceMuted, setForceMuted] = useState(false);
+  const [connectionQuality, setConnectionQuality] = useState<'good' | 'medium' | 'poor'>('good');
 
   const socketRef = useRef<Socket | null>(null);
   const lobbyVideoRef = useRef<HTMLVideoElement>(null);
@@ -471,6 +474,22 @@ export default function CallRoomPage() {
       cleanup();
     });
 
+    socket.on('call:lock-changed', (data: { locked: boolean }) => {
+      setRoomLocked(data.locked);
+    });
+
+    socket.on('call:host-changed', (data: { newHostUserId: string }) => {
+      setHostUserId(data.newHostUserId);
+    });
+
+    socket.on('call:force-mute', () => {
+      setForceMuted(true);
+      setAudioOn(false);
+      localStreamRef.current?.getAudioTracks().forEach(t => { t.enabled = false; });
+      socketRef.current?.emit('call:toggle-media', { roomId, userId: myUserIdRef.current, kind: 'audio', enabled: false });
+      setTimeout(() => setForceMuted(false), 3000);
+    });
+
     socket.on('disconnect', (reason) => {
       setSocketConnected(false);
       if (reason !== 'io client disconnect') {
@@ -568,6 +587,56 @@ export default function CallRoomPage() {
     if (!confirm('Завершить встречу для всех участников?')) return;
     socketRef.current?.emit('call:end-for-all', { roomId });
   };
+
+  const toggleRoomLock = () => {
+    const newLocked = !roomLocked;
+    socketRef.current?.emit('call:toggle-lock', { roomId, locked: newLocked });
+  };
+
+  const transferHost = (newHostUserId: string, userName: string) => {
+    if (!confirm(`Передать роль организатора участнику ${userName}?`)) return;
+    socketRef.current?.emit('call:transfer-host', { roomId, newHostUserId });
+  };
+
+  const muteParticipant = (targetUserId: string) => {
+    socketRef.current?.emit('call:mute-participant', { roomId, targetUserId });
+  };
+
+  const muteAll = () => {
+    if (!confirm('Отключить микрофон у всех участников?')) return;
+    socketRef.current?.emit('call:mute-all', { roomId });
+  };
+
+  // Мониторинг качества соединения через WebRTC stats API
+  useEffect(() => {
+    if (stage !== 'call') return;
+    const interval = setInterval(async () => {
+      let worstQuality: 'good' | 'medium' | 'poor' = 'good';
+      for (const pc of peersRef.current.values()) {
+        try {
+          const stats = await pc.getStats();
+          stats.forEach(report => {
+            if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+              const rtt = report.currentRoundTripTime;
+              if (rtt !== undefined) {
+                if (rtt > 0.3) worstQuality = 'poor';
+                else if (rtt > 0.15 && worstQuality !== 'poor') worstQuality = 'medium';
+              }
+            }
+            if (report.type === 'inbound-rtp' && report.kind === 'video') {
+              const lost = report.packetsLost ?? 0;
+              const received = report.packetsReceived ?? 1;
+              const lossRate = lost / (lost + received);
+              if (lossRate > 0.05) worstQuality = 'poor';
+              else if (lossRate > 0.01 && worstQuality !== 'poor') worstQuality = 'medium';
+            }
+          });
+        } catch {}
+      }
+      setConnectionQuality(worstQuality);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [stage]);
 
   const sendChatMessage = () => {
     if (!chatInput.trim() || !socketRef.current) return;
@@ -757,6 +826,17 @@ export default function CallRoomPage() {
           <span style={{ color: 'white', fontSize: '14px', fontWeight: 600 }}>
             {statusText}
           </span>
+          {!connecting && networkStatus === 'online' && (
+            <span title={`Качество связи: ${connectionQuality === 'good' ? 'хорошее' : connectionQuality === 'medium' ? 'среднее' : 'плохое'}`} style={{ display: 'flex', gap: '2px', alignItems: 'flex-end', marginLeft: '4px' }}>
+              {[1,2,3].map(bar => (
+                <span key={bar} style={{
+                  width: '3px', height: `${bar * 4}px`,
+                  background: connectionQuality === 'good' ? '#16A34A' : connectionQuality === 'medium' ? (bar <= 2 ? '#D97706' : 'rgba(255,255,255,0.2)') : (bar === 1 ? '#DC2626' : 'rgba(255,255,255,0.2)'),
+                  borderRadius: '1px',
+                }} />
+              ))}
+            </span>
+          )}
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button onClick={toggleFullscreen} style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', borderRadius: '10px', padding: '7px 14px', fontSize: '12px', cursor: 'pointer' }}>
@@ -823,6 +903,11 @@ export default function CallRoomPage() {
 
             {sidePanel === 'participants' && (
               <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
+                {isHost && (
+                  <button onClick={toggleRoomLock} style={{ width: '100%', marginBottom: '10px', background: roomLocked ? 'rgba(220,38,38,0.15)' : 'rgba(255,255,255,0.06)', border: `1px solid ${roomLocked ? 'rgba(220,38,38,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: '10px', padding: '9px', color: roomLocked ? '#FCA5A5' : '#9B97CC', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}>
+                    {roomLocked ? '🔒 Комната закрыта — нажмите для открытия' : '🔓 Закрыть вход новым участникам'}
+                  </button>
+                )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 8px', borderRadius: '10px' }}>
                   <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#7F77DD', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '13px', fontWeight: 700 }}>
                     {myUserName.charAt(0).toUpperCase()}
@@ -832,23 +917,40 @@ export default function CallRoomPage() {
                   {!audioOn && <span style={{ color: '#9B97CC' }}>🔇</span>}
                 </div>
                 {participantList.map(p => (
-                  <div key={p.userId} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 8px', borderRadius: '10px' }}>
-                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#5248C5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '13px', fontWeight: 700 }}>
+                  <div key={p.userId} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 8px', borderRadius: '10px' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#5248C5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '13px', fontWeight: 700, flexShrink: 0 }}>
                       {p.userName.charAt(0).toUpperCase()}
                     </div>
-                    <span style={{ color: 'white', fontSize: '13px', flex: 1 }}>{p.userName} {hostUserId === p.userId && '👑'}</span>
-                    {raisedHands.has(p.userId) && <span>✋</span>}
-                    {p.audioEnabled === false && <span style={{ color: '#9B97CC' }}>🔇</span>}
+                    <span style={{ color: 'white', fontSize: '13px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.userName} {hostUserId === p.userId && '👑'}</span>
+                    {raisedHands.has(p.userId) && <span style={{ flexShrink: 0 }}>✋</span>}
+                    {p.audioEnabled === false && <span style={{ color: '#9B97CC', flexShrink: 0 }}>🔇</span>}
                     {isHost && hostUserId !== p.userId && (
-                      <button onClick={() => kickParticipant(p.userId)} title="Удалить из звонка"
-                        style={{ background: 'rgba(220,38,38,0.15)', border: 'none', borderRadius: '6px', padding: '4px 8px', color: '#DC2626', fontSize: '11px', cursor: 'pointer' }}>
-                        ✕
-                      </button>
+                      <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                        {p.audioEnabled !== false && (
+                          <button onClick={() => muteParticipant(p.userId)} title="Выключить микрофон"
+                            style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: '6px', padding: '4px 6px', color: '#9B97CC', fontSize: '11px', cursor: 'pointer' }}>
+                            🔇
+                          </button>
+                        )}
+                        <button onClick={() => transferHost(p.userId, p.userName)} title="Сделать организатором"
+                          style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: '6px', padding: '4px 6px', color: '#9B97CC', fontSize: '11px', cursor: 'pointer' }}>
+                          👑
+                        </button>
+                        <button onClick={() => kickParticipant(p.userId)} title="Удалить из звонка"
+                          style={{ background: 'rgba(220,38,38,0.15)', border: 'none', borderRadius: '6px', padding: '4px 6px', color: '#DC2626', fontSize: '11px', cursor: 'pointer' }}>
+                          ✕
+                        </button>
+                      </div>
                     )}
                   </div>
                 ))}
+                {isHost && participantList.length > 0 && (
+                  <button onClick={muteAll} style={{ width: '100%', marginTop: '10px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '9px', color: '#9B97CC', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}>
+                    🔇 Выключить все микрофоны
+                  </button>
+                )}
                 {isHost && (
-                  <button onClick={endCallForAll} style={{ width: '100%', marginTop: '16px', background: 'rgba(220,38,38,0.15)', border: '1px solid rgba(220,38,38,0.4)', borderRadius: '10px', padding: '10px', color: '#FCA5A5', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}>
+                  <button onClick={endCallForAll} style={{ width: '100%', marginTop: '8px', background: 'rgba(220,38,38,0.15)', border: '1px solid rgba(220,38,38,0.4)', borderRadius: '10px', padding: '10px', color: '#FCA5A5', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}>
                     Завершить встречу для всех
                   </button>
                 )}

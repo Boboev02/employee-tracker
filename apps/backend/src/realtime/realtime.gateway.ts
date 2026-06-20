@@ -13,6 +13,7 @@ interface CallRoom {
   roomId: string;
   orgId: string;
   createdBy: string;
+  locked: boolean;
   participants: Map<string, { userId: string; userName: string; socketId: string }>;
 }
 
@@ -132,8 +133,14 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     let room = this.callRooms.get(roomId);
 
     if (!room) {
-      room = { roomId, orgId: user.orgId, createdBy: user.userId, participants: new Map() };
+      room = { roomId, orgId: user.orgId, createdBy: user.userId, locked: false, participants: new Map() };
       this.callRooms.set(roomId, room);
+    }
+
+    // Проверка блокировки комнаты (организатор закрыл вход новым участникам)
+    if (room.locked && !room.participants.has(user.userId) && room.createdBy !== user.userId) {
+      socket.emit('call:error', { message: 'Организатор закрыл вход в эту встречу' });
+      return;
     }
 
     // Лимит 10 человек
@@ -265,5 +272,69 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     this.server.to('call:' + data.roomId).emit('call:ended', { message: 'Организатор завершил встречу' });
     room.participants.clear();
     this.callRooms.delete(data.roomId);
+  }
+
+  // Блокировка комнаты — закрыть/открыть вход новым участникам
+  @SubscribeMessage('call:toggle-lock')
+  handleToggleLock(@ConnectedSocket() socket: Socket, @MessageBody() data: { roomId: string; locked: boolean }) {
+    const user = this.socketToUser.get(socket.id);
+    if (!user) return;
+
+    const room = this.callRooms.get(data.roomId);
+    if (!room || room.createdBy !== user.userId) {
+      socket.emit('call:error', { message: 'Только организатор может блокировать комнату' });
+      return;
+    }
+
+    room.locked = data.locked;
+    this.server.to('call:' + data.roomId).emit('call:lock-changed', { locked: data.locked });
+  }
+
+  // Передача роли организатора другому участнику
+  @SubscribeMessage('call:transfer-host')
+  handleTransferHost(@ConnectedSocket() socket: Socket, @MessageBody() data: { roomId: string; newHostUserId: string }) {
+    const user = this.socketToUser.get(socket.id);
+    if (!user) return;
+
+    const room = this.callRooms.get(data.roomId);
+    if (!room || room.createdBy !== user.userId) {
+      socket.emit('call:error', { message: 'Только организатор может передать роль' });
+      return;
+    }
+    if (!room.participants.has(data.newHostUserId)) return;
+
+    room.createdBy = data.newHostUserId;
+    this.server.to('call:' + data.roomId).emit('call:host-changed', { newHostUserId: data.newHostUserId });
+  }
+
+  // Принудительное выключение микрофона участника организатором
+  @SubscribeMessage('call:mute-participant')
+  handleMuteParticipant(@ConnectedSocket() socket: Socket, @MessageBody() data: { roomId: string; targetUserId: string }) {
+    const user = this.socketToUser.get(socket.id);
+    if (!user) return;
+
+    const room = this.callRooms.get(data.roomId);
+    if (!room || room.createdBy !== user.userId) return;
+
+    const target = room.participants.get(data.targetUserId);
+    if (!target) return;
+
+    this.server.to(target.socketId).emit('call:force-mute', {});
+  }
+
+  // Массовое отключение микрофонов всех кроме организатора
+  @SubscribeMessage('call:mute-all')
+  handleMuteAll(@ConnectedSocket() socket: Socket, @MessageBody() data: { roomId: string }) {
+    const user = this.socketToUser.get(socket.id);
+    if (!user) return;
+
+    const room = this.callRooms.get(data.roomId);
+    if (!room || room.createdBy !== user.userId) return;
+
+    for (const p of room.participants.values()) {
+      if (p.userId !== user.userId) {
+        this.server.to(p.socketId).emit('call:force-mute', {});
+      }
+    }
   }
 }
