@@ -74,6 +74,8 @@ export default function CallRoomPage() {
   const [unreadChat, setUnreadChat] = useState(0);
   const [hostUserId, setHostUserId] = useState<string | null>(null);
   const [kickedMessage, setKickedMessage] = useState('');
+  const [networkStatus, setNetworkStatus] = useState<'online' | 'offline' | 'reconnecting'>('online');
+  const [socketConnected, setSocketConnected] = useState(true);
 
   const socketRef = useRef<Socket | null>(null);
   const lobbyVideoRef = useRef<HTMLVideoElement>(null);
@@ -230,6 +232,22 @@ export default function CallRoomPage() {
 
   useEffect(() => {
     return () => { cleanup(); };
+  }, []);
+
+  // Слушаем браузерные события online/offline (полная потеря сети, не только сокет)
+  useEffect(() => {
+    const handleOffline = () => setNetworkStatus('offline');
+    const handleOnline = () => {
+      // Браузер сообщил что сеть вернулась — socket.io сам попробует переподключиться,
+      // но дадим явный сигнал что мы знаем о восстановлении
+      setNetworkStatus(prev => prev === 'offline' ? 'reconnecting' : prev);
+    };
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
+    };
   }, []);
 
   const createPeerConnection = useCallback((targetSocketId: string, targetUserId: string) => {
@@ -453,7 +471,27 @@ export default function CallRoomPage() {
       cleanup();
     });
 
-    socket.io.on('reconnect', () => { socket.emit('call:join', { roomId }); });
+    socket.on('disconnect', (reason) => {
+      setSocketConnected(false);
+      if (reason !== 'io client disconnect') {
+        setNetworkStatus('reconnecting');
+      }
+    });
+
+    socket.io.on('reconnect_attempt', () => {
+      setNetworkStatus('reconnecting');
+    });
+
+    socket.io.on('reconnect', () => {
+      setSocketConnected(true);
+      setNetworkStatus('online');
+      // После переподключения — пересоздаём все peer connections с нуля,
+      // т.к. старые WebRTC соединения могли протухнуть пока был офлайн
+      peersRef.current.forEach(pc => pc.close());
+      peersRef.current.clear();
+      pendingCandidatesRef.current.clear();
+      socket.emit('call:join', { roomId });
+    });
 
     setTimeout(() => setConnecting(false), 5000);
   };
@@ -697,13 +735,27 @@ export default function CallRoomPage() {
     </div>
   );
 
+  const statusColor = networkStatus === 'offline' ? '#DC2626' : networkStatus === 'reconnecting' ? '#D97706' : connecting ? '#D97706' : '#16A34A';
+  const statusText = networkStatus === 'offline' ? 'Нет подключения к интернету'
+    : networkStatus === 'reconnecting' ? 'Переподключение...'
+    : connecting ? 'Подключение...'
+    : `${callTitle} · ${totalCount} участник${totalCount === 1 ? '' : totalCount < 5 ? 'а' : 'ов'}`;
+
   return (
     <div ref={containerRef} style={{ minHeight: '100vh', background: '#0F0A26', display: 'flex', flexDirection: 'column' }}>
+      <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }`}</style>
+      {(networkStatus === 'offline' || networkStatus === 'reconnecting') && (
+        <div style={{ background: networkStatus === 'offline' ? '#DC2626' : '#D97706', padding: '8px 20px', textAlign: 'center' }}>
+          <span style={{ color: 'white', fontSize: '13px', fontWeight: 600 }}>
+            {networkStatus === 'offline' ? '⚠️ Нет подключения к интернету. Ожидаем восстановления сети...' : '🔄 Переподключение к звонку...'}
+          </span>
+        </div>
+      )}
       <div style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.03)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: connecting ? '#D97706' : '#16A34A' }} />
+          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: statusColor, animation: networkStatus !== 'online' ? 'pulse 1.5s infinite' : undefined }} />
           <span style={{ color: 'white', fontSize: '14px', fontWeight: 600 }}>
-            {connecting ? 'Подключение...' : `${callTitle} · ${totalCount} участник${totalCount === 1 ? '' : totalCount < 5 ? 'а' : 'ов'}`}
+            {statusText}
           </span>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
