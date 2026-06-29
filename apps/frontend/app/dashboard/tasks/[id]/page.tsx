@@ -32,7 +32,18 @@ export default function TaskDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [token, setToken]       = useState('');
   const [user, setUser]         = useState<any>(null);
+
   const [task, setTask]         = useState<any>(null);
+
+  // Может ли текущий пользователь редактировать эту задачу:
+  // ADMIN/MANAGER (есть роль с правом на все задачи) — всегда;
+  // EMPLOYEE — только если он автор или назначенный исполнитель
+  const canEdit = (() => {
+    if (!user || !task) return false;
+    const privilegedRoles = ['ADMIN', 'SUPER_ADMIN', 'OWNER', 'MANAGER'];
+    if (user.roles?.some((r: string) => privilegedRoles.includes(r))) return true;
+    return task.createdById === user.id || task.assigneeId === user.id;
+  })();
   const [comments, setComments] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
   const [userMap, setUserMap]   = useState<Record<string,string>>({});
@@ -139,9 +150,9 @@ export default function TaskDetailPage() {
             onKeyDown={e=>{ if(e.key==='Enter'){ setEditTitle(false); updateField('title',titleVal.trim()); } if(e.key==='Escape') setEditTitle(false); }}
             style={{ flex:1, fontSize:'16px', fontWeight:700, color:'#1a1040', border:'1px solid #7F77DD', borderRadius:'10px', padding:'6px 12px', outline:'none', background:'#F8F7FF' }}/>
         ) : (
-          <h1 onClick={()=>setEditTitle(true)}
-            title="Нажмите для редактирования"
-            style={{ fontSize:'16px', fontWeight:800, color:'#1a1040', margin:0, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'text', letterSpacing:'-0.3px' }}>
+          <h1 onClick={()=>canEdit && setEditTitle(true)}
+            title={canEdit ? "Нажмите для редактирования" : "У вас нет прав на редактирование этой задачи"}
+            style={{ fontSize:'16px', fontWeight:800, color:'#1a1040', margin:0, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor: canEdit ? 'text' : 'default', letterSpacing:'-0.3px' }}>
             {task.title}
             {task.isRoutine && <span style={{ fontSize:'10px', fontWeight:700, color:'#7F77DD', background:'#EDE9FE', padding:'2px 7px', borderRadius:'8px', marginLeft:'8px' }}>🔄 Рутина</span>}
           </h1>
@@ -284,7 +295,7 @@ export default function TaskDetailPage() {
               {/* Assignee */}
               <div>
                 <p style={{ fontSize:'10px', color:'#9B97CC', margin:'0 0 6px', fontWeight:600 }}>Исполнитель</p>
-                <select value={task.assigneeId??''} onChange={e=>updateField('assigneeId',e.target.value)} disabled={saving} style={inp}>
+                <select value={task.assigneeId??''} onChange={e=>updateField('assigneeId',e.target.value)} disabled={saving || !canEdit} style={inp}>
                   <option value="">Не назначен</option>
                   {employees.map((e:any)=><option key={e.id} value={e.id}>{e.name}</option>)}
                 </select>
@@ -293,7 +304,7 @@ export default function TaskDetailPage() {
               {/* Due date */}
               <div>
                 <p style={{ fontSize:'10px', color:'#9B97CC', margin:'0 0 6px', fontWeight:600 }}>Дедлайн</p>
-                <input type="date" value={task.dueDate?task.dueDate.slice(0,10):''} onChange={e=>updateField('dueDate',e.target.value)} disabled={saving} style={inp}/>
+                <input type="date" value={task.dueDate?task.dueDate.slice(0,10):''} onChange={e=>updateField('dueDate',e.target.value)} disabled={saving || !canEdit} style={inp}/>
                 {task.dueDate && (
                   <p style={{ fontSize:'11px', margin:'5px 0 0', fontWeight:600, color:overdue?'#DC2626':new Date(task.dueDate)<new Date(Date.now()+3*864e5)?'#D97706':'#16A34A' }}>
                     {overdue ? '⚠ Просрочено' : new Date(task.dueDate)<new Date(Date.now()+3*864e5) ? '⏰ Скоро дедлайн' : '✓ '+new Date(task.dueDate).toLocaleDateString('ru',{day:'numeric',month:'long'})}

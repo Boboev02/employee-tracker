@@ -19,6 +19,11 @@ export class TaskRepository {
     const where: any = { orgId, deletedAt: null };
     if (filters.assigneeId) where.assigneeId = filters.assigneeId;
     if (filters.teamId)     where.teamId     = filters.teamId;
+    // Если переданы ограничения по видимости (EMPLOYEE без task:read:all/team) — фильтруем
+    // задачи где пользователь автор ИЛИ исполнитель
+    if (filters._restrictToUserId) {
+      where.OR = [{ createdById: filters._restrictToUserId }, { assigneeId: filters._restrictToUserId }];
+    }
 
     const tasks = await this.prisma.task.findMany({
       where,
@@ -42,6 +47,9 @@ export class TaskRepository {
     if (filters.status)     where.status     = { in: filters.status };
     if (filters.assigneeId) where.assigneeId = filters.assigneeId;
     if (filters.search)     where.title      = { contains: filters.search, mode: 'insensitive' };
+    if (filters._restrictToUserId) {
+      where.OR = [{ createdById: filters._restrictToUserId }, { assigneeId: filters._restrictToUserId }];
+    }
     return this.prisma.task.findMany({
       where, orderBy: { createdAt: 'desc' },
       take: filters.limit ?? 50, skip: filters.offset ?? 0,

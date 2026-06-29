@@ -5,6 +5,14 @@ import { TelegramService } from '../telegram/telegram.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notifications/notification.service';
 
+// Проверяет может ли пользователь редактировать/удалить конкретную задачу.
+// Если у него есть "any"-право (ADMIN/MANAGER) — разрешено всё.
+// Если только "self"-право (EMPLOYEE) — разрешено только если он автор ИЛИ исполнитель.
+function canModifyTask(task: { createdById: string; assigneeId?: string | null }, userId: string, permissions?: Set<string>, anyPerm = 'task:update:any') {
+  if (permissions?.has(anyPerm)) return true;
+  return task.createdById === userId || task.assigneeId === userId;
+}
+
 @Injectable()
 export class TaskService {
   constructor(
@@ -14,8 +22,20 @@ export class TaskService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  async getKanban(orgId: string, filters: any) {
-    return this.repo.findKanban(orgId, filters);
+  // Если у пользователя нет права видеть все/командные задачи — ограничиваем выборку
+  // только задачами где он автор или исполнитель
+  private applyVisibilityRestriction(filters: any, user?: any) {
+    if (!user) return filters;
+    const perms: Set<string> = user.permissions ?? new Set();
+    const canSeeAll = perms.has('task:read:all') || perms.has('task:read:team');
+    if (!canSeeAll) {
+      return { ...filters, _restrictToUserId: user.id ?? user.sub };
+    }
+    return filters;
+  }
+
+  async getKanban(orgId: string, filters: any, user?: any) {
+    return this.repo.findKanban(orgId, this.applyVisibilityRestriction(filters, user));
   }
 
   async getById(id: string, orgId: string) {
@@ -24,8 +44,8 @@ export class TaskService {
     return task;
   }
 
-  async getList(orgId: string, filters: any) {
-    return this.repo.findMany(orgId, filters);
+  async getList(orgId: string, filters: any, user?: any) {
+    return this.repo.findMany(orgId, this.applyVisibilityRestriction(filters, user));
   }
 
   async create(orgId: string, userId: string, dto: any) {
@@ -59,9 +79,13 @@ export class TaskService {
     return task;
   }
 
-  async update(id: string, orgId: string, userId: string, dto: any) {
+  async update(id: string, orgId: string, userId: string, dto: any, permissions?: Set<string>) {
     const task = await this.repo.findById(id, orgId);
     if (!task) throw new NotFoundException('Task not found');
+
+    if (!canModifyTask(task, userId, permissions)) {
+      throw new ForbiddenException('Вы можете редактировать только свои задачи или задачи, назначенные вам');
+    }
 
     const fields = ['title', 'description', 'priority', 'assigneeId', 'dueDate', 'tags'];
     for (const field of fields) {
@@ -78,9 +102,13 @@ export class TaskService {
     return this.repo.update(id, orgId, data);
   }
 
-  async move(id: string, orgId: string, userId: string, newStatus: string) {
+  async move(id: string, orgId: string, userId: string, newStatus: string, permissions?: Set<string>) {
     const task = await this.repo.findById(id, orgId);
     if (!task) throw new NotFoundException('Task not found');
+
+    if (!canModifyTask(task, userId, permissions)) {
+      throw new ForbiddenException('Вы можете перемещать только свои задачи или задачи, назначенные вам');
+    }
 
     const allowed = TASK_TRANSITIONS[task.status] ?? [];
     if (!allowed.includes(newStatus)) {
@@ -139,10 +167,14 @@ export class TaskService {
     return { updated: overdue.length };
   }
 
-  async delete(id: string, orgId: string, userId: string) {
+  async delete(id: string, orgId: string, userId: string, permissions?: Set<string>) {
     const task = await this.repo.findById(id, orgId);
     if (!task) throw new NotFoundException('Task not found');
-    if (task.createdById !== userId) throw new ForbiddenException();
+    // task:delete (ADMIN/MANAGER) разрешает удалять любые; иначе — только свои созданные
+    const canDeleteAny = permissions?.has('task:delete');
+    if (!canDeleteAny && task.createdById !== userId) {
+      throw new ForbiddenException('Вы можете удалять только созданные вами задачи');
+    }
     return this.repo.softDelete(id);
   }
 
