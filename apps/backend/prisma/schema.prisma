@@ -42,6 +42,8 @@ model User {
   routineTasks     RoutineTask[] @relation("RoutineAssignee")
   routinesCreated  RoutineTask[] @relation("RoutineCreator")
   notes            Note[]        @relation("UserNotes")
+  ownedProjects    Project[]       @relation("ProjectOwner")
+  projectComments  ProjectComment[] @relation("ProjectCommentAuthor")
 }
 
 model Role {
@@ -179,6 +181,8 @@ model Task {
   externalUrl   String?
   productId     String?   // Привязка к карточке товара
   departmentId  String?   // Привязка к отделу
+  projectId     String?   // Привязка к проекту
+  dealId        String?   // Привязка к сделке CRM
   deletedAt     DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -188,10 +192,14 @@ model Task {
   participants  TaskParticipant[]
   product       Product?    @relation(fields: [productId], references: [id])
   department    Department? @relation(fields: [departmentId], references: [id])
+  project       Project?    @relation(fields: [projectId], references: [id])
+  deal          CrmDeal?    @relation(fields: [dealId], references: [id])
   @@index([orgId, status])
   @@index([assigneeId])
   @@index([productId])
   @@index([departmentId])
+  @@index([projectId])
+  @@index([dealId])
 }
 
 model TaskComment {
@@ -453,4 +461,191 @@ model TaskParticipant {
   @@unique([taskId, userId])
   @@index([taskId])
   @@index([userId])
+}
+
+// ===== ПРОЕКТЫ =====
+
+model Project {
+  id          String    @id @default(uuid())
+  orgId       String
+  name        String
+  description String?   @db.Text
+  status      String    @default("ACTIVE") // ACTIVE | COMPLETED | ARCHIVED | ON_HOLD
+  ownerId     String
+  color       String?   @default("#7F77DD")
+  startDate   DateTime?
+  dueDate     DateTime?
+  tags        String[]
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  owner       User              @relation("ProjectOwner", fields: [ownerId], references: [id])
+  members     ProjectMember[]
+  tasks       Task[]
+  comments    ProjectComment[]
+  activities  ProjectActivity[]
+
+  @@index([orgId, status])
+  @@index([ownerId])
+}
+
+model ProjectMember {
+  id        String   @id @default(uuid())
+  projectId String
+  userId    String
+  role      String   @default("member") // owner | admin | member | viewer
+  createdAt DateTime @default(now())
+
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
+}
+
+model ProjectComment {
+  id        String   @id @default(uuid())
+  projectId String
+  userId    String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author    User     @relation("ProjectCommentAuthor", fields: [userId], references: [id])
+
+  @@index([projectId])
+}
+
+model ProjectActivity {
+  id        String   @id @default(uuid())
+  projectId String
+  userId    String?
+  action    String   // created | updated | member_added | task_added | status_changed | commented
+  details   String?  @db.Text
+  createdAt DateTime @default(now())
+
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+}
+
+// ===== CRM =====
+
+model CrmContact {
+  id        String   @id @default(uuid())
+  orgId     String
+  firstName String
+  lastName  String?
+  email     String?
+  phone     String?
+  position  String?
+  companyId String?
+  tags      String[]
+  source    String?
+  ownerId   String?
+  notes     String?  @db.Text
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company   CrmCompany? @relation(fields: [companyId], references: [id])
+  deals     CrmDeal[]
+  activities CrmActivity[]
+
+  @@index([orgId])
+  @@index([companyId])
+}
+
+model CrmCompany {
+  id        String   @id @default(uuid())
+  orgId     String
+  name      String
+  industry  String?
+  website   String?
+  phone     String?
+  email     String?
+  address   String?
+  tags      String[]
+  ownerId   String?
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contacts  CrmContact[]
+  deals     CrmDeal[]
+  activities CrmActivity[]
+
+  @@index([orgId])
+}
+
+model CrmDeal {
+  id          String    @id @default(uuid())
+  orgId       String
+  title       String
+  amount      Float?
+  currency    String    @default("RUB")
+  stage       String    @default("NEW") // NEW | QUALIFIED | PROPOSAL | NEGOTIATION | WON | LOST
+  probability Int?      @default(0)
+  contactId   String?
+  companyId   String?
+  ownerId     String?
+  source      String?
+  closedAt    DateTime?
+  lostReason  String?
+  tags        String[]
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  contact    CrmContact?  @relation(fields: [contactId], references: [id])
+  company    CrmCompany?  @relation(fields: [companyId], references: [id])
+  activities CrmActivity[]
+  tasks      Task[]
+
+  @@index([orgId, stage])
+  @@index([ownerId])
+}
+
+model CrmLead {
+  id        String   @id @default(uuid())
+  orgId     String
+  name      String
+  email     String?
+  phone     String?
+  source    String?
+  status    String   @default("NEW") // NEW | IN_PROGRESS | CONVERTED | LOST
+  ownerId   String?
+  notes     String?  @db.Text
+  tags      String[]
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  activities CrmActivity[]
+
+  @@index([orgId, status])
+}
+
+model CrmActivity {
+  id        String   @id @default(uuid())
+  orgId     String
+  type      String   // call | email | meeting | note | task | status_change | deal_created
+  content   String?  @db.Text
+  userId    String?
+  contactId String?
+  companyId String?
+  dealId    String?
+  leadId    String?
+  createdAt DateTime @default(now())
+
+  contact   CrmContact?  @relation(fields: [contactId], references: [id])
+  company   CrmCompany?  @relation(fields: [companyId], references: [id])
+  deal      CrmDeal?     @relation(fields: [dealId], references: [id])
+  lead      CrmLead?     @relation(fields: [leadId], references: [id])
+
+  @@index([orgId, createdAt])
+  @@index([contactId])
+  @@index([dealId])
 }

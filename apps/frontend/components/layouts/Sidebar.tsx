@@ -11,6 +11,8 @@ const NAV = [
   { href: '/dashboard',              icon: 'ti-layout-dashboard', label: 'Дашборд',        admin: false },
   { href: '/dashboard/employees',    icon: 'ti-users',            label: 'Сотрудники',     admin: false },
   { href: '/dashboard/tasks',        icon: 'ti-checkbox',         label: 'Задачи',         admin: false },
+  { href: '/dashboard/projects',     icon: 'ti-layout-kanban',    label: 'Проекты',        admin: false },
+  { href: '/dashboard/crm',          icon: 'ti-chart-arrows',     label: 'CRM',            admin: false },
   { href: '/dashboard/analytics',    icon: 'ti-chart-bar',        label: 'Аналитика',      admin: false },
   { href: '/dashboard/teams',        icon: 'ti-tag',              label: 'Команды',        admin: true  },
   { href: '/dashboard/productivity', icon: 'ti-star',             label: 'Продуктивность', admin: true  },

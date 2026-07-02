@@ -5,10 +5,11 @@ import { TaskController } from './task.controller';
 import { TaskService } from './task.service';
 import { TaskRepository } from './task.repository';
 import { PrismaModule } from '../prisma/prisma.module';
+import { AiClassifyController } from './ai-classify.controller';
 
 @Module({
   imports: [TelegramModule, PrismaModule, NotificationModule],
-  controllers: [TaskController],
+  controllers: [TaskController, AiClassifyController],
   providers: [TaskService, TaskRepository],
   exports: [TaskService],
 })

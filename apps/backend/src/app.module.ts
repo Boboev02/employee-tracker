@@ -11,6 +11,8 @@ import { CallsModule } from './calls/calls.module';
 import { AuditModule } from './audit/audit.module';
 import { ProductsModule } from './products/products.module';
 import { DictionariesModule } from './dictionaries/dictionaries.module';
+import { ProjectsModule } from './projects/projects.module';
+import { CrmModule } from './crm/crm.module';
 import { ResetModule } from './reset/reset.module';
 import { KpiModule } from './kpi/kpi.module';
 import { HealthModule }    from './health/health.module';
@@ -36,6 +38,8 @@ import { JwtAuthGuard }    from './auth/guards/index';
     AuditModule,
     ProductsModule,
     DictionariesModule,
+    ProjectsModule,
+    CrmModule,
     HealthModule,
     KpiModule,
     TasksModule, EmployeesModule, RealtimeModule,

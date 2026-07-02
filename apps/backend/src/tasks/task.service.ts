@@ -57,6 +57,8 @@ export class TaskService {
       priority:     dto.priority ?? 'MEDIUM',
       assigneeId:   dto.assigneeId,
       teamId:       dto.teamId,
+      departmentId: dto.departmentId,
+      productId:    dto.productId,
       dueDate:      dto.dueDate ? new Date(dto.dueDate) : undefined,
       status:       'NEW',
       tags:         dto.tags ?? [],

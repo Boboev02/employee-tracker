@@ -31,7 +31,10 @@ export default function TasksPage() {
   const [loading, setLoading]     = useState(true);
   const [showForm, setShowForm]   = useState(false);
   const [employees, setEmployees] = useState<any[]>([]);
-  const [newTask, setNewTask]     = useState({ title:'', priority:'MEDIUM', description:'', assigneeId:'', dueDate:'' });
+  const [newTask, setNewTask]     = useState({ title:'', priority:'MEDIUM', description:'', assigneeId:'', dueDate:'', departmentId:'' });
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [aiDept, setAiDept]     = useState<{ id: string; name: string; color: string } | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
   const [token, setToken]         = useState('');
   const [mounted, setMounted]     = useState(false);
   const [dragTask, setDragTask]   = useState<{id:string;fromCol:string}|null>(null);
@@ -53,6 +56,8 @@ export default function TasksPage() {
     setToken(t); loadKanban(t);
     fetch('https://employee-tracker.ru/api/v1/employees', { headers:{ Authorization:'Bearer '+t } })
       .then(r=>r.json()).then(d=>setEmployees(Array.isArray(d)?d:[])).catch(()=>{});
+    fetch('https://employee-tracker.ru/api/v1/dictionaries/departments', { headers:{ Authorization:'Bearer '+t } })
+      .then(r=>r.json()).then(d=>setDepartments(Array.isArray(d)?d:[])).catch(()=>{});
   }, []);
 
   const loadKanban = async (t: string) => {
@@ -63,13 +68,44 @@ export default function TasksPage() {
     } finally { setLoading(false); }
   };
 
+  // AI-классификация через backend (избегаем CORS)
+  const aiTimerRef = { current: null as any };
+  const classifyDepartment = async (title: string) => {
+    if (!title.trim() || title.length < 5 || departments.length === 0) { setAiDept(null); return; }
+    setAiLoading(true);
+    try {
+      const res = await fetch('https://employee-tracker.ru/api/v1/ai/classify-department', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ title }),
+      });
+      const data = await res.json();
+      if (data.departmentId) {
+        const found = departments.find(d => d.id === data.departmentId);
+        if (found) {
+          setAiDept(found);
+          setNewTask(prev => ({ ...prev, departmentId: found.id }));
+        } else setAiDept(null);
+      } else setAiDept(null);
+    } catch { setAiDept(null); }
+    setAiLoading(false);
+  };
+
+  const handleTitleChange = (title: string) => {
+    setNewTask(prev => ({ ...prev, title }));
+    setAiDept(null);
+    clearTimeout(aiTimerRef.current);
+    aiTimerRef.current = setTimeout(() => classifyDepartment(title), 800);
+  };
+
   const createTask = async (e: React.FormEvent) => {
     e.preventDefault();
     await fetch('https://employee-tracker.ru/api/v1/tasks', {
       method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token },
-      body: JSON.stringify({ ...newTask, assigneeId:newTask.assigneeId||undefined, dueDate:newTask.dueDate||undefined }),
+      body: JSON.stringify({ ...newTask, assigneeId:newTask.assigneeId||undefined, dueDate:newTask.dueDate||undefined, departmentId:newTask.departmentId||undefined }),
     });
-    setNewTask({ title:'', priority:'MEDIUM', description:'', assigneeId:'', dueDate:'' });
+    setNewTask({ title:'', priority:'MEDIUM', description:'', assigneeId:'', dueDate:'', departmentId:'' });
+    setAiDept(null);
     setShowForm(false); loadKanban(token);
   };
 
@@ -303,7 +339,27 @@ export default function TasksPage() {
           <div style={{ background:'white', borderRadius:'24px', padding:'28px 32px', width:'460px', boxShadow:'0 24px 64px rgba(127,119,221,0.2)' }}>
             <h2 style={{ fontSize:'18px', fontWeight:800, color:'#1a1040', margin:'0 0 22px', letterSpacing:'-0.5px' }}>Новая задача</h2>
             <form onSubmit={createTask} style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
-              <input autoFocus placeholder="Название задачи" value={newTask.title} onChange={e=>setNewTask({...newTask,title:e.target.value})} required style={inp}/>
+              <div>
+                <input autoFocus placeholder="Название задачи" value={newTask.title}
+                  onChange={e => handleTitleChange(e.target.value)} required style={inp}/>
+                {/* AI подсказка отдела */}
+                {aiLoading && (
+                  <div style={{ display:'flex', alignItems:'center', gap:'6px', marginTop:'6px', fontSize:'11px', color:'#9B97CC' }}>
+                    <span style={{ animation:'spin 1s linear infinite', display:'inline-block' }}>⟳</span> ИИ определяет отдел...
+                  </div>
+                )}
+                {aiDept && !aiLoading && (
+                  <div style={{ display:'flex', alignItems:'center', gap:'8px', marginTop:'6px', background:'#F0FDF4', border:'1px solid #86EFAC', borderRadius:'10px', padding:'7px 12px' }}>
+                    <span style={{ fontSize:'11px', color:'#16A34A', fontWeight:600 }}>✨ ИИ предлагает:</span>
+                    <span style={{ width:'10px', height:'10px', borderRadius:'50%', background: aiDept.color ?? '#7F77DD', flexShrink:0 }} />
+                    <span style={{ fontSize:'12px', fontWeight:700, color:'#1a1040', flex:1 }}>{aiDept.name}</span>
+                    <button type="button" onClick={() => setNewTask(prev => ({ ...prev, departmentId: aiDept.id }))}
+                      style={{ background: newTask.departmentId === aiDept.id ? '#16A34A' : 'white', color: newTask.departmentId === aiDept.id ? 'white' : '#16A34A', border:'1px solid #86EFAC', borderRadius:'8px', padding:'3px 10px', fontSize:'11px', cursor:'pointer', fontWeight:600 }}>
+                      {newTask.departmentId === aiDept.id ? '✓ Принято' : 'Принять'}
+                    </button>
+                  </div>
+                )}
+              </div>
               <textarea placeholder="Описание (необязательно)" value={newTask.description} onChange={e=>setNewTask({...newTask,description:e.target.value})} rows={3} style={{ ...inp, resize:'none' }}/>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
                 <div>
@@ -320,12 +376,23 @@ export default function TasksPage() {
                   <input type="date" value={newTask.dueDate} onChange={e=>setNewTask({...newTask,dueDate:e.target.value})} min={new Date().toISOString().slice(0,10)} style={inp}/>
                 </div>
               </div>
-              <div>
-                <label style={{ fontSize:'10px', color:'#9B97CC', display:'block', marginBottom:'5px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.4px' }}>Исполнитель</label>
-                <select value={newTask.assigneeId} onChange={e=>setNewTask({...newTask,assigneeId:e.target.value})} style={inp}>
-                  <option value="">Не назначен</option>
-                  {employees.map(emp=><option key={emp.id} value={emp.id}>{emp.name}</option>)}
-                </select>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
+                <div>
+                  <label style={{ fontSize:'10px', color:'#9B97CC', display:'block', marginBottom:'5px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.4px' }}>Исполнитель</label>
+                  <select value={newTask.assigneeId} onChange={e=>setNewTask({...newTask,assigneeId:e.target.value})} style={inp}>
+                    <option value="">Не назначен</option>
+                    {employees.map(emp=><option key={emp.id} value={emp.id}>{emp.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize:'10px', color:'#9B97CC', display:'block', marginBottom:'5px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.4px' }}>
+                    Отдел {aiDept && newTask.departmentId !== aiDept.id && <span style={{ color:'#D97706' }}>✨</span>}
+                  </label>
+                  <select value={newTask.departmentId} onChange={e=>setNewTask({...newTask,departmentId:e.target.value})} style={inp}>
+                    <option value="">Не выбран</option>
+                    {departments.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
+                  </select>
+                </div>
               </div>
               <div style={{ display:'flex', gap:'10px', marginTop:'6px' }}>
                 <button type="button" onClick={()=>setShowForm(false)} style={{ flex:1, background:'#F8F7FF', color:'#6B7280', border:'1px solid #EDE9FE', borderRadius:'12px', padding:'11px', fontSize:'13px', cursor:'pointer', fontWeight:600 }}>Отмена</button>
