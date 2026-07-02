@@ -59,6 +59,7 @@ export class TaskService {
       teamId:       dto.teamId,
       departmentId: dto.departmentId,
       productId:    dto.productId,
+      parentId:     dto.parentId,
       dueDate:      dto.dueDate ? new Date(dto.dueDate) : undefined,
       status:       'NEW',
       tags:         dto.tags ?? [],

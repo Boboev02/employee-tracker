@@ -30,6 +30,11 @@ export class EmployeesService {
       avatarUrl: u.avatarUrl,
       roles:     u.userRoles.map(ur => ur.role.name),
       createdAt: u.createdAt,
+      birthDate: (u as any).birthDate,
+      gender:    (u as any).gender,
+      hiredAt:   (u as any).hiredAt,
+      position:  (u as any).position,
+      phone:     (u as any).phone,
     }));
   }
 
@@ -47,6 +52,11 @@ export class EmployeesService {
       avatarUrl: user.avatarUrl,
       roles:     user.userRoles.map(ur => ur.role.name),
       createdAt: user.createdAt,
+      birthDate: (user as any).birthDate,
+      gender:    (user as any).gender,
+      hiredAt:   (user as any).hiredAt,
+      position:  (user as any).position,
+      phone:     (user as any).phone,
     };
   }
 
@@ -112,6 +122,34 @@ export class EmployeesService {
       data:  { leftAt: new Date() },
     });
     return { message: 'Deleted' };
+  }
+
+  async updateProfile(userId: string, orgId: string, dto: {
+    name?: string;
+    phone?: string;
+    position?: string;
+    gender?: string;
+    birthDate?: string;
+    hiredAt?: string;
+    avatarUrl?: string;
+  }) {
+    const user = await this.prisma.user.findFirst({ where: { id: userId, orgId, deletedAt: null } });
+    if (!user) throw new NotFoundException('Employee not found');
+
+    const data: any = {};
+    if (dto.name)      data.name = dto.name;
+    if (dto.phone !== undefined)    data.phone = dto.phone;
+    if (dto.position !== undefined) data.position = dto.position;
+    if (dto.gender !== undefined)   data.gender = dto.gender;
+    if (dto.avatarUrl !== undefined) data.avatarUrl = dto.avatarUrl;
+    if (dto.birthDate !== undefined) data.birthDate = dto.birthDate ? new Date(dto.birthDate) : null;
+    if (dto.hiredAt !== undefined)   data.hiredAt = dto.hiredAt ? new Date(dto.hiredAt) : null;
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { ...data, updatedAt: new Date() },
+      select: { id: true, name: true, email: true, avatarUrl: true },
+    });
   }
 
   async resetPassword(id: string, orgId: string, newPassword: string) {

@@ -198,12 +198,10 @@ export default function ProjectDetailPage() {
                 </button>
               ))}
             </div>
-            {tab==='tasks' && (
-              <button onClick={()=>setShowTaskForm(true)}
-                style={{background:'linear-gradient(135deg,#7F77DD,#5248C5)',color:'white',border:'none',borderRadius:'14px',padding:'9px 18px',fontSize:'13px',fontWeight:700,cursor:'pointer'}}>
-                + Добавить задачу
-              </button>
-            )}
+            <button onClick={()=>{ setTab('tasks'); setShowTaskForm(true); }}
+              style={{background:'linear-gradient(135deg,#7F77DD,#5248C5)',color:'white',border:'none',borderRadius:'14px',padding:'9px 18px',fontSize:'13px',fontWeight:700,cursor:'pointer'}}>
+              + Добавить задачу
+            </button>
           </div>
 
           {tab==='tasks' && (

@@ -56,6 +56,12 @@ export default function TaskDetailPage() {
   const [checklists, setChecklists] = useState<any[]>([]);
   const [newCheckText, setNewCheckText] = useState('');
   const [addingCheck, setAddingCheck] = useState(false);
+  const [subtasks, setSubtasks] = useState<any[]>([]);
+  const [showSubtaskForm, setShowSubtaskForm] = useState(false);
+  const [subtaskTitle, setSubtaskTitle] = useState('');
+  const [addingSubtask, setAddingSubtask] = useState(false);
+  const [attachments, setAttachments] = useState<any[]>([]);
+  const [uploadingFile, setUploadingFile] = useState(false);
 
   useEffect(() => {
     const t = localStorage.getItem('access_token');
@@ -83,6 +89,9 @@ export default function TaskDetailPage() {
       // Загружаем чеклисты
       const clRes = await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/checklists', { headers:{ Authorization:'Bearer '+t } });
       if (clRes.ok) setChecklists(await clRes.json());
+      // Загружаем подзадачи
+      const stRes = await fetch('https://employee-tracker.ru/api/v1/tasks?parentId='+id, { headers:{ Authorization:'Bearer '+t } });
+      if (stRes.ok) { const stData = await stRes.json(); setSubtasks(Array.isArray(stData) ? stData : stData.tasks ?? []); }
     } finally { setLoading(false); }
   };
 
@@ -132,6 +141,49 @@ export default function TaskDetailPage() {
     await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/checklists/'+checkId, {
       method: 'DELETE', headers: { Authorization: 'Bearer '+token },
     });
+  };
+
+  const uploadFile = async (file: File) => {
+    setUploadingFile(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/attachments', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer '+token },
+        body: formData,
+      });
+      if (res.ok) {
+        const att = await res.json();
+        setAttachments(prev => [att, ...prev]);
+      }
+    } catch {}
+    setUploadingFile(false);
+  };
+
+  const deleteAttachment = async (attId: string) => {
+    await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/attachments/'+attId, {
+      method: 'DELETE', headers: { Authorization: 'Bearer '+token },
+    });
+    setAttachments(prev => prev.filter(a => a.id !== attId));
+  };
+
+  const createSubtask = async () => {
+    if (!subtaskTitle.trim()) return;
+    setAddingSubtask(true);
+    try {
+      await fetch('https://employee-tracker.ru/api/v1/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer '+token },
+        body: JSON.stringify({ title: subtaskTitle.trim(), parentId: id, priority: task.priority ?? 'MEDIUM', orgId: task.orgId }),
+      });
+      setSubtaskTitle('');
+      setShowSubtaskForm(false);
+      // Перезагружаем подзадачи
+      const stRes = await fetch('https://employee-tracker.ru/api/v1/tasks?parentId='+id, { headers:{ Authorization:'Bearer '+token } });
+      if (stRes.ok) { const stData = await stRes.json(); setSubtasks(Array.isArray(stData) ? stData : stData.tasks ?? []); }
+    } catch {}
+    setAddingSubtask(false);
   };
 
   const postComment = async () => {
@@ -247,6 +299,97 @@ export default function TaskDetailPage() {
             )}
             {checklists.length === 0 && !canEdit && (
               <p style={{ color:'#C4C0E8', fontSize:'13px', fontStyle:'italic', margin:0 }}>Чек-лист пуст</p>
+            )}
+          </div>
+
+          {/* Attachments */}
+          <div style={card}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'14px' }}>
+              <p style={{ fontSize:'11px', fontWeight:700, color:'#9B97CC', textTransform:'uppercase', letterSpacing:'0.5px', margin:0 }}>
+                Вложения {attachments.length > 0 && <span style={{ fontWeight:500, color:'#C4C0E8', marginLeft:'4px' }}>({attachments.length})</span>}
+              </p>
+              <label style={{ background:'linear-gradient(135deg,#7F77DD,#5248C5)', color:'white', borderRadius:'8px', padding:'4px 12px', fontSize:'12px', cursor:'pointer', fontWeight:600 }}>
+                {uploadingFile ? 'Загрузка...' : '+ Файл'}
+                <input type="file" style={{ display:'none' }} disabled={uploadingFile}
+                  onChange={e => { if (e.target.files?.[0]) uploadFile(e.target.files[0]); e.target.value=''; }} />
+              </label>
+            </div>
+            {attachments.length === 0 ? (
+              <p style={{ color:'#C4C0E8', fontSize:'13px', fontStyle:'italic', margin:0 }}>Вложений нет</p>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+                {attachments.map((att:any) => {
+                  const isImage = att.mimeType?.startsWith('image/');
+                  const icon = att.mimeType?.includes('pdf') ? '📄' : att.mimeType?.includes('word') ? '📝' : att.mimeType?.includes('excel') || att.mimeType?.includes('sheet') ? '📊' : isImage ? '🖼️' : '📎';
+                  return (
+                    <div key={att.id} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', background:'#F8F7FF', borderRadius:'10px' }}>
+                      <span style={{ fontSize:'20px' }}>{icon}</span>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <a href={'https://employee-tracker.ru'+att.url} target="_blank" rel="noopener noreferrer"
+                          style={{ fontSize:'13px', fontWeight:600, color:'#7F77DD', textDecoration:'none', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', display:'block' }}>
+                          {att.fileName}
+                        </a>
+                        <span style={{ fontSize:'11px', color:'#9B97CC' }}>{Math.round((att.fileSize||0)/1024)} KB</span>
+                      </div>
+                      {canEdit && (
+                        <button onClick={() => deleteAttachment(att.id)}
+                          style={{ background:'none', border:'none', color:'#DC2626', cursor:'pointer', fontSize:'16px', padding:'0 4px' }}>✕</button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Subtasks */}
+          <div style={card}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'14px' }}>
+              <p style={{ fontSize:'11px', fontWeight:700, color:'#9B97CC', textTransform:'uppercase', letterSpacing:'0.5px', margin:0 }}>
+                Подзадачи
+                {subtasks.length > 0 && <span style={{ fontWeight:500, color:'#C4C0E8', marginLeft:'4px' }}>({subtasks.filter(s=>s.status==='DONE').length}/{subtasks.length})</span>}
+              </p>
+              {canEdit && (
+                <button onClick={() => setShowSubtaskForm(true)}
+                  style={{ background:'linear-gradient(135deg,#7F77DD,#5248C5)', color:'white', border:'none', borderRadius:'8px', padding:'4px 12px', fontSize:'12px', cursor:'pointer', fontWeight:600 }}>
+                  + Подзадача
+                </button>
+              )}
+            </div>
+            {showSubtaskForm && (
+              <div style={{ display:'flex', gap:'8px', marginBottom:'12px' }}>
+                <input placeholder="Название подзадачи..." value={subtaskTitle}
+                  onChange={e => setSubtaskTitle(e.target.value)}
+                  onKeyDown={e => e.key==='Enter' && createSubtask()}
+                  style={{ flex:1, background:'#F8F7FF', border:'1px solid #EDE9FE', borderRadius:'10px', padding:'8px 12px', fontSize:'13px', outline:'none' }}
+                  autoFocus />
+                <button onClick={createSubtask} disabled={!subtaskTitle.trim() || addingSubtask}
+                  style={{ background:'linear-gradient(135deg,#7F77DD,#5248C5)', color:'white', border:'none', borderRadius:'10px', padding:'8px 14px', fontSize:'13px', cursor:'pointer', opacity:(!subtaskTitle.trim()||addingSubtask)?0.6:1 }}>
+                  {addingSubtask ? '...' : '+'}
+                </button>
+                <button onClick={() => { setShowSubtaskForm(false); setSubtaskTitle(''); }}
+                  style={{ background:'white', color:'#9B97CC', border:'1px solid #EDE9FE', borderRadius:'10px', padding:'8px 12px', fontSize:'13px', cursor:'pointer' }}>
+                  ✕
+                </button>
+              </div>
+            )}
+            {subtasks.length === 0 && !showSubtaskForm ? (
+              <p style={{ color:'#C4C0E8', fontSize:'13px', fontStyle:'italic', margin:0 }}>Подзадач нет</p>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                {subtasks.map((st:any) => (
+                  <a key={st.id} href={'/dashboard/tasks/'+st.id}
+                    style={{ textDecoration:'none', display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', background:'#F8F7FF', borderRadius:'10px', cursor:'pointer' }}>
+                    <div style={{ width:'16px', height:'16px', borderRadius:'4px', border:'2px solid '+(st.status==='DONE'?'#16A34A':'#D1D5DB'), background:st.status==='DONE'?'#16A34A':'white', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                      {st.status==='DONE' && <span style={{ color:'white', fontSize:'10px', fontWeight:700 }}>✓</span>}
+                    </div>
+                    <span style={{ fontSize:'13px', color:st.status==='DONE'?'#9B97CC':'#1a1040', textDecoration:st.status==='DONE'?'line-through':'none', flex:1 }}>{st.title}</span>
+                    <span style={{ fontSize:'11px', color:'#9B97CC', flexShrink:0 }}>
+                      {st.status==='NEW'?'Новая':st.status==='IN_PROGRESS'?'В работе':st.status==='DONE'?'Готово':st.status}
+                    </span>
+                  </a>
+                ))}
+              </div>
             )}
           </div>
 

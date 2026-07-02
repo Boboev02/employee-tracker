@@ -1,123 +1,265 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 
-const ROLE_STYLE: Record<string, { bg: string; color: string }> = {
-  ADMIN:    { bg: 'var(--accent-bg)',  color: 'var(--accent)' },
-  MANAGER:  { bg: 'var(--blue-bg)',    color: 'var(--blue)' },
-  EMPLOYEE: { bg: 'var(--green-bg)',   color: 'var(--green)' },
-  VIEWER:   { bg: 'var(--bg-secondary)', color: 'var(--text-muted)' },
-  HR:       { bg: 'var(--orange-bg)', color: 'var(--orange)' },
-};
+const API = 'https://employee-tracker.ru/api/v1';
+
+const ROLES = ['ADMIN','MANAGER','EMPLOYEE','HR','VIEWER'];
+const ROLE_COLORS: Record<string,string> = { ADMIN:'#7F77DD', MANAGER:'#3B82F6', EMPLOYEE:'#10B981', HR:'#F59E0B', VIEWER:'#9B97CC' };
+const GENDERS: Record<string,string> = { MALE:'Мужской', FEMALE:'Женский' };
 
 export default function EmployeeProfilePage() {
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
   const [token, setToken] = useState('');
-  const [emp, setEmp]     = useState<any>(null);
-  const [stats, setStats] = useState<any>(null);
+  const [user, setUser] = useState<any>(null);
+  const [emp, setEmp] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [form, setForm] = useState<any>({});
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const h = (t: string) => ({ 'Content-Type':'application/json', Authorization:'Bearer '+t });
 
   useEffect(() => {
-    const t = localStorage.getItem('access_token');
+    const t = localStorage.getItem('access_token') || '';
     if (!t) { router.push('/login'); return; }
     setToken(t);
-    Promise.all([
-      fetch('https://employee-tracker.ru/api/v1/employees/' + id, { headers: { Authorization: 'Bearer ' + t } }).then(r => r.json()),
-      fetch('https://employee-tracker.ru/api/v1/analytics/employees', { headers: { Authorization: 'Bearer ' + t } }).then(r => r.json()),
-      fetch('https://employee-tracker.ru/api/v1/analytics/activity/summary?userId=' + id, { headers: { Authorization: 'Bearer ' + t } }).then(r => r.json()),
-    ]).then(([e, empStats, activity]) => {
-      setEmp(e);
-      const my = Array.isArray(empStats) ? empStats.find((x: any) => x.id === id) : null;
-      const myAct = Array.isArray(activity) ? activity.find((x: any) => x.userId === id) : null;
-      setStats({ ...my, ...myAct });
-    }).catch(() => {}).finally(() => setLoading(false));
+    try { setUser(JSON.parse(localStorage.getItem('user') || '{}')); } catch {}
+    load(t);
   }, [id]);
 
-  if (loading) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'200px', color:'var(--text-muted)', fontSize:'13px' }}>Загрузка...</div>;
-  if (!emp) return <div style={{ padding:'24px', color:'var(--text-muted)', fontSize:'13px' }}>Сотрудник не найден</div>;
+  const load = async (t: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch(API+'/employees/'+id, { headers: h(t) });
+      const data = await res.json();
+      setEmp(data);
+      setForm({
+        name: data.name || '',
+        phone: data.phone || '',
+        position: data.position || '',
+        gender: data.gender || '',
+        birthDate: data.birthDate ? data.birthDate.slice(0,10) : '',
+        hiredAt: data.hiredAt ? data.hiredAt.slice(0,10) : '',
+        role: data.roles?.[0] || 'EMPLOYEE',
+      });
+    } catch {}
+    setLoading(false);
+  };
+
+  const isAdmin = user?.roles?.some((r: string) => ['ADMIN','SUPER_ADMIN','OWNER'].includes(r));
+
+  const saveProfile = async () => {
+    setSaving(true);
+    try {
+      await fetch(API+'/employees/'+id+'/profile', {
+        method: 'PATCH', headers: h(token),
+        body: JSON.stringify({
+          name: form.name,
+          phone: form.phone,
+          position: form.position,
+          gender: form.gender || null,
+          birthDate: form.birthDate || null,
+          hiredAt: form.hiredAt || null,
+        }),
+      });
+      if (form.role !== emp.roles?.[0]) {
+        await fetch(API+'/employees/'+id+'/role', {
+          method: 'PATCH', headers: h(token),
+          body: JSON.stringify({ role: form.role }),
+        });
+      }
+      setEditing(false);
+      load(token);
+    } catch {}
+    setSaving(false);
+  };
+
+  const uploadAvatar = async (file: File) => {
+    setUploadingAvatar(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const base64 = (e.target?.result as string).split(',')[1];
+        const ext = file.name.split('.').pop();
+        const fileName = id + '_avatar.' + ext;
+        await fetch(API+'/employees/'+id+'/profile', {
+          method: 'PATCH', headers: h(token),
+          body: JSON.stringify({ avatarUrl: 'data:'+file.type+';base64,'+base64 }),
+        });
+        load(token);
+        setUploadingAvatar(false);
+      };
+      reader.readAsDataURL(file);
+    } catch { setUploadingAvatar(false); }
+  };
+
+  if (loading) return <div style={{padding:'40px',textAlign:'center',color:'#9B97CC'}}>Загрузка...</div>;
+  if (!emp) return <div style={{padding:'40px',textAlign:'center',color:'#9B97CC'}}>Сотрудник не найден</div>;
 
   const role = emp.roles?.[0] ?? 'EMPLOYEE';
-  const rs = ROLE_STYLE[role] ?? ROLE_STYLE.VIEWER;
+  const roleColor = ROLE_COLORS[role] ?? '#9B97CC';
+  const card: React.CSSProperties = { background:'white', borderRadius:'20px', padding:'20px', boxShadow:'0 4px 16px rgba(127,119,221,0.08)' };
+  const inp: React.CSSProperties = { width:'100%', background:'#F8F7FF', border:'1px solid #EDE9FE', borderRadius:'10px', padding:'8px 12px', fontSize:'13px', outline:'none', boxSizing:'border-box' };
 
-  const card: React.CSSProperties = { background:'var(--bg-primary)', border:'0.5px solid var(--border)', borderRadius:'var(--radius)', padding:'20px' };
-  const label: React.CSSProperties = { fontSize:'11px', fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', margin:'0 0 8px' };
-  const row: React.CSSProperties = { display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:'0.5px solid var(--border)' };
+  const age = emp.birthDate ? Math.floor((Date.now() - new Date(emp.birthDate).getTime()) / (365.25*24*60*60*1000)) : null;
+  const tenure = emp.hiredAt ? Math.floor((Date.now() - new Date(emp.hiredAt).getTime()) / (365.25*24*60*60*1000*30)) : null;
 
   return (
-    <div style={{ minHeight:'100vh', background:'var(--bg-tertiary)' }}>
-      {/* Header */}
-      <div style={{ background:'var(--bg-primary)', borderBottom:'0.5px solid var(--border)', padding:'14px 24px', display:'flex', alignItems:'center', gap:'12px', position:'sticky', top:0, zIndex:10 }}>
-        <button onClick={() => router.push('/dashboard/employees')} style={{ background:'none', border:'none', cursor:'pointer', fontSize:'13px', color:'var(--text-muted)', padding:'4px 8px', borderRadius:'6px' }}>← Назад</button>
-        <h1 style={{ fontSize:'16px', fontWeight:600, color:'var(--text-primary)', margin:0 }}>{emp.name}</h1>
-        <span style={{ fontSize:'11px', fontWeight:500, padding:'3px 8px', borderRadius:'20px', background:rs.bg, color:rs.color }}>{role}</span>
+    <div style={{minHeight:'100vh',background:'#ECEAF8'}}>
+      <div style={{background:'white',padding:'14px 28px',display:'flex',alignItems:'center',gap:'12px',boxShadow:'0 4px 16px rgba(127,119,221,0.06)',position:'sticky',top:0,zIndex:10}}>
+        <button onClick={()=>router.push('/dashboard/employees')} style={{background:'none',border:'none',cursor:'pointer',fontSize:'13px',color:'#9B97CC'}}>← Назад</button>
+        <span style={{color:'#EDE9FE'}}>|</span>
+        <span style={{fontSize:'14px',fontWeight:700,color:'#1a1040',flex:1}}>{emp.name}</span>
+        <span style={{background:roleColor+'20',color:roleColor,borderRadius:'8px',padding:'3px 10px',fontSize:'11px',fontWeight:700}}>{role}</span>
+        {isAdmin && !editing && (
+          <button onClick={()=>setEditing(true)} style={{background:'#F8F7FF',color:'#7F77DD',border:'1px solid #EDE9FE',borderRadius:'10px',padding:'7px 16px',fontSize:'12px',cursor:'pointer',fontWeight:600}}>✏️ Редактировать</button>
+        )}
+        {editing && (
+          <div style={{display:'flex',gap:'8px'}}>
+            <button onClick={saveProfile} disabled={saving} style={{background:'linear-gradient(135deg,#7F77DD,#5248C5)',color:'white',border:'none',borderRadius:'10px',padding:'7px 16px',fontSize:'12px',cursor:'pointer',fontWeight:700}}>
+              {saving?'Сохранение...':'Сохранить'}
+            </button>
+            <button onClick={()=>{setEditing(false);}} style={{background:'white',color:'#9B97CC',border:'1px solid #EDE9FE',borderRadius:'10px',padding:'7px 12px',fontSize:'12px',cursor:'pointer'}}>Отмена</button>
+          </div>
+        )}
       </div>
 
-      <div style={{ padding:'24px', display:'grid', gridTemplateColumns:'280px 1fr', gap:'16px', maxWidth:'960px' }}>
-
-        {/* Left panel */}
-        <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
-          <div style={{ ...card, textAlign:'center' }}>
-            <div style={{ width:'64px', height:'64px', borderRadius:'50%', background:'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 12px' }}>
-              <span style={{ color:'white', fontSize:'24px', fontWeight:600 }}>{emp.name.charAt(0)}</span>
+      <div style={{padding:'20px 28px',display:'grid',gridTemplateColumns:'280px 1fr',gap:'20px',maxWidth:'1100px'}}>
+        <div style={{display:'flex',flexDirection:'column',gap:'14px'}}>
+          <div style={{...card,textAlign:'center'}}>
+            <div style={{position:'relative',width:'80px',height:'80px',margin:'0 auto 14px'}}>
+              {emp.avatarUrl && !emp.avatarUrl.startsWith('data:') ? (
+                <img src={emp.avatarUrl} alt={emp.name} style={{width:'80px',height:'80px',borderRadius:'50%',objectFit:'cover'}} />
+              ) : emp.avatarUrl && emp.avatarUrl.startsWith('data:') ? (
+                <img src={emp.avatarUrl} alt={emp.name} style={{width:'80px',height:'80px',borderRadius:'50%',objectFit:'cover'}} />
+              ) : (
+                <div style={{width:'80px',height:'80px',borderRadius:'50%',background:'linear-gradient(135deg,#7F77DD,#5248C5)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'28px',color:'white',fontWeight:700}}>
+                  {emp.name.charAt(0).toUpperCase()}
+                </div>
+              )}
+              {isAdmin && (
+                <label style={{position:'absolute',bottom:0,right:0,width:'24px',height:'24px',borderRadius:'50%',background:'#7F77DD',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',fontSize:'12px'}}>
+                  {uploadingAvatar ? '...' : '📷'}
+                  <input ref={fileRef} type="file" accept="image/*" style={{display:'none'}}
+                    onChange={e=>{if(e.target.files?.[0]) uploadAvatar(e.target.files[0]); e.target.value='';}} />
+                </label>
+              )}
             </div>
-            <h2 style={{ fontSize:'16px', fontWeight:600, color:'var(--text-primary)', margin:'0 0 4px' }}>{emp.name}</h2>
-            <p style={{ fontSize:'12px', color:'var(--text-muted)', margin:'0 0 12px' }}>{emp.email}</p>
-            <span style={{ fontSize:'12px', fontWeight:500, padding:'4px 12px', borderRadius:'20px', background:rs.bg, color:rs.color }}>{role}</span>
+            <h2 style={{fontSize:'16px',fontWeight:800,color:'#1a1040',margin:'0 0 4px'}}>{emp.name}</h2>
+            {emp.position && <p style={{fontSize:'12px',color:'#7F77DD',margin:'0 0 4px',fontWeight:600}}>{emp.position}</p>}
+            <p style={{fontSize:'12px',color:'#9B97CC',margin:'0 0 12px'}}>{emp.email}</p>
+            <span style={{background:roleColor+'20',color:roleColor,borderRadius:'10px',padding:'4px 14px',fontSize:'12px',fontWeight:700}}>{role}</span>
+            <div style={{display:'flex',gap:'8px',justifyContent:'center',marginTop:'12px'}}>
+              <span style={{background:emp.status==='ACTIVE'?'#10B98120':'#EF444420',color:emp.status==='ACTIVE'?'#10B981':'#EF4444',borderRadius:'8px',padding:'3px 10px',fontSize:'11px',fontWeight:700}}>
+                {emp.status==='ACTIVE'?'Активен':'Заблокирован'}
+              </span>
+            </div>
           </div>
 
           <div style={card}>
-            <p style={label}>Информация</p>
+            <p style={{fontSize:'11px',color:'#9B97CC',margin:'0 0 12px',fontWeight:700,textTransform:'uppercase'}}>Информация</p>
             {[
-              { l:'Статус', v: <span style={{ fontSize:'12px', color: emp.status==='ACTIVE' ? 'var(--green)' : 'var(--red)' }}>{emp.status==='ACTIVE'?'Активен':'Заблокирован'}</span> },
-              { l:'Email', v: emp.email },
-              { l:'В организации', v: new Date(emp.createdAt).toLocaleDateString('ru') },
+              {label:'Email', value: emp.email},
+              {label:'Телефон', value: emp.phone || '—'},
+              {label:'Пол', value: emp.gender ? GENDERS[emp.gender] : '—'},
+              {label:'Дата рождения', value: emp.birthDate ? new Date(emp.birthDate).toLocaleDateString('ru') + (age ? ' ('+age+' лет)' : '') : '—'},
+              {label:'Принят', value: emp.hiredAt ? new Date(emp.hiredAt).toLocaleDateString('ru') + (tenure ? ' ('+tenure+' мес.)' : '') : '—'},
+              {label:'В системе с', value: new Date(emp.createdAt).toLocaleDateString('ru')},
             ].map(item => (
-              <div key={item.l} style={{ ...row, fontSize:'13px' }}>
-                <span style={{ color:'var(--text-muted)' }}>{item.l}</span>
-                <span style={{ color:'var(--text-primary)', fontWeight:500 }}>{item.v}</span>
+              <div key={item.label} style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:'1px solid #F8F7FF',fontSize:'12px'}}>
+                <span style={{color:'#9B97CC'}}>{item.label}</span>
+                <span style={{color:'#1a1040',fontWeight:600,textAlign:'right',maxWidth:'60%'}}>{item.value}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Right panel */}
-        <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'10px' }}>
-            {[
-              { l:'Создано задач', v: stats?.created ?? '—', color:'var(--text-primary)' },
-              { l:'Выполнено задач', v: stats?.completed ?? '—', color:'var(--green)' },
-              { l:'Событий', v: stats?.totalEvents ?? '—', color:'var(--accent)' },
-            ].map(s => (
-              <div key={s.l} style={{ ...card }}>
-                <p style={{ fontSize:'11px', color:'var(--text-muted)', margin:'0 0 6px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em' }}>{s.l}</p>
-                <p style={{ fontSize:'22px', fontWeight:600, color:s.color, margin:0 }}>{s.v}</p>
+        <div style={{display:'flex',flexDirection:'column',gap:'14px'}}>
+          {editing ? (
+            <div style={card}>
+              <p style={{fontSize:'15px',fontWeight:800,color:'#1a1040',margin:'0 0 16px'}}>Редактирование профиля</p>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'14px'}}>
+                <div>
+                  <p style={{fontSize:'11px',color:'#9B97CC',margin:'0 0 6px',fontWeight:600,textTransform:'uppercase'}}>Имя</p>
+                  <input value={form.name} onChange={e=>setForm((f:any)=>({...f,name:e.target.value}))} style={inp} />
+                </div>
+                <div>
+                  <p style={{fontSize:'11px',color:'#9B97CC',margin:'0 0 6px',fontWeight:600,textTransform:'uppercase'}}>Должность</p>
+                  <input value={form.position} onChange={e=>setForm((f:any)=>({...f,position:e.target.value}))} placeholder="Например: Дизайнер" style={inp} />
+                </div>
+                <div>
+                  <p style={{fontSize:'11px',color:'#9B97CC',margin:'0 0 6px',fontWeight:600,textTransform:'uppercase'}}>Телефон</p>
+                  <input value={form.phone} onChange={e=>setForm((f:any)=>({...f,phone:e.target.value}))} placeholder="+7 (999) 000-00-00" style={inp} />
+                </div>
+                <div>
+                  <p style={{fontSize:'11px',color:'#9B97CC',margin:'0 0 6px',fontWeight:600,textTransform:'uppercase'}}>Пол</p>
+                  <select value={form.gender} onChange={e=>setForm((f:any)=>({...f,gender:e.target.value}))} style={inp}>
+                    <option value="">Не указан</option>
+                    <option value="MALE">Мужской</option>
+                    <option value="FEMALE">Женский</option>
+                  </select>
+                </div>
+                <div>
+                  <p style={{fontSize:'11px',color:'#9B97CC',margin:'0 0 6px',fontWeight:600,textTransform:'uppercase'}}>Дата рождения</p>
+                  <input type="date" value={form.birthDate} onChange={e=>setForm((f:any)=>({...f,birthDate:e.target.value}))} style={inp} />
+                </div>
+                <div>
+                  <p style={{fontSize:'11px',color:'#9B97CC',margin:'0 0 6px',fontWeight:600,textTransform:'uppercase'}}>Дата принятия</p>
+                  <input type="date" value={form.hiredAt} onChange={e=>setForm((f:any)=>({...f,hiredAt:e.target.value}))} style={inp} />
+                </div>
+                <div style={{gridColumn:'1/-1'}}>
+                  <p style={{fontSize:'11px',color:'#9B97CC',margin:'0 0 6px',fontWeight:600,textTransform:'uppercase'}}>Роль</p>
+                  <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
+                    {ROLES.map(r => (
+                      <button key={r} type="button" onClick={()=>setForm((f:any)=>({...f,role:r}))}
+                        style={{background:form.role===r?(ROLE_COLORS[r]??'#7F77DD'):'white',color:form.role===r?'white':(ROLE_COLORS[r]??'#7F77DD'),border:'1px solid '+(ROLE_COLORS[r]??'#7F77DD')+'60',borderRadius:'10px',padding:'6px 16px',fontSize:'12px',cursor:'pointer',fontWeight:700}}>
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
-            ))}
-          </div>
-
-          <div style={card}>
-            <p style={label}>Активность</p>
-            {stats?.totalEvents > 0 ? (
-              <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+            </div>
+          ) : (
+            <div style={card}>
+              <p style={{fontSize:'15px',fontWeight:800,color:'#1a1040',margin:'0 0 16px'}}>Профиль сотрудника</p>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'14px'}}>
                 {[
-                  { l:'Всего событий', v: stats.totalEvents },
-                  { l:'~Время работы', v: stats.totalEstimatedMins >= 60 ? Math.floor(stats.totalEstimatedMins/60)+'ч '+(stats.totalEstimatedMins%60)+'м' : (stats.totalEstimatedMins??0)+'м' },
-                  { l:'Активных дней', v: stats.activeDays ?? '—' },
+                  {label:'Должность', value: emp.position || 'Не указана'},
+                  {label:'Телефон', value: emp.phone || 'Не указан'},
+                  {label:'Пол', value: emp.gender ? GENDERS[emp.gender] : 'Не указан'},
+                  {label:'Возраст', value: age ? age+' лет' : 'Не указан'},
+                  {label:'Дата рождения', value: emp.birthDate ? new Date(emp.birthDate).toLocaleDateString('ru') : 'Не указана'},
+                  {label:'Дата принятия', value: emp.hiredAt ? new Date(emp.hiredAt).toLocaleDateString('ru') : 'Не указана'},
+                  {label:'Стаж', value: tenure ? tenure+' месяцев' : 'Не указан'},
+                  {label:'Роль', value: role},
                 ].map(item => (
-                  <div key={item.l} style={{ ...row, fontSize:'13px' }}>
-                    <span style={{ color:'var(--text-muted)' }}>{item.l}</span>
-                    <span style={{ color:'var(--text-primary)', fontWeight:500 }}>{item.v}</span>
+                  <div key={item.label} style={{background:'#F8F7FF',borderRadius:'12px',padding:'12px 16px'}}>
+                    <p style={{fontSize:'11px',color:'#9B97CC',margin:'0 0 4px',fontWeight:600,textTransform:'uppercase'}}>{item.label}</p>
+                    <p style={{fontSize:'14px',color:'#1a1040',margin:0,fontWeight:700}}>{item.value}</p>
                   </div>
                 ))}
               </div>
-            ) : (
-              <div style={{ textAlign:'center', padding:'24px', color:'var(--text-muted)', fontSize:'13px' }}>
-                <p style={{ fontSize:'24px', marginBottom:'8px' }}>📊</p>
-                Нет данных активности. Установите расширение Chrome.
+            </div>
+          )}
+
+          {isAdmin && !editing && (
+            <div style={card}>
+              <p style={{fontSize:'13px',fontWeight:700,color:'#1a1040',margin:'0 0 12px'}}>Действия</p>
+              <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
+                <button onClick={async()=>{
+                  await fetch(API+'/employees/'+id+(emp.status==='ACTIVE'?'/suspend':'/activate'), {method:'PATCH',headers:h(token)});
+                  load(token);
+                }} style={{background:emp.status==='ACTIVE'?'#FEF3C7':'#D1FAE5',color:emp.status==='ACTIVE'?'#D97706':'#10B981',border:'none',borderRadius:'10px',padding:'8px 16px',fontSize:'12px',cursor:'pointer',fontWeight:700}}>
+                  {emp.status==='ACTIVE'?'Заблокировать':'Разблокировать'}
+                </button>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

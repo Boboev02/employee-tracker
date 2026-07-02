@@ -30,6 +30,11 @@ model User {
   status    String    @default("ACTIVE")
   avatarUrl      String?
   telegramChatId String?
+  birthDate      DateTime?
+  gender         String?
+  hiredAt        DateTime?
+  position       String?
+  phone          String?
   deletedAt      DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -179,6 +184,7 @@ model Task {
   sortOrder     Int       @default(0)
   externalId    String?
   externalUrl   String?
+  parentId      String?   // Родительская задача (для подзадач)
   productId     String?   // Привязка к карточке товара
   departmentId  String?   // Привязка к отделу
   projectId     String?   // Привязка к проекту
@@ -190,6 +196,8 @@ model Task {
   history       TaskHistory[]
   checklists    TaskChecklist[]
   participants  TaskParticipant[]
+  parent        Task?       @relation("SubTasks", fields: [parentId], references: [id])
+  subtasks      Task[]      @relation("SubTasks")
   product       Product?    @relation(fields: [productId], references: [id])
   department    Department? @relation(fields: [departmentId], references: [id])
   project       Project?    @relation(fields: [projectId], references: [id])
