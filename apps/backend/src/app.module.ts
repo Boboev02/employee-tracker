@@ -9,6 +9,8 @@ import { AuthModule }      from './auth/auth.module';
 import { WbReviewsModule } from './wb-reviews/wb-reviews.module';
 import { CallsModule } from './calls/calls.module';
 import { AuditModule } from './audit/audit.module';
+import { ProductsModule } from './products/products.module';
+import { DictionariesModule } from './dictionaries/dictionaries.module';
 import { ResetModule } from './reset/reset.module';
 import { KpiModule } from './kpi/kpi.module';
 import { HealthModule }    from './health/health.module';
@@ -32,6 +34,8 @@ import { JwtAuthGuard }    from './auth/guards/index';
     WbReviewsModule,
     CallsModule,
     AuditModule,
+    ProductsModule,
+    DictionariesModule,
     HealthModule,
     KpiModule,
     TasksModule, EmployeesModule, RealtimeModule,

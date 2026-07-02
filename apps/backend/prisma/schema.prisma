@@ -177,13 +177,21 @@ model Task {
   sortOrder     Int       @default(0)
   externalId    String?
   externalUrl   String?
+  productId     String?   // Привязка к карточке товара
+  departmentId  String?   // Привязка к отделу
   deletedAt     DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   comments      TaskComment[]
   history       TaskHistory[]
+  checklists    TaskChecklist[]
+  participants  TaskParticipant[]
+  product       Product?    @relation(fields: [productId], references: [id])
+  department    Department? @relation(fields: [departmentId], references: [id])
   @@index([orgId, status])
   @@index([assigneeId])
+  @@index([productId])
+  @@index([departmentId])
 }
 
 model TaskComment {
@@ -355,4 +363,94 @@ model ErrorLog {
 
   @@index([orgId, createdAt])
   @@index([createdAt])
+}
+
+model Product {
+  id          String    @id @default(uuid())
+  orgId       String
+  marketplace String    // "WB" или "OZON"
+  articleId   String    // Артикул на маркетплейсе
+  nmId        String?   // WB nmId
+  name        String
+  photoUrl    String?   // URL главного фото
+  price       Float?
+  rating      Float?
+  reviewCount Int?
+  stockCount  Int?
+  barcode     String?
+  categoryName String?
+  brand       String?
+  url         String?   // Ссылка на карточку на маркетплейсе
+  stageId     String?   // Стадия жизненного цикла карточки
+  syncedAt    DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  tasks       Task[]
+  stage       CardStage? @relation(fields: [stageId], references: [id])
+
+  @@unique([orgId, marketplace, articleId])
+  @@index([orgId, marketplace])
+}
+
+// ===== СПРАВОЧНИКИ =====
+
+model Department {
+  id        String    @id @default(uuid())
+  orgId     String
+  name      String
+  color     String?   @default("#7F77DD")
+  sortOrder Int       @default(0)
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  tasks     Task[]
+
+  @@index([orgId])
+  @@unique([orgId, name])
+}
+
+model CardStage {
+  id          String    @id @default(uuid())
+  orgId       String
+  name        String
+  description String?
+  color       String?   @default("#7F77DD")
+  sortOrder   Int       @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+
+  @@index([orgId])
+}
+
+// ===== ЧЕКЛИСТЫ =====
+
+model TaskChecklist {
+  id         String    @id @default(uuid())
+  taskId     String
+  text       String
+  isDone     Boolean   @default(false)
+  assigneeId String?
+  position   Int       @default(0)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  task       Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+}
+
+// ===== УЧАСТНИКИ ЗАДАЧИ =====
+
+model TaskParticipant {
+  id        String   @id @default(uuid())
+  taskId    String
+  userId    String
+  role      String   @default("observer") // co_executor | observer
+  createdAt DateTime @default(now())
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+  @@index([taskId])
+  @@index([userId])
 }

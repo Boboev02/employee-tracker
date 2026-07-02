@@ -19,10 +19,12 @@ const NAV = [
   { href: '/dashboard/knowledge',    icon: 'ti-book',             label: 'База знаний',    admin: false },
   { href: '/dashboard/routines',     icon: 'ti-repeat',           label: 'Рутины',         admin: false },
   { href: '/dashboard/kpi',          icon: 'ti-target',           label: 'KPI',            admin: true  },
+  { href: '/dashboard/products',     icon: 'ti-package',          label: 'Карточки товаров', admin: false },
   { href: '/dashboard/sales',        icon: 'ti-chart-arrows',     label: 'Продажи WB',     admin: true  },
   { href: '/dashboard/reviews',      icon: 'ti-star',             label: 'Отзывы WB',      admin: true  },
   { href: '/dashboard/calls',        icon: 'ti-video',            label: 'Видеозвонки',    admin: false },
   { href: '/dashboard/notebook', icon: 'ti-notebook', label: 'Мой блокнот', admin: false },
+  { href: '/dashboard/dictionaries', icon: 'ti-list-details',     label: 'Справочники',    admin: true  },
   { href: '/dashboard/settings',     icon: 'ti-settings',         label: 'Настройки',      admin: true  },
   { href: '/dashboard/audit',        icon: 'ti-shield-lock',      label: 'Журнал действий', admin: true  },
 ];

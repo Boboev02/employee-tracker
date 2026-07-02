@@ -183,7 +183,6 @@ export class TaskService {
     if (!task) throw new NotFoundException('Task not found');
     const comment = await this.repo.addComment(taskId, userId, content);
 
-    // Уведомление исполнителю
     if (task.assigneeId && task.assigneeId !== userId) {
       const assignee = await this.prisma.user.findUnique({ where: { id: task.assigneeId } });
       const author = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -198,5 +197,92 @@ export class TaskService {
       );
     }
     return comment;
+  }
+
+  // ===== ЧЕКЛИСТЫ =====
+  async getChecklists(taskId: string) {
+    return this.prisma.taskChecklist.findMany({ where: { taskId }, orderBy: { position: 'asc' } });
+  }
+
+  async addChecklist(taskId: string, orgId: string, userId: string, dto: { text: string; assigneeId?: string }, permissions?: Set<string>) {
+    const task = await this.repo.findById(taskId, orgId);
+    if (!task) throw new NotFoundException('Task not found');
+    if (!canModifyTask(task, userId, permissions)) throw new ForbiddenException('Нет прав на редактирование задачи');
+    const maxPos = await this.prisma.taskChecklist.aggregate({ where: { taskId }, _max: { position: true } });
+    return this.prisma.taskChecklist.create({
+      data: { taskId, text: dto.text, assigneeId: dto.assigneeId, position: (maxPos._max.position ?? 0) + 1 },
+    });
+  }
+
+  async updateChecklist(taskId: string, checkId: string, orgId: string, userId: string, dto: { text?: string; isDone?: boolean; assigneeId?: string }, permissions?: Set<string>) {
+    const task = await this.repo.findById(taskId, orgId);
+    if (!task) throw new NotFoundException('Task not found');
+    if (!canModifyTask(task, userId, permissions)) throw new ForbiddenException('Нет прав на редактирование задачи');
+    return this.prisma.taskChecklist.update({ where: { id: checkId }, data: dto });
+  }
+
+  async deleteChecklist(taskId: string, checkId: string, orgId: string, userId: string, permissions?: Set<string>) {
+    const task = await this.repo.findById(taskId, orgId);
+    if (!task) throw new NotFoundException('Task not found');
+    if (!canModifyTask(task, userId, permissions)) throw new ForbiddenException('Нет прав на редактирование задачи');
+    await this.prisma.taskChecklist.delete({ where: { id: checkId } });
+  }
+
+  // ===== УЧАСТНИКИ ЗАДАЧИ =====
+  async getParticipants(taskId: string) {
+    return this.prisma.taskParticipant.findMany({
+      where: { taskId },
+      include: { task: { select: { id: true } } },
+    });
+  }
+
+  async addParticipant(taskId: string, orgId: string, userId: string, dto: { userId: string; role: string }, permissions?: Set<string>) {
+    const task = await this.repo.findById(taskId, orgId);
+    if (!task) throw new NotFoundException('Task not found');
+    if (!canModifyTask(task, userId, permissions)) throw new ForbiddenException('Нет прав на редактирование задачи');
+    return this.prisma.taskParticipant.upsert({
+      where: { taskId_userId: { taskId, userId: dto.userId } },
+      update: { role: dto.role },
+      create: { taskId, userId: dto.userId, role: dto.role },
+    });
+  }
+
+  async removeParticipant(taskId: string, targetUserId: string, orgId: string, userId: string, permissions?: Set<string>) {
+    const task = await this.repo.findById(taskId, orgId);
+    if (!task) throw new NotFoundException('Task not found');
+    if (!canModifyTask(task, userId, permissions)) throw new ForbiddenException('Нет прав на редактирование задачи');
+    await this.prisma.taskParticipant.delete({ where: { taskId_userId: { taskId, userId: targetUserId } } });
+  }
+
+  // ===== ДВОЙНОЙ ВИД =====
+  async getByDepartment(orgId: string, filters: any, user?: any) {
+    const departments = await this.prisma.department.findMany({
+      where: { orgId, isActive: true },
+      orderBy: { sortOrder: 'asc' },
+      include: {
+        tasks: {
+          where: { deletedAt: null, ...(this.applyVisibilityRestriction({}, user)._restrictToUserId ? { OR: [{ createdById: user.id }, { assigneeId: user.id }] } : {}) },
+          include: { assignee: { select: { id: true, name: true, avatarUrl: true } } },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+    return departments;
+  }
+
+  async getByProduct(orgId: string, filters: any, user?: any) {
+    const restriction = this.applyVisibilityRestriction({}, user);
+    return this.prisma.product.findMany({
+      where: { orgId },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        tasks: {
+          where: { deletedAt: null, ...(restriction._restrictToUserId ? { OR: [{ createdById: restriction._restrictToUserId }, { assigneeId: restriction._restrictToUserId }] } : {}) },
+          include: { assignee: { select: { id: true, name: true, avatarUrl: true } } },
+          orderBy: { createdAt: 'desc' },
+        },
+        stage: true,
+      },
+    });
   }
 }

@@ -53,6 +53,9 @@ export default function TaskDetailPage() {
   const [saving, setSaving]     = useState(false);
   const [editTitle, setEditTitle] = useState(false);
   const [titleVal, setTitleVal] = useState('');
+  const [checklists, setChecklists] = useState<any[]>([]);
+  const [newCheckText, setNewCheckText] = useState('');
+  const [addingCheck, setAddingCheck] = useState(false);
 
   useEffect(() => {
     const t = localStorage.getItem('access_token');
@@ -77,6 +80,9 @@ export default function TaskDetailPage() {
       const data = await res.json();
       setTask(data); setTitleVal(data.title ?? '');
       setComments(Array.isArray(data.comments)?data.comments:[]);
+      // Загружаем чеклисты
+      const clRes = await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/checklists', { headers:{ Authorization:'Bearer '+t } });
+      if (clRes.ok) setChecklists(await clRes.json());
     } finally { setLoading(false); }
   };
 
@@ -97,6 +103,35 @@ export default function TaskDetailPage() {
       body: JSON.stringify({ status }),
     });
     loadTask(token);
+  };
+
+  const addChecklist = async () => {
+    if (!newCheckText.trim()) return;
+    setAddingCheck(true);
+    await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/checklists', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer '+token },
+      body: JSON.stringify({ text: newCheckText.trim() }),
+    });
+    setNewCheckText('');
+    const res = await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/checklists', { headers: { Authorization: 'Bearer '+token } });
+    if (res.ok) setChecklists(await res.json());
+    setAddingCheck(false);
+  };
+
+  const toggleCheck = async (checkId: string, isDone: boolean) => {
+    // Optimistic update
+    setChecklists(prev => prev.map(c => c.id === checkId ? { ...c, isDone } : c));
+    await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/checklists/'+checkId, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer '+token },
+      body: JSON.stringify({ isDone }),
+    });
+  };
+
+  const deleteCheck = async (checkId: string) => {
+    setChecklists(prev => prev.filter(c => c.id !== checkId));
+    await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/checklists/'+checkId, {
+      method: 'DELETE', headers: { Authorization: 'Bearer '+token },
+    });
   };
 
   const postComment = async () => {
@@ -172,6 +207,46 @@ export default function TaskDetailPage() {
               <p style={{ fontSize:'13px', color:'#1a1040', lineHeight:1.7, whiteSpace:'pre-wrap', margin:0 }}>{task.description}</p>
             ) : (
               <p style={{ fontSize:'13px', color:'#C4C0E8', fontStyle:'italic', margin:0 }}>Описание не добавлено</p>
+            )}
+          </div>
+
+          {/* Checklists */}
+          <div style={card}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'14px' }}>
+              <p style={{ fontSize:'11px', fontWeight:700, color:'#9B97CC', textTransform:'uppercase', letterSpacing:'0.5px', margin:0 }}>
+                Чек-лист
+                {checklists.length > 0 && <span style={{ fontWeight:500, color:'#C4C0E8', marginLeft:'4px' }}>({checklists.filter(c => c.isDone).length}/{checklists.length})</span>}
+              </p>
+            </div>
+            {checklists.length > 0 && (
+              <div style={{ marginBottom:'14px' }}>
+                <div style={{ background:'#F8F7FF', borderRadius:'6px', height:'6px', overflow:'hidden', marginBottom:'10px' }}>
+                  <div style={{ width: checklists.length ? (checklists.filter(c => c.isDone).length / checklists.length * 100) + '%' : '0%', height:'100%', background:'linear-gradient(90deg,#7F77DD,#16A34A)', borderRadius:'6px', transition:'width 0.3s' }} />
+                </div>
+                {checklists.map(c => (
+                  <div key={c.id} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 0', borderBottom:'1px solid #F8F7FF' }}>
+                    <div onClick={() => toggleCheck(c.id, !c.isDone)}
+                      style={{ width:'18px', height:'18px', borderRadius:'5px', border:'2px solid ' + (c.isDone ? '#16A34A' : '#D1D5DB'), background: c.isDone ? '#16A34A' : 'white', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
+                      {c.isDone && <span style={{ color:'white', fontSize:'11px', fontWeight:700 }}>✓</span>}
+                    </div>
+                    <span style={{ fontSize:'13px', color: c.isDone ? '#9B97CC' : '#1a1040', textDecoration: c.isDone ? 'line-through' : 'none', flex:1 }}>{c.text}</span>
+                    {canEdit && <button onClick={() => deleteCheck(c.id)} style={{ background:'none', border:'none', color:'#C4C0E8', cursor:'pointer', fontSize:'14px', padding:'0 4px' }}>✕</button>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {canEdit && (
+              <div style={{ display:'flex', gap:'8px' }}>
+                <input placeholder="Добавить пункт..." value={newCheckText}
+                  onChange={e => setNewCheckText(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addChecklist()}
+                  style={{ flex:1, background:'#F8F7FF', border:'1px solid #EDE9FE', borderRadius:'10px', padding:'8px 12px', fontSize:'13px', outline:'none' }} />
+                <button onClick={addChecklist} disabled={!newCheckText.trim() || addingCheck}
+                  style={{ background:'linear-gradient(135deg,#7F77DD,#5248C5)', color:'white', border:'none', borderRadius:'10px', padding:'8px 14px', fontSize:'13px', cursor:'pointer', opacity:(!newCheckText.trim() || addingCheck) ? 0.6 : 1 }}>+</button>
+              </div>
+            )}
+            {checklists.length === 0 && !canEdit && (
+              <p style={{ color:'#C4C0E8', fontSize:'13px', fontStyle:'italic', margin:0 }}>Чек-лист пуст</p>
             )}
           </div>
 
