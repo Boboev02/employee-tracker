@@ -9,6 +9,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 
 const NAV = [
   { href: '/dashboard',              icon: 'ti-layout-dashboard', label: 'Дашборд',        admin: false },
+  { href: '/dashboard/home',          icon: 'ti-home',             label: 'Мои задачи',     admin: false },
   { href: '/dashboard/employees',    icon: 'ti-users',            label: 'Сотрудники',     admin: false },
   { href: '/dashboard/tasks',        icon: 'ti-checkbox',         label: 'Задачи',         admin: false },
   { href: '/dashboard/projects',     icon: 'ti-layout-kanban',    label: 'Проекты',        admin: false },

@@ -39,6 +39,11 @@ export default function TasksPage() {
   const [mounted, setMounted]     = useState(false);
   const [dragTask, setDragTask]   = useState<{id:string;fromCol:string}|null>(null);
   const [dragOverCol, setDragOverCol] = useState<string|null>(null);
+  const [view, setView] = useState<'board'|'list'|'calendar'|'gantt'>('board');
+  const [listTasks, setListTasks] = useState<any[]>([]);
+  const [sortField, setSortField] = useState<'createdAt'|'dueDate'|'priority'|'title'>('createdAt');
+  const [sortDir, setSortDir] = useState<'asc'|'desc'>('desc');
+  const [calDate, setCalDate] = useState(new Date());
 
   // Filters
   const [filterAssignee, setFilterAssignee] = useState('');
@@ -59,6 +64,16 @@ export default function TasksPage() {
     fetch('https://employee-tracker.ru/api/v1/dictionaries/departments', { headers:{ Authorization:'Bearer '+t } })
       .then(r=>r.json()).then(d=>setDepartments(Array.isArray(d)?d:[])).catch(()=>{});
   }, []);
+
+  const loadList = async (t: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch('https://employee-tracker.ru/api/v1/tasks', { headers:{ Authorization:'Bearer '+t } });
+      const data = await res.json();
+      setListTasks(Array.isArray(data) ? data : data.tasks ?? []);
+    } catch {}
+    setLoading(false);
+  };
 
   const loadKanban = async (t: string) => {
     setLoading(true);
@@ -174,6 +189,25 @@ export default function TasksPage() {
           </p>
         </div>
         <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+          {/* View toggle */}
+          <div style={{ display:'flex', background:'#F8F7FF', borderRadius:'10px', padding:'3px', border:'1px solid #EDE9FE' }}>
+            <button onClick={()=>{ setView('board'); }} title="Канбан"
+              style={{ background:view==='board'?'white':'transparent', border:'none', borderRadius:'8px', padding:'5px 10px', cursor:'pointer', fontSize:'14px', color:view==='board'?'#7F77DD':'#9B97CC', boxShadow:view==='board'?'0 1px 4px rgba(0,0,0,0.1)':'none' }}>
+              ⊞
+            </button>
+            <button onClick={()=>{ setView('list'); if(token) loadList(token); }} title="Список"
+              style={{ background:view==='list'?'white':'transparent', border:'none', borderRadius:'8px', padding:'5px 10px', cursor:'pointer', fontSize:'14px', color:view==='list'?'#7F77DD':'#9B97CC', boxShadow:view==='list'?'0 1px 4px rgba(0,0,0,0.1)':'none' }}>
+              ☰
+            </button>
+            <button onClick={()=>{ setView('calendar'); if(token) loadList(token); }} title="Календарь"
+              style={{ background:view==='calendar'?'white':'transparent', border:'none', borderRadius:'8px', padding:'5px 10px', cursor:'pointer', fontSize:'14px', color:view==='calendar'?'#7F77DD':'#9B97CC', boxShadow:view==='calendar'?'0 1px 4px rgba(0,0,0,0.1)':'none' }}>
+              📅
+            </button>
+            <button onClick={()=>{ setView('gantt'); if(token) loadList(token); }} title="Гантт"
+              style={{ background:view==='gantt'?'white':'transparent', border:'none', borderRadius:'8px', padding:'5px 10px', cursor:'pointer', fontSize:'14px', color:view==='gantt'?'#7F77DD':'#9B97CC', boxShadow:view==='gantt'?'0 1px 4px rgba(0,0,0,0.1)':'none' }}>
+              📊
+            </button>
+          </div>
           {/* Search */}
           <div style={{ position:'relative' }}>
             <i className="ti ti-search" style={{ position:'absolute', left:'12px', top:'50%', transform:'translateY(-50%)', fontSize:'14px', color:'#9B97CC' }} aria-hidden="true"/>
@@ -240,10 +274,285 @@ export default function TasksPage() {
         </div>
       )}
 
+      {/* List View */}
+      {view==='list' && (
+        <div style={{ padding:'16px 28px', flex:1 }}>
+          {loading ? (
+            <div style={{ textAlign:'center', padding:'40px', color:'#9B97CC' }}>Загрузка...</div>
+          ) : (
+            <div style={{ background:'white', borderRadius:'16px', boxShadow:'0 4px 16px rgba(127,119,221,0.08)', overflow:'hidden' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                <thead>
+                  <tr style={{ background:'#F8F7FF', borderBottom:'1px solid #EDE9FE' }}>
+                    {[
+                      {label:'Задача', field:'title'},
+                      {label:'Статус', field:null},
+                      {label:'Исполнитель', field:null},
+                      {label:'Приоритет', field:'priority'},
+                      {label:'Дедлайн', field:'dueDate'},
+                      {label:'Создана', field:'createdAt'},
+                    ].map(col => (
+                      <th key={col.label} onClick={()=>{ if(col.field){ setSortField(col.field as any); setSortDir(d=>d==='asc'?'desc':'asc'); }}}
+                        style={{ padding:'10px 14px', fontSize:'11px', fontWeight:700, color:'#9B97CC', textAlign:'left', textTransform:'uppercase', letterSpacing:'0.5px', cursor:col.field?'pointer':'default', userSelect:'none', whiteSpace:'nowrap' }}>
+                        {col.label} {col.field===sortField ? (sortDir==='asc'?'↑':'↓') : ''}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...listTasks]
+                    .filter(t => {
+                      if (filterSearch && !t.title.toLowerCase().includes(filterSearch.toLowerCase())) return false;
+                      if (filterAssignee && t.assigneeId !== filterAssignee) return false;
+                      if (filterPriority && t.priority !== filterPriority) return false;
+                      return true;
+                    })
+                    .sort((a, b) => {
+                      const PORD: Record<string,number> = {LOW:0,MEDIUM:1,HIGH:2,CRITICAL:3};
+                      let av: any = a[sortField], bv: any = b[sortField];
+                      if (sortField==='priority') { av=PORD[a.priority]??0; bv=PORD[b.priority]??0; }
+                      if (av < bv) return sortDir==='asc' ? -1 : 1;
+                      if (av > bv) return sortDir==='asc' ? 1 : -1;
+                      return 0;
+                    })
+                    .map((task, i) => {
+                      const ps = PRIORITY_STYLE[task.priority] ?? PRIORITY_STYLE.MEDIUM;
+                      const sc = STATUS_COLS.find(s=>s.id===task.status);
+                      const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'DONE';
+                      return (
+                        <tr key={task.id}
+                          onClick={()=>router.push('/dashboard/tasks/'+task.id)}
+                          style={{ borderBottom:'1px solid #F8F7FF', cursor:'pointer', background: i%2===0?'white':'#FAFAFE', transition:'background 0.1s' }}
+                          onMouseEnter={e=>(e.currentTarget as HTMLTableRowElement).style.background='#F0EDFF'}
+                          onMouseLeave={e=>(e.currentTarget as HTMLTableRowElement).style.background=i%2===0?'white':'#FAFAFE'}>
+                          <td style={{ padding:'10px 14px', fontSize:'13px', fontWeight:600, color:'#1a1040', maxWidth:'300px' }}>
+                            <div style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{task.title}</div>
+                          </td>
+                          <td style={{ padding:'10px 14px' }}>
+                            <span style={{ background:(sc?.accentBg??'#F8F7FF'), color:(sc?.accentC??'#9B97CC'), borderRadius:'8px', padding:'3px 10px', fontSize:'11px', fontWeight:700, whiteSpace:'nowrap' }}>
+                              {sc?.label??task.status}
+                            </span>
+                          </td>
+                          <td style={{ padding:'10px 14px' }}>
+                            {task.assignee ? (
+                              <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+                                <div style={{ width:'24px', height:'24px', borderRadius:'50%', background:avatarColor(task.assignee.name), display:'flex', alignItems:'center', justifyContent:'center', fontSize:'10px', color:'white', fontWeight:700, flexShrink:0 }}>
+                                  {task.assignee.name?.charAt(0)?.toUpperCase()}
+                                </div>
+                                <span style={{ fontSize:'12px', color:'#1a1040', whiteSpace:'nowrap' }}>{task.assignee.name}</span>
+                              </div>
+                            ) : <span style={{ fontSize:'12px', color:'#C4C0E8' }}>—</span>}
+                          </td>
+                          <td style={{ padding:'10px 14px' }}>
+                            <span style={{ background:ps.bg, color:ps.c, borderRadius:'8px', padding:'3px 10px', fontSize:'11px', fontWeight:700 }}>{ps.l}</span>
+                          </td>
+                          <td style={{ padding:'10px 14px', fontSize:'12px', color:isOverdue?'#DC2626':'#9B97CC', fontWeight:isOverdue?700:400, whiteSpace:'nowrap' }}>
+                            {task.dueDate ? new Date(task.dueDate).toLocaleDateString('ru') : '—'}
+                          </td>
+                          <td style={{ padding:'10px 14px', fontSize:'12px', color:'#9B97CC', whiteSpace:'nowrap' }}>
+                            {new Date(task.createdAt).toLocaleDateString('ru')}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+              {listTasks.length === 0 && (
+                <div style={{ textAlign:'center', padding:'40px', color:'#9B97CC' }}>Задач нет</div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Calendar View */}
+      {view==='calendar' && (() => {
+        const year = calDate.getFullYear();
+        const month = calDate.getMonth();
+        const firstDay = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month+1, 0).getDate();
+        const startOffset = firstDay === 0 ? 6 : firstDay - 1;
+        const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+        const DAYS = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+        const today = new Date();
+
+        const getTasksForDay = (day: number) => {
+          const date = new Date(year, month, day);
+          return listTasks.filter(t => {
+            if (!t.dueDate) return false;
+            const d = new Date(t.dueDate);
+            return d.getFullYear()===year && d.getMonth()===month && d.getDate()===day;
+          });
+        };
+
+        const cells = [];
+        for (let i=0; i<startOffset; i++) cells.push(null);
+        for (let d=1; d<=daysInMonth; d++) cells.push(d);
+
+        return (
+          <div style={{ padding:'16px 28px', flex:1 }}>
+            <div style={{ background:'white', borderRadius:'16px', boxShadow:'0 4px 16px rgba(127,119,221,0.08)', overflow:'hidden' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'16px 20px', borderBottom:'1px solid #EDE9FE' }}>
+                <button onClick={()=>setCalDate(new Date(year, month-1, 1))}
+                  style={{ background:'#F8F7FF', border:'none', borderRadius:'8px', padding:'6px 12px', cursor:'pointer', fontSize:'14px', color:'#7F77DD' }}>←</button>
+                <h3 style={{ margin:0, fontSize:'16px', fontWeight:800, color:'#1a1040' }}>{MONTHS[month]} {year}</h3>
+                <div style={{ display:'flex', gap:'8px' }}>
+                  <button onClick={()=>setCalDate(new Date())}
+                    style={{ background:'#EDE9FE', border:'none', borderRadius:'8px', padding:'6px 12px', cursor:'pointer', fontSize:'12px', color:'#7F77DD', fontWeight:700 }}>Сегодня</button>
+                  <button onClick={()=>setCalDate(new Date(year, month+1, 1))}
+                    style={{ background:'#F8F7FF', border:'none', borderRadius:'8px', padding:'6px 12px', cursor:'pointer', fontSize:'14px', color:'#7F77DD' }}>→</button>
+                </div>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)' }}>
+                {DAYS.map(d => (
+                  <div key={d} style={{ padding:'8px', textAlign:'center', fontSize:'11px', fontWeight:700, color:'#9B97CC', borderBottom:'1px solid #EDE9FE', background:'#F8F7FF' }}>
+                    {d}
+                  </div>
+                ))}
+                {cells.map((day, i) => {
+                  const isToday = day && today.getDate()===day && today.getMonth()===month && today.getFullYear()===year;
+                  const tasks = day ? getTasksForDay(day) : [];
+                  return (
+                    <div key={i} style={{ minHeight:'100px', padding:'6px', borderRight:'1px solid #EDE9FE', borderBottom:'1px solid #EDE9FE', background:day?'white':'#F8F7FF', verticalAlign:'top' }}>
+                      {day && (
+                        <>
+                          <div style={{ width:'24px', height:'24px', borderRadius:'50%', background:isToday?'#7F77DD':'transparent', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'12px', fontWeight:isToday?700:400, color:isToday?'white':'#1a1040', marginBottom:'4px' }}>
+                            {day}
+                          </div>
+                          {tasks.slice(0,3).map(t => {
+                            const ps = PRIORITY_STYLE[t.priority]??PRIORITY_STYLE.MEDIUM;
+                            return (
+                              <div key={t.id} onClick={()=>router.push('/dashboard/tasks/'+t.id)}
+                                style={{ background:ps.bg, color:ps.c, borderRadius:'4px', padding:'2px 6px', fontSize:'10px', fontWeight:600, marginBottom:'2px', cursor:'pointer', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}
+                                title={t.title}>
+                                {t.title}
+                              </div>
+                            );
+                          })}
+                          {tasks.length > 3 && (
+                            <div style={{ fontSize:'10px', color:'#9B97CC', fontWeight:600 }}>+{tasks.length-3} ещё</div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Gantt View */}
+      {view==='gantt' && (() => {
+        const now = new Date();
+        const tasks = listTasks.filter(t => t.dueDate || t.createdAt);
+
+        // Определяем диапазон дат
+        const dates = tasks.flatMap(t => [
+          t.createdAt ? new Date(t.createdAt) : null,
+          t.dueDate   ? new Date(t.dueDate)   : null,
+        ]).filter(Boolean) as Date[];
+
+        let minDate = dates.length ? new Date(Math.min(...dates.map(d=>d.getTime()))) : new Date();
+        let maxDate = dates.length ? new Date(Math.max(...dates.map(d=>d.getTime()))) : new Date();
+
+        // Добавляем буфер по 3 дня с каждой стороны
+        minDate = new Date(minDate.getTime() - 3*24*60*60*1000);
+        maxDate = new Date(maxDate.getTime() + 3*24*60*60*1000);
+
+        const totalDays = Math.ceil((maxDate.getTime() - minDate.getTime()) / (24*60*60*1000));
+        const DAY_W = 36; // ширина одного дня в px
+        const ROW_H = 40;
+
+        const days: Date[] = [];
+        for (let i=0; i<totalDays; i++) {
+          days.push(new Date(minDate.getTime() + i*24*60*60*1000));
+        }
+
+        const getX = (date: Date) => Math.floor((date.getTime() - minDate.getTime()) / (24*60*60*1000)) * DAY_W;
+
+        const MONTHS_RU = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
+        const DAYS_RU = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
+
+        return (
+          <div style={{ padding:'16px 28px', flex:1, overflow:'hidden' }}>
+            <div style={{ background:'white', borderRadius:'16px', boxShadow:'0 4px 16px rgba(127,119,221,0.08)', overflow:'hidden' }}>
+              <div style={{ overflowX:'auto' }}>
+                <div style={{ minWidth: totalDays*DAY_W + 220 + 'px' }}>
+                  <div style={{ display:'flex', borderBottom:'1px solid #EDE9FE' }}>
+                    <div style={{ width:'220px', flexShrink:0, padding:'10px 14px', fontSize:'11px', fontWeight:700, color:'#9B97CC', textTransform:'uppercase', background:'#F8F7FF', borderRight:'1px solid #EDE9FE' }}>
+                      Задача
+                    </div>
+                    <div style={{ position:'relative', flex:1 }}>
+                      <div style={{ display:'flex', background:'#F8F7FF' }}>
+                        {days.map((d,i) => {
+                          const isToday = d.toDateString() === now.toDateString();
+                          const isWeekend = d.getDay()===0 || d.getDay()===6;
+                          return (
+                            <div key={i} style={{ width:DAY_W+'px', flexShrink:0, textAlign:'center', padding:'4px 0', borderRight:'1px solid #EDE9FE', background:isToday?'#EDE9FE':isWeekend?'#F0F0F8':'#F8F7FF' }}>
+                              {i===0 || d.getDate()===1 ? (
+                                <div style={{ fontSize:'9px', fontWeight:700, color:'#7F77DD' }}>{MONTHS_RU[d.getMonth()]}</div>
+                              ) : <div style={{ height:'13px' }} />}
+                              <div style={{ fontSize:'10px', fontWeight:isToday?700:400, color:isToday?'#7F77DD':isWeekend?'#9B97CC':'#1a1040' }}>
+                                {d.getDate()}
+                              </div>
+                              <div style={{ fontSize:'9px', color:'#C4C0E8' }}>{DAYS_RU[d.getDay()]}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {tasks.length === 0 ? (
+                    <div style={{ textAlign:'center', padding:'40px', color:'#9B97CC' }}>Нет задач с дедлайнами</div>
+                  ) : tasks.map((task, idx) => {
+                    const ps = PRIORITY_STYLE[task.priority] ?? PRIORITY_STYLE.MEDIUM;
+                    const sc = STATUS_COLS.find(s=>s.id===task.status);
+                    const startDate = new Date(task.createdAt);
+                    const endDate = task.dueDate ? new Date(task.dueDate) : new Date(startDate.getTime() + 24*60*60*1000);
+                    const x = getX(startDate);
+                    const w = Math.max(DAY_W, getX(endDate) - x + DAY_W);
+                    const isOverdue = task.dueDate && endDate < now && task.status !== 'DONE';
+
+                    return (
+                      <div key={task.id} style={{ display:'flex', borderBottom:'1px solid #F8F7FF', height:ROW_H+'px' }}
+                        onMouseEnter={e=>(e.currentTarget as HTMLDivElement).style.background='#FAFAFE'}
+                        onMouseLeave={e=>(e.currentTarget as HTMLDivElement).style.background='white'}>
+                        <div style={{ width:'220px', flexShrink:0, padding:'0 14px', display:'flex', alignItems:'center', gap:'8px', borderRight:'1px solid #EDE9FE', cursor:'pointer' }}
+                          onClick={()=>router.push('/dashboard/tasks/'+task.id)}>
+                          <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:sc?.accentC??'#9B97CC', flexShrink:0 }} />
+                          <span style={{ fontSize:'12px', fontWeight:600, color:'#1a1040', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{task.title}</span>
+                        </div>
+                        <div style={{ position:'relative', flex:1, overflow:'hidden' }}>
+                          {days.map((d,i) => {
+                            const isWeekend = d.getDay()===0||d.getDay()===6;
+                            const isToday = d.toDateString()===now.toDateString();
+                            return (
+                              <div key={i} style={{ position:'absolute', left:i*DAY_W+'px', top:0, width:DAY_W+'px', height:'100%', background:isToday?'rgba(127,119,221,0.05)':isWeekend?'rgba(0,0,0,0.02)':'transparent', borderRight:'1px solid #F8F7FF' }} />
+                            );
+                          })}
+                          <div style={{ position:'absolute', left:x+'px', top:'8px', width:w+'px', height:'24px', background:isOverdue?'#FEE2E2':ps.bg, borderRadius:'6px', display:'flex', alignItems:'center', paddingLeft:'8px', cursor:'pointer', border:'1px solid '+(isOverdue?'#FCA5A5':ps.c)+'40', zIndex:1 }}
+                            onClick={()=>router.push('/dashboard/tasks/'+task.id)}
+                            title={task.title}>
+                            <span style={{ fontSize:'11px', fontWeight:600, color:isOverdue?'#DC2626':ps.c, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{task.title}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Kanban */}
-      {loading ? (
+      {view==='board' && loading ? (
         <div style={{ display:'flex', alignItems:'center', justifyContent:'center', flex:1, color:'#9B97CC', fontSize:'13px' }}>Загрузка...</div>
-      ) : (
+      ) : view==='board' && (
         <div style={{ display:'flex', flex:1, overflowX:'auto', height:`calc(100vh - ${showFilters?'115px':'65px'})`, padding:'16px', gap:'12px' }}>
           {STATUS_COLS.map(col => {
             const allTasks = columns[col.id] ?? [];

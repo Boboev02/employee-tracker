@@ -72,6 +72,10 @@ export default function DashboardPage() {
   const [openKpi, setOpenKpi]         = useState(true);
   const [openActivity, setOpenActivity] = useState(true);
   const [openTasks, setOpenTasks]     = useState(true);
+  const [projects, setProjects]       = useState<any[]>([]);
+  const [products, setProducts]       = useState<any[]>([]);
+  const [openProjects, setOpenProjects] = useState(true);
+  const [openProducts, setOpenProducts] = useState(true);
 
   useEffect(() => {
     const t = localStorage.getItem('access_token');
@@ -106,17 +110,21 @@ export default function DashboardPage() {
       if (!validToken) return;
       t = validToken;
 
-      const [s, emps, p, tk, sec] = await Promise.all([
+      const [s, emps, p, tk, sec, proj, prod] = await Promise.all([
         fetch('https://employee-tracker.ru/api/v1/analytics/stats',              { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
         fetch('https://employee-tracker.ru/api/v1/employees',                    { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
         fetch('https://employee-tracker.ru/api/v1/presence',                     { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
         fetch('https://employee-tracker.ru/api/v1/tasks',                        { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
         fetch('https://employee-tracker.ru/api/v1/analytics/activity/summary?days=7', { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
+        fetch('https://employee-tracker.ru/api/v1/projects?limit=6',             { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()).catch(()=>[]),
+        fetch('https://employee-tracker.ru/api/v1/products?limit=6',             { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()).catch(()=>({})),
       ]);
 
       if (s && !s.error) setStats(s);
       if (Array.isArray(emps)) setEmployees(emps);
       if (Array.isArray(tk)) setTasks(tk);
+      if (Array.isArray(proj)) setProjects(proj);
+      if (prod?.products) setProducts(prod.products.slice(0,6));
 
       if (Array.isArray(p)) {
         setPresence(p);
@@ -381,6 +389,78 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+
+        {/* Projects Section */}
+        {projects.length > 0 && (
+          <div style={{ background:'white', borderRadius:'var(--radius)', padding:'20px', boxShadow:'var(--shadow-sm)' }}>
+            <SectionHeader title="Проекты" open={openProjects} onToggle={()=>setOpenProjects(v=>!v)} />
+            {openProjects && (
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:'10px', marginTop:'14px' }}>
+                {projects.map((p:any) => (
+                  <a key={p.id} href={'/dashboard/projects/'+p.id} style={{ textDecoration:'none' }}>
+                    <div style={{ padding:'14px', borderRadius:'12px', border:'1px solid #EDE9FE', cursor:'pointer', transition:'box-shadow 0.15s' }}
+                      onMouseEnter={e=>(e.currentTarget as HTMLDivElement).style.boxShadow='0 4px 12px rgba(127,119,221,0.15)'}
+                      onMouseLeave={e=>(e.currentTarget as HTMLDivElement).style.boxShadow='none'}>
+                      <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'8px' }}>
+                        <div style={{ width:'10px', height:'10px', borderRadius:'50%', background:p.color??'#7F77DD', flexShrink:0 }} />
+                        <span style={{ fontSize:'13px', fontWeight:700, color:'#1a1040', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.name}</span>
+                      </div>
+                      <div style={{ display:'flex', justifyContent:'space-between', fontSize:'11px', color:'#9B97CC' }}>
+                        <span style={{ background:(p.status==='ACTIVE'?'#10B981':'#9B97CC')+'20', color:p.status==='ACTIVE'?'#10B981':'#9B97CC', borderRadius:'6px', padding:'2px 8px', fontWeight:600 }}>
+                          {p.status==='ACTIVE'?'Активный':p.status==='COMPLETED'?'Завершён':'На паузе'}
+                        </span>
+                        {p._count?.tasks > 0 && <span>{p._count.tasks} задач</span>}
+                      </div>
+                    </div>
+                  </a>
+                ))}
+                <a href="/dashboard/projects" style={{ textDecoration:'none' }}>
+                  <div style={{ padding:'14px', borderRadius:'12px', border:'1px dashed #EDE9FE', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'#9B97CC', fontSize:'13px', fontWeight:600 }}>
+                    Все проекты →
+                  </div>
+                </a>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Products Section */}
+        {products.length > 0 && (
+          <div style={{ background:'white', borderRadius:'var(--radius)', padding:'20px', boxShadow:'var(--shadow-sm)' }}>
+            <SectionHeader title="Карточки товаров" open={openProducts} onToggle={()=>setOpenProducts(v=>!v)} />
+            {openProducts && (
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(120px,1fr))', gap:'10px', marginTop:'14px' }}>
+                {products.map((p:any) => (
+                  <a key={p.id} href={'/dashboard/products/'+p.id} style={{ textDecoration:'none' }}>
+                    <div style={{ borderRadius:'12px', overflow:'hidden', border:'1px solid #EDE9FE', cursor:'pointer', transition:'box-shadow 0.15s' }}
+                      onMouseEnter={e=>(e.currentTarget as HTMLDivElement).style.boxShadow='0 4px 12px rgba(127,119,221,0.15)'}
+                      onMouseLeave={e=>(e.currentTarget as HTMLDivElement).style.boxShadow='none'}>
+                      <div style={{ aspectRatio:'1', background:'#F8F7FF', overflow:'hidden' }}>
+                        {p.photoUrl
+                          ? <img src={p.photoUrl} alt={p.name} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                          : <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'24px' }}>📦</div>
+                        }
+                      </div>
+                      <div style={{ padding:'8px' }}>
+                        <p style={{ fontSize:'11px', fontWeight:600, color:'#1a1040', margin:'0 0 2px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.name}</p>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                          <span style={{ fontSize:'10px', background:p.marketplace==='WB'?'#8B2FC920':'#005BFF20', color:p.marketplace==='WB'?'#8B2FC9':'#005BFF', borderRadius:'4px', padding:'1px 6px', fontWeight:700 }}>{p.marketplace}</span>
+                          {p._count?.tasks > 0 && <span style={{ fontSize:'10px', color:'#9B97CC' }}>{p._count.tasks} задач</span>}
+                        </div>
+                      </div>
+                    </div>
+                  </a>
+                ))}
+                <a href="/dashboard/products" style={{ textDecoration:'none' }}>
+                  <div style={{ borderRadius:'12px', border:'1px dashed #EDE9FE', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'#9B97CC', fontSize:'12px', fontWeight:600, padding:'20px 10px', textAlign:'center' }}>
+                    Все карточки →
+                  </div>
+                </a>
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
     </div>
   );
