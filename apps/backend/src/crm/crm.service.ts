@@ -10,7 +10,13 @@ export class CrmService {
     const where: any = { orgId, deletedAt: null };
     if (filters.status) where.status = filters.status;
     if (filters.search) where.name = { contains: filters.search, mode: 'insensitive' };
-    return this.prisma.crmLead.findMany({ where, orderBy: { createdAt: 'desc' } });
+    const take = Math.min(parseInt(filters.limit ?? '50'), 200);
+    const skip = parseInt(filters.offset ?? '0');
+    const [data, total] = await Promise.all([
+      this.prisma.crmLead.findMany({ where, orderBy: { createdAt: 'desc' }, take, skip }),
+      this.prisma.crmLead.count({ where }),
+    ]);
+    return { data, total, take, skip };
   }
 
   async createLead(orgId: string, userId: string, dto: any) {
@@ -43,10 +49,16 @@ export class CrmService {
       { lastName: { contains: filters.search, mode: 'insensitive' } },
       { email: { contains: filters.search, mode: 'insensitive' } },
     ];
-    return this.prisma.crmContact.findMany({
-      where, orderBy: { createdAt: 'desc' },
-      include: { company: { select: { id: true, name: true } }, _count: { select: { deals: true } } },
-    });
+    const take = Math.min(parseInt(filters.limit ?? '50'), 200);
+    const skip = parseInt(filters.offset ?? '0');
+    const [data, total] = await Promise.all([
+      this.prisma.crmContact.findMany({
+        where, orderBy: { createdAt: 'desc' }, take, skip,
+        include: { company: { select: { id: true, name: true } }, _count: { select: { deals: true } } },
+      }),
+      this.prisma.crmContact.count({ where }),
+    ]);
+    return { data, total, take, skip };
   }
 
   async getContact(orgId: string, id: string) {
@@ -84,10 +96,16 @@ export class CrmService {
   async getCompanies(orgId: string, filters: any = {}) {
     const where: any = { orgId, deletedAt: null };
     if (filters.search) where.name = { contains: filters.search, mode: 'insensitive' };
-    return this.prisma.crmCompany.findMany({
-      where, orderBy: { createdAt: 'desc' },
-      include: { _count: { select: { contacts: true, deals: true } } },
-    });
+    const take = Math.min(parseInt(filters.limit ?? '50'), 200);
+    const skip = parseInt(filters.offset ?? '0');
+    const [data, total] = await Promise.all([
+      this.prisma.crmCompany.findMany({
+        where, orderBy: { createdAt: 'desc' }, take, skip,
+        include: { _count: { select: { contacts: true, deals: true } } },
+      }),
+      this.prisma.crmCompany.count({ where }),
+    ]);
+    return { data, total, take, skip };
   }
 
   async getCompany(orgId: string, id: string) {
@@ -120,14 +138,20 @@ export class CrmService {
     const where: any = { orgId, deletedAt: null };
     if (filters.stage) where.stage = filters.stage;
     if (filters.search) where.title = { contains: filters.search, mode: 'insensitive' };
-    return this.prisma.crmDeal.findMany({
-      where, orderBy: { updatedAt: 'desc' },
-      include: {
-        contact: { select: { id: true, firstName: true, lastName: true } },
-        company: { select: { id: true, name: true } },
-        _count: { select: { tasks: { where: { deletedAt: null } } } },
-      },
-    });
+    const take = Math.min(parseInt(filters.limit ?? '50'), 200);
+    const skip = parseInt(filters.offset ?? '0');
+    const [data, total] = await Promise.all([
+      this.prisma.crmDeal.findMany({
+        where, orderBy: { updatedAt: 'desc' }, take, skip,
+        include: {
+          contact: { select: { id: true, firstName: true, lastName: true } },
+          company: { select: { id: true, name: true } },
+          _count: { select: { tasks: { where: { deletedAt: null } } } },
+        },
+      }),
+      this.prisma.crmDeal.count({ where }),
+    ]);
+    return { data, total, take, skip };
   }
 
   async getDeal(orgId: string, id: string) {

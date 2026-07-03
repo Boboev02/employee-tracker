@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './audit/global-exception.filter';
 import { PrismaService } from './prisma/prisma.service';
@@ -8,6 +9,15 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const prismaService = app.get(PrismaService);
   app.useGlobalFilters(new GlobalExceptionFilter(prismaService));
+
+  // Global validation pipe
+  app.useGlobalPipes(new ValidationPipe({
+    whitelist: true,        // strip unknown fields
+    forbidNonWhitelisted: false, // don't throw on extra fields (backward compat)
+    transform: true,        // auto-transform types
+    skipMissingProperties: true,
+  }));
+
   app.enableCors({
     origin: [
       'http://localhost:3000',

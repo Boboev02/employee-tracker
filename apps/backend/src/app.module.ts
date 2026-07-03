@@ -1,7 +1,9 @@
 import { NotesModule } from './notes/notes.module';
+import { CustomFieldsModule } from './custom-fields/custom-fields.module';
 import 'dotenv/config';
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { SearchModule } from './search/search.module';
 import { RoutineTasksModule } from './routine-tasks/routine-tasks.module';
 import { PrismaModule }    from './prisma/prisma.module';
@@ -13,7 +15,6 @@ import { ProductsModule } from './products/products.module';
 import { DictionariesModule } from './dictionaries/dictionaries.module';
 import { ProjectsModule } from './projects/projects.module';
 import { CrmModule } from './crm/crm.module';
-import { SidebarModule } from './sidebar/sidebar.module';
 import { AttachmentsModule } from './attachments/attachments.module';
 import { ResetModule } from './reset/reset.module';
 import { KpiModule } from './kpi/kpi.module';
@@ -31,6 +32,15 @@ import { JwtAuthGuard }    from './auth/guards/index';
 
 @Module({
   imports: [
+    ThrottlerModule.forRoot([{
+      name: 'default',
+      ttl: 60000,   // 1 minute
+      limit: 60,    // 60 requests per minute per IP
+    }, {
+      name: 'auth',
+      ttl: 3600000, // 1 hour
+      limit: 10,    // 10 auth attempts per hour
+    }]),
     NotesModule,
     PrismaModule,
     RoutineTasksModule,
@@ -42,14 +52,17 @@ import { JwtAuthGuard }    from './auth/guards/index';
     DictionariesModule,
     ProjectsModule,
     CrmModule,
-    SidebarModule,
     AttachmentsModule,
     HealthModule,
     KpiModule,
     TasksModule, EmployeesModule, RealtimeModule,
     AnalyticsModule, TrackingModule, TeamsModule,
     SettingsModule, NotificationModule, KnowledgeModule,
+    CustomFieldsModule,
   ],
-  providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
 export class AppModule {}

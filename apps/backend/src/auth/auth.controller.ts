@@ -1,5 +1,6 @@
 import { Controller, Post, Get, Body, Req, Res, HttpCode, UnauthorizedException, Logger } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import { AuthService }   from './auth.service';
 import { TokenService }  from './token.service';
 import { Public, CurrentUser } from './decorators/index';
@@ -15,12 +16,14 @@ export class AuthController {
   ) {}
 
   @Public()
+  @Throttle({ auth: { limit: 5, ttl: 3600000 } }) // 5 registrations per hour
   @Post('register')
   register(@Body() body: { email: string; password: string; name: string; orgName?: string }) {
     return this.auth.register(body);
   }
 
   @Public()
+  @Throttle({ auth: { limit: 10, ttl: 900000 } }) // 10 login attempts per 15 min
   @Post('login')
   @HttpCode(200)
   async login(@Body() body: { email: string; password: string }, @Req() req: Request, @Res() res: Response) {
