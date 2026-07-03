@@ -332,7 +332,7 @@ export function Sidebar() {
         {user && (
           <div style={{ display:'flex', alignItems:'center', gap:'9px', padding:'8px 10px', borderRadius:'var(--radius)', cursor:'pointer', transition:'background var(--transition)' }}
             onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
-            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
             onClick={() => router.push('/dashboard/profile')}
             title="Мой профиль">
             <div style={{ width:'30px', height:'30px', borderRadius:'50%', background:'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, position:'relative' }}>
