@@ -4,6 +4,7 @@ import { TASK_TRANSITIONS } from './task.types';
 import { TelegramService } from '../telegram/telegram.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notifications/notification.service';
+import { CustomFieldsService } from '../custom-fields/custom-fields.service';
 
 // Проверяет может ли пользователь редактировать/удалить конкретную задачу.
 // Если у него есть "any"-право (ADMIN/MANAGER) — разрешено всё.
@@ -20,6 +21,7 @@ export class TaskService {
     private readonly telegram: TelegramService,
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
+    private readonly customFields: CustomFieldsService,
   ) {}
 
   // Если у пользователя нет права видеть все/командные задачи — ограничиваем выборку
@@ -45,7 +47,19 @@ export class TaskService {
   }
 
   async getList(orgId: string, filters: any, user?: any) {
-    return this.repo.findMany(orgId, this.applyVisibilityRestriction(filters, user));
+    const base = this.applyVisibilityRestriction(filters, user);
+
+    // Parse custom field filters from query: ?cf=[{"fieldId":"...","op":"EQ","val":"...","type":"TEXT"}]
+    if (filters.cf) {
+      try {
+        const cfFilters = typeof filters.cf === 'string' ? JSON.parse(filters.cf) : filters.cf;
+        if (Array.isArray(cfFilters) && cfFilters.length > 0) {
+          base._customFieldWhere = this.customFields.buildCustomFieldWhere(orgId, cfFilters);
+        }
+      } catch {}
+    }
+
+    return this.repo.findMany(orgId, base);
   }
 
   async create(orgId: string, userId: string, dto: any) {
@@ -60,10 +74,16 @@ export class TaskService {
       departmentId: dto.departmentId,
       productId:    dto.productId,
       parentId:     dto.parentId,
+      taskTypeId:   dto.taskTypeId,
       dueDate:      dto.dueDate ? new Date(dto.dueDate) : undefined,
       status:       'NEW',
       tags:         dto.tags ?? [],
     });
+
+    // Save custom field values if provided
+    if (dto.customFields && typeof dto.customFields === 'object') {
+      await this.customFields.setTaskFieldValues(task.id, orgId, dto.customFields).catch(() => {});
+    }
 
     // Уведомление исполнителю
     if (dto.assigneeId && dto.assigneeId !== userId) {

@@ -44,15 +44,42 @@ export class TaskRepository {
 
   async findMany(orgId: string, filters: any = {}) {
     const where: any = { orgId, deletedAt: null };
-    if (filters.status)     where.status     = { in: filters.status };
-    if (filters.assigneeId) where.assigneeId = filters.assigneeId;
-    if (filters.search)     where.title      = { contains: filters.search, mode: 'insensitive' };
-    if (filters._restrictToUserId) {
-      where.OR = [{ createdById: filters._restrictToUserId }, { assigneeId: filters._restrictToUserId }];
+    if (filters.status)       where.status       = Array.isArray(filters.status) ? { in: filters.status } : filters.status;
+    if (filters.assigneeId)   where.assigneeId   = filters.assigneeId;
+    if (filters.taskTypeId)   where.taskTypeId   = filters.taskTypeId;
+    if (filters.projectId)    where.projectId    = filters.projectId;
+    if (filters.departmentId) where.departmentId = filters.departmentId;
+    if (filters.search) {
+      where.OR = [
+        { title: { contains: filters.search, mode: 'insensitive' } },
+        { description: { contains: filters.search, mode: 'insensitive' } },
+      ];
     }
+    if (filters._restrictToUserId) {
+      where.AND = [
+        ...(where.AND ?? []),
+        { OR: [{ createdById: filters._restrictToUserId }, { assigneeId: filters._restrictToUserId }] },
+      ];
+    }
+    // Custom field filters (pre-built by CustomFieldsService.buildCustomFieldWhere)
+    if (filters._customFieldWhere) {
+      Object.assign(where, filters._customFieldWhere);
+    }
+
+    const orderBy: any = {};
+    const validSortFields = ['createdAt', 'updatedAt', 'dueDate', 'priority', 'title', 'sortOrder'];
+    const sortField = validSortFields.includes(filters.sortField) ? filters.sortField : 'createdAt';
+    orderBy[sortField] = filters.sortDir === 'asc' ? 'asc' : 'desc';
+
     return this.prisma.task.findMany({
-      where, orderBy: { createdAt: 'desc' },
-      take: filters.limit ?? 50, skip: filters.offset ?? 0,
+      where,
+      orderBy,
+      take: Math.min(filters.limit ?? 50, 200),
+      skip: filters.offset ?? 0,
+      include: {
+        assignee: { select: { id: true, name: true, avatarUrl: true } },
+        taskType: { select: { id: true, name: true, icon: true, color: true } },
+      },
     });
   }
 

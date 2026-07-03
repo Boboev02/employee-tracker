@@ -3,6 +3,7 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePermissions } from '@/lib/usePermissions';
+import { CustomFieldsPanel } from '@/components/custom-fields/CustomFieldsPanel';
 
 const STATUS_COLS = [
   { id:'NEW',         label:'Новые',          dot:'#9B97CC', colBg:'#F8F7FF', accentC:'#7F77DD', accentBg:'#EDE9FE', next:'IN_PROGRESS', nextLabel:'В работу' },
@@ -31,17 +32,7 @@ export default function TasksPage() {
   const [loading, setLoading]     = useState(true);
   const [showForm, setShowForm]   = useState(false);
   const [employees, setEmployees] = useState<any[]>([]);
-  const [newTask, setNewTask]     = useState({ title:'', priority:'MEDIUM', description:'', assigneeId:'', dueDate:'', departmentId:'', productId:'' });
-  const [showProductPicker, setShowProductPicker] = useState(false);
-  const [productSearch, setProductSearch] = useState('');
-  const [productList, setProductList] = useState<any[]>([]);
-  const [selectedProduct, setSelectedProduct] = useState<any>(null);
-  const [loadingProducts, setLoadingProducts] = useState(false);
-  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
-  const [tagInput, setTagInput] = useState('');
-  const [pendingTags, setPendingTags] = useState<string[]>([]);
-  const [pendingSubtasks, setPendingSubtasks] = useState<string[]>([]);
-  const [subtaskInput, setSubtaskInput] = useState('');
+  const [newTask, setNewTask]     = useState({ title:'', priority:'MEDIUM', description:'', assigneeId:'', dueDate:'', departmentId:'' });
   const [departments, setDepartments] = useState<any[]>([]);
   const [aiDept, setAiDept]     = useState<{ id: string; name: string; color: string } | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
@@ -116,33 +107,6 @@ export default function TasksPage() {
     setAiLoading(false);
   };
 
-  const searchProducts = async (q: string) => {
-    setProductSearch(q);
-    if (q.length < 1) { setProductList([]); return; }
-    setLoadingProducts(true);
-    try {
-      const res = await fetch('https://employee-tracker.ru/api/v1/products?search='+encodeURIComponent(q)+'&limit=10', {
-        headers: { Authorization: 'Bearer '+token }
-      });
-      const data = await res.json();
-      setProductList(data.products ?? []);
-    } catch {}
-    setLoadingProducts(false);
-  };
-
-  const selectProduct = (product: any) => {
-    setSelectedProduct(product);
-    setNewTask(prev => ({ ...prev, productId: product.id }));
-    setShowProductPicker(false);
-    setProductSearch('');
-    setProductList([]);
-  };
-
-  const clearProduct = () => {
-    setSelectedProduct(null);
-    setNewTask(prev => ({ ...prev, productId: '' }));
-  };
-
   const handleTitleChange = (title: string) => {
     setNewTask(prev => ({ ...prev, title }));
     setAiDept(null);
@@ -150,40 +114,23 @@ export default function TasksPage() {
     aiTimerRef.current = setTimeout(() => classifyDepartment(title), 800);
   };
 
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, any>>({});
+
   const createTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    const taskRes = await fetch('https://employee-tracker.ru/api/v1/tasks', {
+    await fetch('https://employee-tracker.ru/api/v1/tasks', {
       method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token },
-      body: JSON.stringify({ ...newTask, assigneeId:newTask.assigneeId||undefined, dueDate:newTask.dueDate||undefined, departmentId:newTask.departmentId||undefined, productId:newTask.productId||undefined, tags:pendingTags }),
+      body: JSON.stringify({
+        ...newTask,
+        assigneeId: newTask.assigneeId || undefined,
+        dueDate: newTask.dueDate || undefined,
+        departmentId: newTask.departmentId || undefined,
+        customFields: Object.keys(customFieldValues).length > 0 ? customFieldValues : undefined,
+      }),
     });
-    const createdTask = await taskRes.json();
-    // Create pending subtasks
-    if (createdTask.id && pendingSubtasks.length > 0) {
-      await Promise.all(pendingSubtasks.map(title =>
-        fetch('https://employee-tracker.ru/api/v1/tasks', {
-          method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token },
-          body: JSON.stringify({ title, parentId: createdTask.id, priority: newTask.priority }),
-        })
-      ));
-    }
-    // Upload pending files
-    if (createdTask.id && pendingFiles.length > 0) {
-      await Promise.all(pendingFiles.map(file => {
-        const fd = new FormData();
-        fd.append('file', file);
-        return fetch('https://employee-tracker.ru/api/v1/tasks/'+createdTask.id+'/attachments', {
-          method:'POST', headers:{ Authorization:'Bearer '+token }, body: fd,
-        });
-      }));
-    }
-    setNewTask({ title:'', priority:'MEDIUM', description:'', assigneeId:'', dueDate:'', departmentId:'', productId:'' });
+    setNewTask({ title:'', priority:'MEDIUM', description:'', assigneeId:'', dueDate:'', departmentId:'' });
+    setCustomFieldValues({});
     setAiDept(null);
-    setSelectedProduct(null);
-    setPendingFiles([]);
-    setPendingTags([]);
-    setPendingSubtasks([]);
-    setTagInput('');
-    setSubtaskInput('');
     setShowForm(false); loadKanban(token);
   };
 
@@ -339,93 +286,15 @@ export default function TasksPage() {
 
       {/* List View */}
       {view==='list' && (
-        <div style={{ padding:'16px 28px', flex:1 }}>
-          {loading ? (
-            <div style={{ textAlign:'center', padding:'40px', color:'#9B97CC' }}>Загрузка...</div>
-          ) : (
-            <div style={{ background:'white', borderRadius:'16px', boxShadow:'0 4px 16px rgba(127,119,221,0.08)', overflow:'hidden' }}>
-              <table style={{ width:'100%', borderCollapse:'collapse' }}>
-                <thead>
-                  <tr style={{ background:'#F8F7FF', borderBottom:'1px solid #EDE9FE' }}>
-                    {[
-                      {label:'Задача', field:'title'},
-                      {label:'Статус', field:null},
-                      {label:'Исполнитель', field:null},
-                      {label:'Приоритет', field:'priority'},
-                      {label:'Дедлайн', field:'dueDate'},
-                      {label:'Создана', field:'createdAt'},
-                    ].map(col => (
-                      <th key={col.label} onClick={()=>{ if(col.field){ setSortField(col.field as any); setSortDir(d=>d==='asc'?'desc':'asc'); }}}
-                        style={{ padding:'10px 14px', fontSize:'11px', fontWeight:700, color:'#9B97CC', textAlign:'left', textTransform:'uppercase', letterSpacing:'0.5px', cursor:col.field?'pointer':'default', userSelect:'none', whiteSpace:'nowrap' }}>
-                        {col.label} {col.field===sortField ? (sortDir==='asc'?'↑':'↓') : ''}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...listTasks]
-                    .filter(t => {
-                      if (filterSearch && !t.title.toLowerCase().includes(filterSearch.toLowerCase())) return false;
-                      if (filterAssignee && t.assigneeId !== filterAssignee) return false;
-                      if (filterPriority && t.priority !== filterPriority) return false;
-                      return true;
-                    })
-                    .sort((a, b) => {
-                      const PORD: Record<string,number> = {LOW:0,MEDIUM:1,HIGH:2,CRITICAL:3};
-                      let av: any = a[sortField], bv: any = b[sortField];
-                      if (sortField==='priority') { av=PORD[a.priority]??0; bv=PORD[b.priority]??0; }
-                      if (av < bv) return sortDir==='asc' ? -1 : 1;
-                      if (av > bv) return sortDir==='asc' ? 1 : -1;
-                      return 0;
-                    })
-                    .map((task, i) => {
-                      const ps = PRIORITY_STYLE[task.priority] ?? PRIORITY_STYLE.MEDIUM;
-                      const sc = STATUS_COLS.find(s=>s.id===task.status);
-                      const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'DONE';
-                      return (
-                        <tr key={task.id}
-                          onClick={()=>router.push('/dashboard/tasks/'+task.id)}
-                          style={{ borderBottom:'1px solid #F8F7FF', cursor:'pointer', background: i%2===0?'white':'#FAFAFE', transition:'background 0.1s' }}
-                          onMouseEnter={e=>(e.currentTarget as HTMLTableRowElement).style.background='#F0EDFF'}
-                          onMouseLeave={e=>(e.currentTarget as HTMLTableRowElement).style.background=i%2===0?'white':'#FAFAFE'}>
-                          <td style={{ padding:'10px 14px', fontSize:'13px', fontWeight:600, color:'#1a1040', maxWidth:'300px' }}>
-                            <div style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{task.title}</div>
-                          </td>
-                          <td style={{ padding:'10px 14px' }}>
-                            <span style={{ background:(sc?.accentBg??'#F8F7FF'), color:(sc?.accentC??'#9B97CC'), borderRadius:'8px', padding:'3px 10px', fontSize:'11px', fontWeight:700, whiteSpace:'nowrap' }}>
-                              {sc?.label??task.status}
-                            </span>
-                          </td>
-                          <td style={{ padding:'10px 14px' }}>
-                            {task.assignee ? (
-                              <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
-                                <div style={{ width:'24px', height:'24px', borderRadius:'50%', background:avatarColor(task.assignee.name), display:'flex', alignItems:'center', justifyContent:'center', fontSize:'10px', color:'white', fontWeight:700, flexShrink:0 }}>
-                                  {task.assignee.name?.charAt(0)?.toUpperCase()}
-                                </div>
-                                <span style={{ fontSize:'12px', color:'#1a1040', whiteSpace:'nowrap' }}>{task.assignee.name}</span>
-                              </div>
-                            ) : <span style={{ fontSize:'12px', color:'#C4C0E8' }}>—</span>}
-                          </td>
-                          <td style={{ padding:'10px 14px' }}>
-                            <span style={{ background:ps.bg, color:ps.c, borderRadius:'8px', padding:'3px 10px', fontSize:'11px', fontWeight:700 }}>{ps.l}</span>
-                          </td>
-                          <td style={{ padding:'10px 14px', fontSize:'12px', color:isOverdue?'#DC2626':'#9B97CC', fontWeight:isOverdue?700:400, whiteSpace:'nowrap' }}>
-                            {task.dueDate ? new Date(task.dueDate).toLocaleDateString('ru') : '—'}
-                          </td>
-                          <td style={{ padding:'10px 14px', fontSize:'12px', color:'#9B97CC', whiteSpace:'nowrap' }}>
-                            {new Date(task.createdAt).toLocaleDateString('ru')}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                </tbody>
-              </table>
-              {listTasks.length === 0 && (
-                <div style={{ textAlign:'center', padding:'40px', color:'#9B97CC' }}>Задач нет</div>
-              )}
-            </div>
-          )}
-        </div>
+        <ListViewWithCustomFields
+          token={token}
+          listTasks={listTasks}
+          loading={loading}
+          filterSearch={filterSearch}
+          filterAssignee={filterAssignee}
+          filterPriority={filterPriority}
+          onRowClick={(id: string) => router.push('/dashboard/tasks/'+id)}
+        />
       )}
 
       {/* Calendar View */}
@@ -766,162 +635,18 @@ export default function TasksPage() {
                   </select>
                 </div>
               </div>
-              {/* Product picker */}
-              <div style={{ position:'relative' }}>
-                <label style={{ fontSize:'10px', color:'#9B97CC', display:'block', marginBottom:'5px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.4px' }}>
-                  📦 Карточка товара
-                </label>
-                {selectedProduct ? (
-                  <div style={{ display:'flex', alignItems:'center', gap:'8px', background:'#F0EDFF', border:'1px solid #EDE9FE', borderRadius:'12px', padding:'8px 12px' }}>
-                    {selectedProduct.photoUrl && <img src={selectedProduct.photoUrl} alt="" style={{ width:'28px', height:'28px', borderRadius:'6px', objectFit:'cover', flexShrink:0 }} />}
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <p style={{ fontSize:'12px', fontWeight:700, color:'#1a1040', margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{selectedProduct.name}</p>
-                      <p style={{ fontSize:'11px', color:'#9B97CC', margin:0 }}>{selectedProduct.articleId} · {selectedProduct.marketplace}</p>
-                    </div>
-                    <button type="button" onClick={clearProduct} style={{ background:'none', border:'none', color:'#DC2626', cursor:'pointer', fontSize:'16px', padding:0, flexShrink:0 }}>✕</button>
-                  </div>
-                ) : (
-                  <button type="button" onClick={()=>setShowProductPicker(true)}
-                    style={{ width:'100%', background:'#F8F7FF', border:'1px dashed #EDE9FE', borderRadius:'12px', padding:'10px', fontSize:'13px', color:'#9B97CC', cursor:'pointer', textAlign:'left' }}>
-                    🔍 Выбрать карточку товара...
-                  </button>
-                )}
-
-                {/* Product picker popup */}
-                {showProductPicker && (
-                  <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.3)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center' }}
-                    onClick={e=>{ if(e.target===e.currentTarget){ setShowProductPicker(false); setProductSearch(''); setProductList([]); }}}>
-                    <div style={{ background:'white', borderRadius:'20px', padding:'20px', width:'420px', maxHeight:'500px', display:'flex', flexDirection:'column', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
-                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'14px' }}>
-                        <p style={{ fontSize:'15px', fontWeight:800, color:'#1a1040', margin:0 }}>Выбор карточки товара</p>
-                        <button type="button" onClick={()=>{ setShowProductPicker(false); setProductSearch(''); setProductList([]); }}
-                          style={{ background:'none', border:'none', fontSize:'18px', cursor:'pointer', color:'#9B97CC' }}>✕</button>
-                      </div>
-                      <input
-                        placeholder="Поиск по названию или артикулу..."
-                        value={productSearch}
-                        onChange={e=>searchProducts(e.target.value)}
-                        autoFocus
-                        style={{ width:'100%', background:'#F8F7FF', border:'1px solid #EDE9FE', borderRadius:'12px', padding:'10px 14px', fontSize:'13px', outline:'none', boxSizing:'border-box', marginBottom:'10px' }}
-                      />
-                      <div style={{ overflowY:'auto', flex:1 }}>
-                        {loadingProducts && <p style={{ textAlign:'center', color:'#9B97CC', padding:'20px 0' }}>Поиск...</p>}
-                        {!loadingProducts && productSearch.length > 0 && productList.length === 0 && (
-                          <p style={{ textAlign:'center', color:'#9B97CC', padding:'20px 0' }}>Ничего не найдено</p>
-                        )}
-                        {!loadingProducts && productSearch.length === 0 && (
-                          <p style={{ textAlign:'center', color:'#C4C0E8', padding:'20px 0', fontSize:'13px' }}>Начните вводить название или артикул</p>
-                        )}
-                        {productList.map(p => (
-                          <div key={p.id} onClick={()=>selectProduct(p)}
-                            style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px', borderRadius:'12px', cursor:'pointer', marginBottom:'4px' }}
-                            onMouseEnter={e=>(e.currentTarget as HTMLDivElement).style.background='#F8F7FF'}
-                            onMouseLeave={e=>(e.currentTarget as HTMLDivElement).style.background='transparent'}>
-                            {p.photoUrl ? (
-                              <img src={p.photoUrl} alt="" style={{ width:'40px', height:'40px', borderRadius:'8px', objectFit:'cover', flexShrink:0 }} />
-                            ) : (
-                              <div style={{ width:'40px', height:'40px', borderRadius:'8px', background:'#F8F7FF', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'18px', flexShrink:0 }}>📦</div>
-                            )}
-                            <div style={{ flex:1, minWidth:0 }}>
-                              <p style={{ fontSize:'13px', fontWeight:700, color:'#1a1040', margin:'0 0 2px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.name}</p>
-                              <p style={{ fontSize:'11px', color:'#9B97CC', margin:0 }}>Арт: {p.articleId} · {p.marketplace}</p>
-                            </div>
-                            <span style={{ background:p.marketplace==='WB'?'#8B2FC920':'#005BFF20', color:p.marketplace==='WB'?'#8B2FC9':'#005BFF', borderRadius:'6px', padding:'2px 8px', fontSize:'10px', fontWeight:700, flexShrink:0 }}>
-                              {p.marketplace}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Tags */}
-              <div>
-                <label style={{ fontSize:'10px', color:'#9B97CC', display:'block', marginBottom:'5px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.4px' }}>
-                  🏷️ Теги {pendingTags.length > 0 && <span style={{ color:'#7F77DD' }}>({pendingTags.length})</span>}
-                </label>
-                {pendingTags.length > 0 && (
-                  <div style={{ display:'flex', flexWrap:'wrap', gap:'6px', marginBottom:'8px' }}>
-                    {pendingTags.map((tag, i) => (
-                      <span key={i} style={{ display:'flex', alignItems:'center', gap:'4px', background:'#EDE9FE', color:'#7F77DD', borderRadius:'20px', padding:'3px 10px', fontSize:'12px', fontWeight:600 }}>
-                        #{tag}
-                        <button type="button" onClick={()=>setPendingTags(prev=>prev.filter((_,j)=>j!==i))}
-                          style={{ background:'none', border:'none', color:'#9B97CC', cursor:'pointer', fontSize:'12px', padding:0, lineHeight:1 }}>✕</button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <div style={{ display:'flex', gap:'6px' }}>
-                  <input placeholder="Добавить тег..." value={tagInput}
-                    onChange={e=>setTagInput(e.target.value.replace(/\s/g,''))}
-                    onKeyDown={e=>{ if((e.key==='Enter'||e.key===',')&&tagInput.trim()){ e.preventDefault(); if(!pendingTags.includes(tagInput.trim())) setPendingTags(prev=>[...prev,tagInput.trim()]); setTagInput(''); }}}
-                    style={{ flex:1, background:'#F8F7FF', border:'1px solid #EDE9FE', borderRadius:'10px', padding:'7px 12px', fontSize:'12px', outline:'none' }} />
-                  <button type="button" onClick={()=>{ if(tagInput.trim()&&!pendingTags.includes(tagInput.trim())){ setPendingTags(prev=>[...prev,tagInput.trim()]); setTagInput(''); }}}
-                    style={{ background:'#EDE9FE', color:'#7F77DD', border:'none', borderRadius:'10px', padding:'7px 14px', fontSize:'12px', cursor:'pointer', fontWeight:700 }}>
-                    +
-                  </button>
+              {/* Custom fields in create form */}
+              {token && (
+                <div style={{ marginBottom:'10px' }}>
+                  <CustomFieldsPanel
+                    taskId=""
+                    token={token}
+                    employees={employees}
+                    initialValues={customFieldValues}
+                    onChange={setCustomFieldValues}
+                  />
                 </div>
-              </div>
-
-              {/* Subtasks */}
-              <div>
-                <label style={{ fontSize:'10px', color:'#9B97CC', display:'block', marginBottom:'5px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.4px' }}>
-                  ✅ Подзадачи {pendingSubtasks.length > 0 && <span style={{ color:'#7F77DD' }}>({pendingSubtasks.length})</span>}
-                </label>
-                {pendingSubtasks.length > 0 && (
-                  <div style={{ display:'flex', flexDirection:'column', gap:'4px', marginBottom:'8px' }}>
-                    {pendingSubtasks.map((st, i) => (
-                      <div key={i} style={{ display:'flex', alignItems:'center', gap:'8px', background:'#F8F7FF', borderRadius:'8px', padding:'6px 10px' }}>
-                        <div style={{ width:'14px', height:'14px', borderRadius:'50%', border:'2px solid #EDE9FE', flexShrink:0 }} />
-                        <span style={{ fontSize:'12px', color:'#1a1040', flex:1 }}>{st}</span>
-                        <button type="button" onClick={()=>setPendingSubtasks(prev=>prev.filter((_,j)=>j!==i))}
-                          style={{ background:'none', border:'none', color:'#9B97CC', cursor:'pointer', fontSize:'14px', padding:0 }}>✕</button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div style={{ display:'flex', gap:'6px' }}>
-                  <input placeholder="Добавить подзадачу..." value={subtaskInput}
-                    onChange={e=>setSubtaskInput(e.target.value)}
-                    onKeyDown={e=>{ if(e.key==='Enter'&&subtaskInput.trim()){ e.preventDefault(); setPendingSubtasks(prev=>[...prev,subtaskInput.trim()]); setSubtaskInput(''); }}}
-                    style={{ flex:1, background:'#F8F7FF', border:'1px solid #EDE9FE', borderRadius:'10px', padding:'7px 12px', fontSize:'12px', outline:'none' }} />
-                  <button type="button" onClick={()=>{ if(subtaskInput.trim()){ setPendingSubtasks(prev=>[...prev,subtaskInput.trim()]); setSubtaskInput(''); }}}
-                    style={{ background:'#EDE9FE', color:'#7F77DD', border:'none', borderRadius:'10px', padding:'7px 14px', fontSize:'12px', cursor:'pointer', fontWeight:700 }}>
-                    +
-                  </button>
-                </div>
-              </div>
-
-              {/* File attachments */}
-              <div>
-                <label style={{ fontSize:'10px', color:'#9B97CC', display:'block', marginBottom:'5px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.4px' }}>
-                  📎 Вложения {pendingFiles.length > 0 && <span style={{ color:'#7F77DD' }}>({pendingFiles.length})</span>}
-                </label>
-                {pendingFiles.length > 0 && (
-                  <div style={{ display:'flex', flexWrap:'wrap', gap:'6px', marginBottom:'8px' }}>
-                    {pendingFiles.map((f, i) => {
-                      const isImage = f.type.startsWith('image/');
-                      const icon = f.type.includes('pdf') ? '📄' : isImage ? '🖼️' : f.type.includes('word') ? '📝' : f.type.includes('excel') || f.type.includes('sheet') ? '📊' : '📎';
-                      return (
-                        <div key={i} style={{ display:'flex', alignItems:'center', gap:'6px', background:'#F0EDFF', borderRadius:'8px', padding:'4px 10px', fontSize:'12px' }}>
-                          <span>{icon}</span>
-                          <span style={{ color:'#7F77DD', fontWeight:600, maxWidth:'120px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{f.name}</span>
-                          <span style={{ color:'#9B97CC' }}>{Math.round(f.size/1024)}KB</span>
-                          <button type="button" onClick={()=>setPendingFiles(prev=>prev.filter((_,j)=>j!==i))}
-                            style={{ background:'none', border:'none', color:'#DC2626', cursor:'pointer', fontSize:'14px', padding:0, lineHeight:1 }}>✕</button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                <label style={{ display:'flex', alignItems:'center', gap:'8px', background:'#F8F7FF', border:'1px dashed #EDE9FE', borderRadius:'10px', padding:'8px 14px', cursor:'pointer', fontSize:'12px', color:'#9B97CC', fontWeight:600 }}>
-                  + Добавить файлы (фото, PDF, документы)
-                  <input type="file" multiple style={{ display:'none' }}
-                    onChange={e=>{ if(e.target.files) setPendingFiles(prev=>[...prev, ...Array.from(e.target.files!)]); e.target.value=''; }} />
-                </label>
-              </div>
+              )}
 
               <div style={{ display:'flex', gap:'10px', marginTop:'6px' }}>
                 <button type="button" onClick={()=>setShowForm(false)} style={{ flex:1, background:'#F8F7FF', color:'#6B7280', border:'1px solid #EDE9FE', borderRadius:'12px', padding:'11px', fontSize:'13px', cursor:'pointer', fontWeight:600 }}>Отмена</button>
@@ -931,6 +656,168 @@ export default function TasksPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── List view with dynamic custom-field columns ──────────────────────────────
+import { useCustomFields } from '@/hooks/useCustomFields';
+import { FieldRenderer } from '@/components/custom-fields/FieldRenderer';
+
+const STATUS_COL_MAP: Record<string,{bg:string;c:string;label:string}> = {
+  NEW:         { bg:'#EDE9FE', c:'#7F77DD', label:'Новые' },
+  IN_PROGRESS: { bg:'#DBEAFE', c:'#2563EB', label:'В работе' },
+  REVIEW:      { bg:'#FEF3C7', c:'#D97706', label:'Проверка' },
+  BLOCKED:     { bg:'#FEE2E2', c:'#DC2626', label:'Заблокировано' },
+  OVERDUE:     { bg:'#FEE2E2', c:'#DC2626', label:'Просрочено' },
+  DONE:        { bg:'#DCFCE7', c:'#16A34A', label:'Готово' },
+};
+
+function ListViewWithCustomFields({
+  token, listTasks, loading, filterSearch, filterAssignee, filterPriority, onRowClick,
+}: {
+  token: string; listTasks: any[]; loading: boolean;
+  filterSearch: string; filterAssignee: string; filterPriority: string;
+  onRowClick: (id: string) => void;
+}) {
+  const cf = useCustomFields(token);
+  const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
+  const [sortField, setSortField] = useState('createdAt');
+  const [sortDir, setSortDir]   = useState<'asc'|'desc'>('desc');
+
+  // Only show fields with showInTable = true
+  const cfCols = cf.fields.filter(f => f.showInTable && !hiddenCols.has(f.id));
+
+  const toggleSort = (field: string) => {
+    if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortField(field); setSortDir('asc'); }
+  };
+
+  const PORD: Record<string,number> = {LOW:0,MEDIUM:1,HIGH:2,CRITICAL:3};
+  const PS: Record<string,{bg:string;c:string;l:string}> = {
+    LOW:{ bg:'#F3F4F6',c:'#6B7280',l:'Низкий'}, MEDIUM:{bg:'#DBEAFE',c:'#2563EB',l:'Средний'},
+    HIGH:{bg:'#FEF3C7',c:'#D97706',l:'Высокий'}, CRITICAL:{bg:'#FEE2E2',c:'#DC2626',l:'Критич.'},
+  };
+
+  const filtered = listTasks
+    .filter(t => {
+      if (filterSearch && !t.title.toLowerCase().includes(filterSearch.toLowerCase())) return false;
+      if (filterAssignee && t.assigneeId !== filterAssignee) return false;
+      if (filterPriority && t.priority !== filterPriority) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      let av: any = a[sortField] ?? '', bv: any = b[sortField] ?? '';
+      if (sortField === 'priority') { av = PORD[a.priority] ?? 0; bv = PORD[b.priority] ?? 0; }
+      if (av < bv) return sortDir === 'asc' ? -1 : 1;
+      if (av > bv) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+  const AC = ['#7F77DD','#2563EB','#16A34A','#D97706','#DC2626','#0891B2'];
+  const ac = (name: string) => AC[(name?.charCodeAt(0)??0) % AC.length];
+
+  const th = (label: string, field?: string) => (
+    <th key={label}
+      onClick={() => field && toggleSort(field)}
+      style={{ padding:'10px 14px', fontSize:'11px', fontWeight:700, color:'#9B97CC',
+        textAlign:'left', textTransform:'uppercase', letterSpacing:'0.5px',
+        cursor:field?'pointer':'default', userSelect:'none', whiteSpace:'nowrap' }}>
+      {label}{field === sortField ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+    </th>
+  );
+
+  if (loading) return <div style={{ textAlign:'center', padding:'40px', color:'#9B97CC' }}>Загрузка...</div>;
+
+  return (
+    <div style={{ padding:'16px 28px', flex:1 }}>
+      {/* Column visibility toggle */}
+      {cf.fields.filter(f => f.showInTable).length > 0 && (
+        <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginBottom:'10px' }}>
+          {cf.fields.filter(f => f.showInTable).map(f => (
+            <button key={f.id} onClick={() => setHiddenCols(prev => {
+              const next = new Set(prev);
+              next.has(f.id) ? next.delete(f.id) : next.add(f.id);
+              return next;
+            })}
+              style={{ fontSize:'11px', padding:'3px 10px', borderRadius:'20px', border:'1px solid',
+                borderColor: hiddenCols.has(f.id) ? '#EDE9FE' : '#7F77DD',
+                background: hiddenCols.has(f.id) ? '#F8F7FF' : '#EDE9FE',
+                color: hiddenCols.has(f.id) ? '#C4C0E8' : '#7F77DD',
+                cursor:'pointer', fontWeight:600, transition:'all 0.15s' }}>
+              {hiddenCols.has(f.id) ? '○' : '●'} {f.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div style={{ background:'white', borderRadius:'16px', boxShadow:'0 4px 16px rgba(127,119,221,0.08)', overflowX:'auto' }}>
+        <table style={{ width:'100%', borderCollapse:'collapse', minWidth: 600 + cfCols.length * 140 }}>
+          <thead>
+            <tr style={{ background:'#F8F7FF', borderBottom:'1px solid #EDE9FE' }}>
+              {th('Задача', 'title')}
+              {th('Статус')}
+              {th('Исполнитель')}
+              {th('Приоритет', 'priority')}
+              {th('Дедлайн', 'dueDate')}
+              {cfCols.map(f => th(f.name))}
+              {th('Создана', 'createdAt')}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((task, i) => {
+              const ps = PS[task.priority] ?? PS.MEDIUM;
+              const sc = STATUS_COL_MAP[task.status];
+              const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'DONE';
+              const cfVals = (task.customFields ?? {}) as Record<string,any>;
+              return (
+                <tr key={task.id} onClick={() => onRowClick(task.id)}
+                  style={{ borderBottom:'1px solid #F8F7FF', cursor:'pointer',
+                    background: i%2===0 ? 'white' : '#FAFAFE', transition:'background 0.1s' }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background='#F0EDFF'}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background=i%2===0?'white':'#FAFAFE'}>
+                  <td style={{ padding:'10px 14px', fontSize:'13px', fontWeight:600, color:'#1a1040', maxWidth:280 }}>
+                    <div style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{task.title}</div>
+                  </td>
+                  <td style={{ padding:'10px 14px' }}>
+                    <span style={{ background:sc?.bg??'#F8F7FF', color:sc?.c??'#9B97CC', borderRadius:'8px', padding:'3px 10px', fontSize:'11px', fontWeight:700, whiteSpace:'nowrap' }}>
+                      {sc?.label ?? task.status}
+                    </span>
+                  </td>
+                  <td style={{ padding:'10px 14px' }}>
+                    {task.assignee ? (
+                      <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+                        <div style={{ width:24, height:24, borderRadius:'50%', background:ac(task.assignee.name), display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:'white', fontWeight:700, flexShrink:0 }}>
+                          {task.assignee.name?.charAt(0)?.toUpperCase()}
+                        </div>
+                        <span style={{ fontSize:'12px', color:'#1a1040', whiteSpace:'nowrap' }}>{task.assignee.name}</span>
+                      </div>
+                    ) : <span style={{ fontSize:'12px', color:'#C4C0E8' }}>—</span>}
+                  </td>
+                  <td style={{ padding:'10px 14px' }}>
+                    <span style={{ background:ps.bg, color:ps.c, borderRadius:'8px', padding:'3px 10px', fontSize:'11px', fontWeight:700 }}>{ps.l}</span>
+                  </td>
+                  <td style={{ padding:'10px 14px', fontSize:'12px', color:isOverdue?'#DC2626':'#9B97CC', fontWeight:isOverdue?700:400, whiteSpace:'nowrap' }}>
+                    {task.dueDate ? new Date(task.dueDate).toLocaleDateString('ru') : '—'}
+                  </td>
+                  {cfCols.map(f => (
+                    <td key={f.id} style={{ padding:'8px 14px', maxWidth:180 }}
+                      onClick={e => e.stopPropagation()}>
+                      <FieldRenderer field={f} value={cfVals[f.id]} onChange={() => {}} readOnly compact />
+                    </td>
+                  ))}
+                  <td style={{ padding:'10px 14px', fontSize:'12px', color:'#9B97CC', whiteSpace:'nowrap' }}>
+                    {new Date(task.createdAt).toLocaleDateString('ru')}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {filtered.length === 0 && (
+          <div style={{ textAlign:'center', padding:'40px', color:'#9B97CC' }}>Задач нет</div>
+        )}
+      </div>
     </div>
   );
 }

@@ -31,7 +31,7 @@ model User {
   avatarUrl      String?
   telegramChatId String?
   birthDate      DateTime?
-  gender         String?   // MALE | FEMALE
+  gender         String?
   hiredAt        DateTime?
   position       String?
   phone          String?
@@ -190,6 +190,8 @@ model Task {
   projectId     String?   // Привязка к проекту
   dealId        String?   // Привязка к сделке CRM
   deletedAt     DateTime?
+  taskTypeId    String?
+  customFields  Json?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   comments      TaskComment[]
@@ -202,6 +204,8 @@ model Task {
   department    Department? @relation(fields: [departmentId], references: [id])
   project       Project?    @relation(fields: [projectId], references: [id])
   deal          CrmDeal?    @relation(fields: [dealId], references: [id])
+  taskType      TaskType?   @relation("TaskTypeRelation", fields: [taskTypeId], references: [id])
+  fieldValues   CustomFieldValue[]
   @@index([orgId, status])
   @@index([assigneeId])
   @@index([productId])
@@ -658,13 +662,158 @@ model CrmActivity {
   @@index([dealId])
 }
 
+// ===== CUSTOM FIELDS =====
+
+model FieldGroup {
+  id          String        @id @default(uuid())
+  orgId       String
+  name        String
+  description String?
+  color       String?       @default("#7F77DD")
+  icon        String?
+  sortOrder   Int           @default(0)
+  isCollapsed Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  fields      CustomField[]
+
+  @@index([orgId, sortOrder])
+}
+
+model CustomField {
+  id             String   @id @default(uuid())
+  orgId          String
+  groupId        String?
+  // TEXT | TEXTAREA | NUMBER | MONEY | PERCENT | DATE | DATETIME
+  // SELECT | MULTISELECT | CHECKBOX | TOGGLE | USER | TEAM
+  // COMPANY | COUNTERPARTY | LINK | EMAIL | PHONE | SKU | BARCODE
+  // COLOR | FILE | FORMULA | AUTO_NUMBER | RATING
+  type           String
+  name           String
+  description    String?
+  isRequired     Boolean  @default(false)
+  isSystem       Boolean  @default(false)
+  showInTable    Boolean  @default(true)
+  showInCard     Boolean  @default(true)
+  showInFilter   Boolean  @default(true)
+  showOnCreate   Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  defaultValue   Json?
+  config         Json?
+  deletedAt      DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  group            FieldGroup?          @relation(fields: [groupId], references: [id])
+  projectBindings  FieldProjectBinding[]
+  taskTypeBindings FieldTaskTypeBinding[]
+  conditions       FieldCondition[]     @relation("ConditionSource")
+  targetConditions FieldCondition[]     @relation("ConditionTarget")
+  values           CustomFieldValue[]
+
+  @@index([orgId, sortOrder])
+  @@index([orgId, type])
+  @@index([orgId, deletedAt])
+}
+
+model FieldProjectBinding {
+  id        String @id @default(uuid())
+  fieldId   String
+  projectId String
+  field     CustomField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@unique([fieldId, projectId])
+  @@index([projectId])
+}
+
+model TaskType {
+  id        String   @id @default(uuid())
+  orgId     String
+  name      String
+  icon      String?
+  color     String?  @default("#7F77DD")
+  isDefault Boolean  @default(false)
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  fieldBindings FieldTaskTypeBinding[]
+  tasks     Task[]   @relation("TaskTypeRelation")
+
+  @@index([orgId])
+}
+
+model FieldTaskTypeBinding {
+  id         String   @id @default(uuid())
+  fieldId    String
+  taskTypeId String
+  sortOrder  Int      @default(0)
+  field      CustomField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  taskType   TaskType    @relation(fields: [taskTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([fieldId, taskTypeId])
+  @@index([taskTypeId])
+}
+
+model FieldCondition {
+  id            String @id @default(uuid())
+  orgId         String
+  sourceFieldId String
+  operator      String  // EQ | NEQ | GT | LT | GTE | LTE | CONTAINS | IS_EMPTY | NOT_EMPTY | IN
+  value         Json?
+  logicGroup    Int     @default(0)
+  action        String  // SHOW | HIDE | REQUIRE | UNREQUIRE | SET_VALUE | CLEAR_VALUE
+  targetFieldId String
+  actionValue   Json?
+  sortOrder     Int     @default(0)
+  createdAt     DateTime @default(now())
+
+  sourceField   CustomField @relation("ConditionSource", fields: [sourceFieldId], references: [id], onDelete: Cascade)
+  targetField   CustomField @relation("ConditionTarget", fields: [targetFieldId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, sourceFieldId])
+}
+
+model CustomFieldValue {
+  id        String   @id @default(uuid())
+  orgId     String
+  taskId    String
+  fieldId   String
+  strVal    String?  @db.Text
+  numVal    Float?
+  boolVal   Boolean?
+  dateVal   DateTime?
+  jsonVal   Json?
+  updatedAt DateTime @updatedAt
+
+  task  Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  field CustomField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, fieldId])
+  @@index([orgId, fieldId, strVal])
+  @@index([orgId, fieldId, numVal])
+  @@index([orgId, fieldId, dateVal])
+  @@index([orgId, fieldId, boolVal])
+}
+
+model SavedFilter {
+  id        String   @id @default(uuid())
+  orgId     String
+  userId    String
+  name      String
+  filters   Json
+  isShared  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orgId, userId])
+}
+
 model UserSidebarConfig {
   id        String   @id @default(uuid())
   userId    String   @unique
   orgId     String
-  config    String   @db.Text // JSON строка с группами и разделами
+  config    String   @db.Text
+  sections  Json?
+  createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  @@index([userId])
-  @@index([orgId])
 }

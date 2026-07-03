@@ -1,4 +1,5 @@
 export type Permission =
+  | 'custom_field:manage' | 'custom_field:delete' | 'custom_field:view' | 'custom_field:edit'
   | 'org:read' | 'org:update' | 'org:billing:manage'
   | 'user:invite' | 'user:read:all' | 'user:read:team'
   | 'user:read:self' | 'user:update:any' | 'user:update:self'
@@ -20,6 +21,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     'analytics:view:org','analytics:view:team','analytics:view:self',
     'task:create','task:read:all','task:update:any','task:delete','task:assign',
     'report:generate:org','report:view','role:assign','audit:view',
+    'custom_field:manage','custom_field:delete','custom_field:view','custom_field:edit',
   ],
   OWNER: [
     'org:read','org:update','org:billing:manage',
@@ -29,6 +31,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     'analytics:view:org','analytics:view:team',
     'task:create','task:read:all','task:update:any','task:delete','task:assign',
     'report:generate:org','report:view','role:assign','audit:view',
+    'custom_field:manage','custom_field:delete','custom_field:view','custom_field:edit',
   ],
   ADMIN: [
     'org:read','org:update',
@@ -38,6 +41,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     'analytics:view:org','analytics:view:team',
     'task:create','task:read:all','task:update:any','task:delete','task:assign',
     'report:generate:org','report:view','role:assign','audit:view',
+    'custom_field:manage','custom_field:delete','custom_field:view','custom_field:edit',
   ],
   MANAGER: [
     'org:read',
@@ -47,6 +51,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     'analytics:view:team','analytics:view:self',
     'task:create','task:read:team','task:read:self','task:update:any','task:assign',
     'report:generate:team','report:view',
+    'custom_field:view','custom_field:edit',
   ],
   VIEWER: [
     'org:read',

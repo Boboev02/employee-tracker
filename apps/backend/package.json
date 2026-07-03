@@ -24,7 +24,7 @@
     "@nestjs/throttler": "*",
     "@nestjs/websockets": "^11.1.23",
     "@prisma/adapter-pg": "^7.8.0",
-    "@prisma/client": "*",
+    "@prisma/client": "^7.8.0",
     "@socket.io/redis-adapter": "*",
     "@types/pg": "^8.20.0",
     "bcrypt": "*",
