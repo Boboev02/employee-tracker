@@ -146,14 +146,25 @@ export function Sidebar() {
     task_overdue:  'ti-alarm',
   };
 
+  const S = {
+    sidebar: {
+      width:'220px', flexShrink:0, display:'flex', flexDirection:'column' as const, height:'100vh',
+      background:'var(--sidebar-bg)', borderRight:'1px solid var(--sidebar-border)',
+    } as React.CSSProperties,
+    logo: { padding:'16px 14px 12px', display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:'1px solid var(--border)' } as React.CSSProperties,
+    searchWrap: { padding:'10px 10px 8px', position:'relative' as const } as React.CSSProperties,
+    searchBox: { display:'flex', alignItems:'center', gap:'7px', background:'var(--bg-secondary)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'6px 10px' } as React.CSSProperties,
+    nav: { flex:1, padding:'6px 8px', display:'flex', flexDirection:'column' as const, gap:'1px', overflowY:'auto' as const } as React.CSSProperties,
+    footer: { padding:'8px 10px 12px', borderTop:'1px solid var(--border)' } as React.CSSProperties,
+  };
+
   return (
     <>
-      {/* Mobile hamburger button */}
+      {/* Mobile hamburger */}
       {isMobile && (
-        <button
-          onClick={() => setMobileOpen(o => !o)}
-          style={{ position:'fixed', top:'12px', left:'12px', zIndex:1001, width:'40px', height:'40px', borderRadius:'10px', background:'#13151c', border:'0.5px solid rgba(255,255,255,0.1)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 4px 12px rgba(0,0,0,0.3)' }}>
-          <i className={mobileOpen ? 'ti ti-x' : 'ti ti-menu-2'} style={{ fontSize:'18px', color:'#e2e4ed' }} aria-hidden="true"/>
+        <button onClick={() => setMobileOpen(o => !o)}
+          style={{ position:'fixed', top:'12px', left:'12px', zIndex:1001, width:'38px', height:'38px', borderRadius:'var(--radius)', background:'var(--bg-primary)', border:'1px solid var(--border)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'var(--shadow-md)' }}>
+          <i className={mobileOpen ? 'ti ti-x' : 'ti ti-menu-2'} style={{ fontSize:'17px', color:'var(--text-secondary)' }} aria-hidden="true"/>
         </button>
       )}
 
@@ -163,38 +174,27 @@ export function Sidebar() {
           style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:999, backdropFilter:'blur(2px)' }}/>
       )}
 
-      <aside style={{
-        width: '220px', flexShrink: 0, display: 'flex', flexDirection: 'column', height: '100vh',
-        background: '#13151c', borderRight: '0.5px solid rgba(255,255,255,0.06)',
-        ...(isMobile ? {
-          position: 'fixed', top: 0, left: 0, zIndex: 1000,
-          transform: mobileOpen ? 'translateX(0)' : 'translateX(-100%)',
-          transition: 'transform 0.25s cubic-bezier(0.4,0,0.2,1)',
-          boxShadow: mobileOpen ? '4px 0 24px rgba(0,0,0,0.4)' : 'none',
-        } : {
-          position: 'sticky', top: 0,
-        }),
-      }}>
+      <aside style={{ ...S.sidebar, ...(isMobile ? { position:'fixed', top:0, left:0, zIndex:1000, transform:mobileOpen?'translateX(0)':'translateX(-100%)', transition:'transform 0.25s cubic-bezier(0.4,0,0.2,1)', boxShadow:mobileOpen?'var(--shadow-lg)':'none' } : { position:'sticky', top:0 }) }}>
 
-      {/* Logo + ThemeToggle */}
-      <div style={{ padding:'16px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-          <div style={{ width:'30px', height:'30px', background:'#8b7cf6', borderRadius:'8px', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-            <span style={{ color:'white', fontSize:'11px', fontWeight:700 }}>ET</span>
+      {/* Logo */}
+      <div style={S.logo}>
+        <div style={{ display:'flex', alignItems:'center', gap:'9px' }}>
+          <div style={{ width:'28px', height:'28px', background:'var(--accent)', borderRadius:'var(--radius-sm)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+            <span style={{ color:'white', fontSize:'10px', fontWeight:700, letterSpacing:'-0.5px' }}>ET</span>
           </div>
-          <span style={{ color:'#e2e4ed', fontSize:'13px', fontWeight:500 }}>Employee Tracker</span>
+          <span style={{ color:'var(--text-primary)', fontSize:'13px', fontWeight:600 }}>Employee Tracker</span>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
           {/* Bell */}
           <div ref={bellRef} style={{ position:'relative' }}>
             <button onClick={()=>{ setShowNotifs(!showNotifs); if (!showNotifs && unread > 0) markAllRead(); }}
-              style={{ width:'28px', height:'28px', background:'transparent', border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', borderRadius:'6px', transition:'background 0.15s', position:'relative' }}
-              onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background='rgba(255,255,255,0.08)'}
-              onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background='transparent'}
+              style={{ width:'28px', height:'28px', background:'transparent', border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', borderRadius:'var(--radius-sm)', transition:'background var(--transition)', position:'relative' }}
+              onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background='var(--bg-hover)'}
+              onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background='transparent'
               title="Уведомления">
-              <i className="ti ti-bell" style={{ fontSize:'16px', color: unread > 0 ? '#f59e0b' : '#6b7090' }} aria-hidden="true"/>
+              <i className="ti ti-bell" style={{ fontSize:'16px', color: unread > 0 ? 'var(--orange)' : 'var(--text-muted)' }} aria-hidden="true"/>
               {unread > 0 && (
-                <span style={{ position:'absolute', top:'2px', right:'2px', width:'14px', height:'14px', borderRadius:'50%', background:'#ef4444', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'8px', fontWeight:700, color:'white', border:'1.5px solid #13151c' }}>
+                <span style={{ position:'absolute', top:'2px', right:'2px', width:'14px', height:'14px', borderRadius:'50%', background:'#ef4444', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'8px', fontWeight:700, color:'white', border:'1.5px solid var(--bg-primary)' }}>
                   {unread > 9 ? '9+' : unread}
                 </span>
               )}
@@ -202,12 +202,12 @@ export function Sidebar() {
 
             {/* Notifications dropdown */}
             {showNotifs && (
-              <div style={{ position:'fixed', top:'48px', left:'8px', width:'320px', background:'#1a1d26', border:'0.5px solid rgba(255,255,255,0.1)', borderRadius:'14px', boxShadow:'0 8px 32px rgba(0,0,0,0.4)', zIndex:1000, overflow:'hidden' }}>
-                <div style={{ padding:'12px 14px', borderBottom:'0.5px solid rgba(255,255,255,0.07)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                  <span style={{ fontSize:'13px', fontWeight:600, color:'#e2e4ed' }}>Уведомления</span>
+              <div style={{ position:'fixed', top:'48px', left:'8px', width:'320px', background:'var(--bg-primary)', border:'1px solid var(--border)', borderRadius:'var(--radius-xl)', boxShadow:'var(--shadow-lg)', zIndex:1000, overflow:'hidden' }}>
+                <div style={{ padding:'12px 14px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <span style={{ fontSize:'13px', fontWeight:600, color:'var(--text-primary)' }}>Уведомления</span>
                   {notifs.some(n => !n.isRead) && (
                     <button onClick={markAllRead}
-                      style={{ fontSize:'11px', color:'#8b7cf6', background:'none', border:'none', cursor:'pointer', fontWeight:500 }}>
+                      style={{ fontSize:'11px', color:'var(--accent)', background:'none', border:'none', cursor:'pointer', fontWeight:500 }}>
                       Прочитать все
                     </button>
                   )}
@@ -247,16 +247,16 @@ export function Sidebar() {
 
       {/* Search */}
       <div ref={searchRef} style={{ padding:'0 8px 10px', position:'relative' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:'8px', background:'rgba(255,255,255,0.06)', borderRadius:'8px', padding:'7px 10px', cursor:'text' }}
+        <div style={{ display:'flex', alignItems:'center', gap:'8px', background:'var(--bg-secondary)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'6px 10px', cursor:'text' }}
           onClick={()=>setShowSearch(true)}>
           <i className="ti ti-search" style={{ fontSize:'14px', color:'#6b7090', flexShrink:0 }} aria-hidden="true"/>
           <input value={searchQ} onChange={e=>doSearch(e.target.value)}
             onFocus={()=>setShowSearch(true)}
-            placeholder="Поиск..." style={{ background:'none', border:'none', outline:'none', fontSize:'12px', color:'#c8cad8', width:'100%', fontFamily:'inherit' }}/>
+            placeholder="Поиск..." style={{ background:'none', border:'none', outline:'none', fontSize:'12px', color:'var(--text-primary)', width:'100%', fontFamily:'inherit' }}/>
           {searchQ && <button onClick={()=>{setSearchQ('');setSearchRes(null);}} style={{ background:'none',border:'none',cursor:'pointer',color:'#6b7090',padding:0,fontSize:'14px',lineHeight:1 }}>×</button>}
         </div>
         {showSearch && searchRes && (
-          <div style={{ position:'absolute', top:'100%', left:'8px', right:'8px', background:'#1a1d26', border:'0.5px solid rgba(255,255,255,0.1)', borderRadius:'12px', boxShadow:'0 8px 32px rgba(0,0,0,0.4)', zIndex:1000, overflow:'hidden', maxHeight:'360px', overflowY:'auto' }}>
+          <div style={{ position:'absolute', top:'100%', left:0, right:0, background:'var(--bg-primary)', border:'1px solid var(--border)', borderRadius:'var(--radius-lg)', boxShadow:'var(--shadow-lg)', zIndex:1000, overflow:'hidden', maxHeight:'360px', overflowY:'auto', marginTop:'4px' }}>
             {searching && <div style={{ padding:'12px 14px', color:'#6b7090', fontSize:'12px' }}>Поиск...</div>}
             {!searching && searchRes.tasks?.length===0 && searchRes.employees?.length===0 && searchRes.articles?.length===0 && (
               <div style={{ padding:'16px 14px', color:'#6b7090', fontSize:'12px', textAlign:'center' }}>Ничего не найдено</div>
@@ -309,39 +309,39 @@ export function Sidebar() {
       </div>
 
       {/* Divider */}
-      <div style={{ height:'0.5px', background:'rgba(255,255,255,0.07)', margin:'0 12px' }} />
+      <div style={{ height:'1px', background:'var(--border)', margin:'0 8px' }} />
 
       {/* Nav */}
-      <nav style={{ flex:1, padding:'10px 8px', display:'flex', flexDirection:'column', gap:'1px', overflowY:'auto' }}>
+      <nav style={S.nav}>
         {items.map(item => {
           const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
           return (
             <Link key={item.href} href={item.href}
-              style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 10px', borderRadius:'8px', textDecoration:'none', background: active ? 'rgba(139,124,246,0.15)' : 'transparent', transition:'background 0.15s' }}
-              onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; }}
+              style={{ display:'flex', alignItems:'center', gap:'9px', padding:'6px 10px', borderRadius:'var(--radius)', textDecoration:'none', background: active ? 'var(--accent-light)' : 'transparent', transition:'background var(--transition)' }}
+              onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
               onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
-              <i className={'ti ' + item.icon} style={{ fontSize:'17px', color: active ? '#8b7cf6' : '#6b7090', flexShrink:0, lineHeight:1 }} aria-hidden="true"/>
-              <span style={{ fontSize:'13px', fontWeight: active ? 500 : 400, color: active ? '#e2e4ed' : '#8b909e' }}>{item.label}</span>
+              <i className={'ti ' + item.icon} style={{ fontSize:'16px', color: active ? 'var(--accent)' : 'var(--text-muted)', flexShrink:0, lineHeight:1 }} aria-hidden="true"/>
+              <span style={{ fontSize:'13px', fontWeight: active ? 500 : 400, color: active ? 'var(--accent)' : 'var(--text-secondary)' }}>{item.label}</span>
             </Link>
           );
         })}
       </nav>
 
       {/* Footer */}
-      <div style={{ padding:'10px 8px', borderTop:'0.5px solid rgba(255,255,255,0.07)' }}>
+      <div style={S.footer}>
         {user && (
-          <div style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 10px', borderRadius:'8px', cursor:'pointer', transition:'background 0.15s' }}
-            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'}
-            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+          <div style={{ display:'flex', alignItems:'center', gap:'9px', padding:'8px 10px', borderRadius:'var(--radius)', cursor:'pointer', transition:'background var(--transition)' }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'
             onClick={() => router.push('/dashboard/profile')}
             title="Мой профиль">
-            <div style={{ width:'30px', height:'30px', borderRadius:'50%', background:'#8b7cf6', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, position:'relative' }}>
+            <div style={{ width:'30px', height:'30px', borderRadius:'50%', background:'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, position:'relative' }}>
               <span style={{ color:'white', fontSize:'12px', fontWeight:600 }}>{user.name?.charAt(0)}</span>
-              <span style={{ position:'absolute', bottom:'0', right:'0', width:'8px', height:'8px', borderRadius:'50%', background: connected ? '#4ade80' : '#4a4d5e', border:'1.5px solid #13151c' }} />
+              <span style={{ position:'absolute', bottom:'0', right:'0', width:'8px', height:'8px', borderRadius:'50%', background: connected ? '#4ade80' : '#4a4d5e', border:'1.5px solid var(--bg-primary)' }} />
             </div>
             <div style={{ flex:1, minWidth:0 }}>
               <p style={{ color:'#c8cad8', fontSize:'12px', fontWeight:500, margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{user.name}</p>
-              <p style={{ color:'#4a4d5e', fontSize:'10px', margin:0 }}>Профиль →</p>
+              <p style={{ color:'var(--text-muted)', fontSize:'10px', margin:0 }}>Профиль →</p>
             </div>
           </div>
         )}
