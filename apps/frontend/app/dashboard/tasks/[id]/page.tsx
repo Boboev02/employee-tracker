@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { CustomFieldsPanel } from '@/components/custom-fields/CustomFieldsPanel';
+import { RelationsBlock } from '@/components/relations/RelationsBlock';
 
 const STATUS_STYLE: Record<string,{bg:string;c:string;label:string}> = {
   NEW:         { bg:'#EDE9FE', c:'#7F77DD', label:'Новая' },
@@ -262,6 +263,20 @@ export default function TaskDetailPage() {
               <p style={{ fontSize:'13px', color:'#C4C0E8', fontStyle:'italic', margin:0 }}>Описание не добавлено</p>
             )}
           </div>
+
+          {/* Relations */}
+          {token && task && (
+            <div style={card}>
+              <p style={{ fontSize:'11px', fontWeight:700, color:'#9B97CC', textTransform:'uppercase', letterSpacing:'0.5px', margin:'0 0 12px' }}>
+                Связи
+              </p>
+              <RelationsBlock
+                entityType="TASK"
+                entityId={task.id}
+                token={token}
+              />
+            </div>
+          )}
 
           {/* Custom Fields */}
           {token && task && (

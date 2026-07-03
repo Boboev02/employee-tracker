@@ -835,3 +835,54 @@ model TaskAttachment {
   @@index([taskId])
   @@index([orgId])
 }
+
+// ===== UNIVERSAL RELATIONS ENGINE =====
+
+model EntityRelation {
+  id           String   @id @default(uuid())
+  orgId        String
+
+  // Source entity
+  sourceType   String   // TASK | PROJECT | PRODUCT | DEAL | EMPLOYEE | DOCUMENT | ORDER
+  sourceId     String
+
+  // Target entity  
+  targetType   String
+  targetId     String
+
+  // Relation type
+  // TASK-TASK: DEPENDS_ON | BLOCKS | WAITING_FOR | RELATED | DUPLICATE | PARENT | CHILD | CUSTOM
+  // TASK-PRODUCT: LINKED
+  // TASK-PROJECT: LINKED
+  // etc.
+  relationType String
+
+  customLabel  String?  // for CUSTOM relation type
+  createdById  String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([orgId, sourceType, sourceId, targetType, targetId, relationType])
+  @@index([orgId, sourceType, sourceId])
+  @@index([orgId, targetType, targetId])
+  @@index([orgId, sourceType, sourceId, relationType])
+}
+
+// Universal Activity Log for all entities
+model ActivityLog {
+  id          String   @id @default(uuid())
+  orgId       String
+  entityType  String   // TASK | PROJECT | PRODUCT | DEAL | EMPLOYEE | CUSTOM_FIELD
+  entityId    String
+  actorId     String?
+  actorName   String?
+  action      String   // CREATED | UPDATED | DELETED | STATUS_CHANGED | ASSIGNED | LINKED | UNLINKED | COMMENTED | FILE_ADDED
+  field       String?  // which field changed
+  oldValue    String?  @db.Text
+  newValue    String?  @db.Text
+  meta        Json?    // extra data
+  createdAt   DateTime @default(now())
+
+  @@index([orgId, entityType, entityId, createdAt])
+  @@index([orgId, actorId])
+}

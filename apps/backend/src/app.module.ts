@@ -1,5 +1,6 @@
 import { NotesModule } from './notes/notes.module';
 import { CustomFieldsModule } from './custom-fields/custom-fields.module';
+import { RelationsModule } from './relations/relations.module';
 import 'dotenv/config';
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
@@ -59,6 +60,7 @@ import { JwtAuthGuard }    from './auth/guards/index';
     AnalyticsModule, TrackingModule, TeamsModule,
     SettingsModule, NotificationModule, KnowledgeModule,
     CustomFieldsModule,
+    RelationsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
