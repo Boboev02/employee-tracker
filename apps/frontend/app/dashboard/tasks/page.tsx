@@ -38,7 +38,22 @@ export default function TasksPage() {
   const [showProductPicker, setShowProductPicker] = useState(false);
   const [productSearch, setProductSearch] = useState('');
   const [products, setProducts] = useState<any[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
+
+  const loadProducts = async (search = '') => {
+    if (!token) return;
+    setProductsLoading(true);
+    try {
+      const url = search.length >= 1
+        ? `https://employee-tracker.ru/api/v1/products?search=${encodeURIComponent(search)}&limit=50`
+        : `https://employee-tracker.ru/api/v1/products?limit=50`;
+      const r = await fetch(url, { headers:{ Authorization:'Bearer '+token } });
+      const d = await r.json();
+      setProducts(Array.isArray(d) ? d : d.data ?? []);
+    } catch {}
+    setProductsLoading(false);
+  };
   const [departments, setDepartments] = useState<any[]>([]);
   const [aiDept, setAiDept]     = useState<{ id: string; name: string; color: string } | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
@@ -657,53 +672,69 @@ export default function TasksPage() {
                       <div style={{ fontSize:'12px', fontWeight:700, color:'#1a1040', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{selectedProduct.name}</div>
                       <div style={{ fontSize:'11px', color:'#9B97CC' }}>{selectedProduct.marketplace} · {selectedProduct.articleId}</div>
                     </div>
-                    <button type="button" onClick={()=>{ setSelectedProduct(null); setNewTask(t=>({...t,productId:''})); }} style={{ background:'none', border:'none', cursor:'pointer', color:'#9B97CC', fontSize:16 }}>✕</button>
+                    <button type="button" onClick={()=>{ setSelectedProduct(null); setNewTask(t=>({...t,productId:''})); }}
+                      style={{ background:'none', border:'none', cursor:'pointer', color:'#9B97CC', fontSize:16 }}>✕</button>
                   </div>
                 ) : (
-                  <div style={{ position:'relative' }}>
-                    <input
-                      placeholder="Поиск по названию или артикулу..."
-                      value={productSearch}
-                      onChange={async e => {
-                        setProductSearch(e.target.value);
-                        if (e.target.value.length >= 2) {
-                          setShowProductPicker(true);
-                          try {
-                            const r = await fetch(`https://employee-tracker.ru/api/v1/products?search=${encodeURIComponent(e.target.value)}&limit=20`, { headers:{ Authorization:'Bearer '+token } });
-                            const d = await r.json();
-                            setProducts(Array.isArray(d) ? d : d.data ?? []);
-                          } catch {}
-                        } else {
-                          setShowProductPicker(false);
-                          setProducts([]);
-                        }
-                      }}
-                      onFocus={() => { if (products.length > 0) setShowProductPicker(true); }}
-                      style={inp}
-                    />
-                    {showProductPicker && products.length > 0 && (
-                      <div style={{ position:'absolute', top:'100%', left:0, right:0, background:'white', border:'1px solid #EDE9FE', borderRadius:'10px', boxShadow:'0 8px 24px rgba(0,0,0,0.12)', zIndex:100, maxHeight:200, overflowY:'auto', marginTop:4 }}>
-                        {products.map((p:any) => (
-                          <div key={p.id} onClick={() => {
-                            setSelectedProduct(p);
-                            setNewTask(t=>({...t, productId:p.id}));
-                            setShowProductPicker(false);
-                            setProductSearch('');
-                          }} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'8px 12px', cursor:'pointer', borderBottom:'1px solid #F8F7FF' }}
-                          onMouseEnter={e=>(e.currentTarget as HTMLDivElement).style.background='#F8F7FF'}
-                          onMouseLeave={e=>(e.currentTarget as HTMLDivElement).style.background='white'}>
-                            {p.photoUrl && <img src={p.photoUrl} style={{ width:28, height:28, borderRadius:4, objectFit:'cover', flexShrink:0 }} />}
-                            <div style={{ minWidth:0 }}>
-                              <div style={{ fontSize:'12px', fontWeight:600, color:'#1a1040', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.name}</div>
-                              <div style={{ fontSize:'11px', color:'#9B97CC' }}>{p.marketplace} · {p.articleId}</div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  <button type="button"
+                    onClick={()=>{ setShowProductPicker(true); loadProducts(); }}
+                    style={{ width:'100%', background:'#F8F7FF', border:'1px dashed #C4C0E8', borderRadius:'10px', padding:'9px 14px', fontSize:'13px', color:'#9B97CC', cursor:'pointer', textAlign:'left' }}>
+                    + Привязать карточку товара
+                  </button>
                 )}
               </div>
+
+              {/* Product Picker Modal */}
+              {showProductPicker && (
+                <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+                  <div style={{ background:'white', borderRadius:20, width:'100%', maxWidth:520, maxHeight:'80vh', display:'flex', flexDirection:'column', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'16px 20px', borderBottom:'1px solid #EDE9FE' }}>
+                      <h3 style={{ margin:0, fontSize:15, fontWeight:800, color:'#1a1040' }}>Выбор карточки товара</h3>
+                      <button type="button" onClick={()=>setShowProductPicker(false)} style={{ background:'none', border:'none', cursor:'pointer', color:'#9B97CC', fontSize:20 }}>✕</button>
+                    </div>
+                    <div style={{ padding:'12px 20px', borderBottom:'1px solid #EDE9FE' }}>
+                      <input
+                        autoFocus
+                        placeholder="Поиск по названию или артикулу..."
+                        value={productSearch}
+                        onChange={e=>{ setProductSearch(e.target.value); loadProducts(e.target.value); }}
+                        style={{ width:'100%', background:'#F8F7FF', border:'1px solid #EDE9FE', borderRadius:10, padding:'9px 14px', fontSize:13, outline:'none', boxSizing:'border-box' as const }}
+                      />
+                    </div>
+                    <div style={{ overflowY:'auto', flex:1 }}>
+                      {productsLoading && (
+                        <div style={{ textAlign:'center', padding:24, color:'#9B97CC', fontSize:13 }}>Загрузка...</div>
+                      )}
+                      {!productsLoading && products.length === 0 && (
+                        <div style={{ textAlign:'center', padding:24, color:'#9B97CC', fontSize:13 }}>
+                          {productSearch ? 'Ничего не найдено' : 'Нет карточек товаров. Синхронизируйте WB или Ozon'}
+                        </div>
+                      )}
+                      {products.map((p:any) => (
+                        <div key={p.id}
+                          onClick={()=>{ setSelectedProduct(p); setNewTask(t=>({...t,productId:p.id})); setShowProductPicker(false); setProductSearch(''); }}
+                          style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 20px', cursor:'pointer', borderBottom:'1px solid #F8F7FF', transition:'background 0.1s' }}
+                          onMouseEnter={e=>(e.currentTarget as HTMLDivElement).style.background='#F8F7FF'}
+                          onMouseLeave={e=>(e.currentTarget as HTMLDivElement).style.background='white'}>
+                          {p.photoUrl
+                            ? <img src={p.photoUrl} style={{ width:40, height:40, borderRadius:8, objectFit:'cover', flexShrink:0 }} />
+                            : <div style={{ width:40, height:40, borderRadius:8, background:'#EDE9FE', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>📦</div>
+                          }
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ fontSize:13, fontWeight:600, color:'#1a1040', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.name}</div>
+                            <div style={{ fontSize:11, color:'#9B97CC', marginTop:2 }}>
+                              <span style={{ background: p.marketplace==='WB'?'#EDE9FE':'#DBEAFE', color: p.marketplace==='WB'?'#7F77DD':'#2563EB', padding:'1px 6px', borderRadius:4, fontWeight:700, marginRight:6 }}>{p.marketplace}</span>
+                              Арт: {p.articleId}
+                              {p.price && <span style={{ marginLeft:8 }}>₽{Number(p.price).toLocaleString('ru')}</span>}
+                              {p.rating && <span style={{ marginLeft:8 }}>★{p.rating}</span>}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
               {/* Custom fields in create form */}
               {token && (
                 <div style={{ marginBottom:'10px' }}>

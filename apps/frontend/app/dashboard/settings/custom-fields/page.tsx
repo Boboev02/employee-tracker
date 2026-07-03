@@ -67,7 +67,15 @@ function CustomFieldsManager({ token }: { token: string }) {
     if (!form.name.trim()) { setError('Введите название'); return; }
     setSaving(true); setError('');
     try {
-      const payload = { ...form, config: form.type==='SELECT'||form.type==='MULTISELECT' ? { options:form.config.options } : form.type==='MONEY' ? { currency:form.config.currency } : form.type==='RATING' ? { maxStars:form.config.maxStars } : undefined };
+      const payload = {
+        ...form,
+        groupId: form.groupId || null, // convert empty string to null
+        description: form.description || null,
+        config: form.type==='SELECT'||form.type==='MULTISELECT' ? { options:form.config.options }
+          : form.type==='MONEY' ? { currency:form.config.currency }
+          : form.type==='RATING' ? { maxStars:form.config.maxStars }
+          : null,
+      };
       if (editingField) await cf.updateField(editingField.id, payload as any);
       else await cf.createField(payload as any);
       setShowForm(false);
