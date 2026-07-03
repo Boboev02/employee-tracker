@@ -17,6 +17,7 @@ export default function ProductDetailPage() {
   const { id } = useParams();
   const [product, setProduct] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [token, setToken] = useState('');
   const [tab, setTab] = useState<'tasks' | 'info'>('tasks');
   const [showNewTask, setShowNewTask] = useState(false);
   const [employees, setEmployees] = useState<any[]>([]);
@@ -27,7 +28,9 @@ export default function ProductDetailPage() {
   const h = () => ({ 'Content-Type': 'application/json', Authorization: 'Bearer ' + localStorage.getItem('access_token') });
 
   useEffect(() => {
-    if (!localStorage.getItem('access_token')) { router.push('/login'); return; }
+    const t = localStorage.getItem('access_token');
+    if (!t) { router.push('/login'); return; }
+    setToken(t);
     loadProduct();
     fetch(`${API}/employees`, { headers: h() }).then(r => r.json()).then(d => setEmployees(d.employees ?? d ?? [])).catch(() => {});
   }, [id]);

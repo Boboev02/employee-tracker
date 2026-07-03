@@ -17,6 +17,7 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [token, setToken] = useState('');
   const [tab, setTab] = useState<'tasks'|'members'|'activity'>('tasks');
   const [filterStatus, setFilterStatus] = useState('');
   const [showTaskForm, setShowTaskForm] = useState(false);
@@ -33,7 +34,9 @@ export default function ProjectDetailPage() {
   const h = () => ({ 'Content-Type':'application/json', Authorization:'Bearer '+localStorage.getItem('access_token') });
 
   useEffect(() => {
-    if (!localStorage.getItem('access_token')) { router.push('/login'); return; }
+    const t = localStorage.getItem('access_token');
+    if (!t) { router.push('/login'); return; }
+    setToken(t);
     load();
     fetch(API+'/employees', {headers:h()}).then(r=>r.json()).then(d=>setEmployees(d.employees??d??[])).catch(()=>{});
     fetch(API+'/dictionaries/departments', {headers:h()}).then(r=>r.json()).then(d=>setDepartments(Array.isArray(d)?d:[])).catch(()=>{});
