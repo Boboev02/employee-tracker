@@ -5,6 +5,7 @@ import { TelegramService } from '../telegram/telegram.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notifications/notification.service';
 import { CustomFieldsService } from '../custom-fields/custom-fields.service';
+import { RelationsService } from '../relations/relations.service';
 
 // Проверяет может ли пользователь редактировать/удалить конкретную задачу.
 // Если у него есть "any"-право (ADMIN/MANAGER) — разрешено всё.
@@ -22,6 +23,7 @@ export class TaskService {
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
     private readonly customFields: CustomFieldsService,
+    private readonly relations: RelationsService,
   ) {}
 
   // Если у пользователя нет права видеть все/командные задачи — ограничиваем выборку
@@ -85,6 +87,14 @@ export class TaskService {
       await this.customFields.setTaskFieldValues(task.id, orgId, dto.customFields).catch(() => {});
     }
 
+    // Log creation activity
+    const creator = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+    await this.relations.logActivity(orgId, {
+      entityType: 'TASK', entityId: task.id,
+      actorId: userId, actorName: creator?.name,
+      action: 'CREATED', newValue: task.title,
+    }).catch(() => {});
+
     // Уведомление исполнителю
     if (dto.assigneeId && dto.assigneeId !== userId) {
       const assignee = await this.prisma.user.findUnique({ where: { id: dto.assigneeId } });
@@ -140,6 +150,15 @@ export class TaskService {
 
     await this.repo.addHistory(id, userId, 'status', task.status, newStatus);
     const moved = await this.repo.move(id, newStatus);
+
+    // Log status change activity
+    const actor = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+    await this.relations.logActivity(orgId, {
+      entityType: 'TASK', entityId: id,
+      actorId: userId, actorName: actor?.name,
+      action: 'STATUS_CHANGED', field: 'status',
+      oldValue: task.status, newValue: newStatus,
+    }).catch(() => {});
 
     // Уведомление исполнителю
     if (task.assigneeId && task.assigneeId !== userId) {

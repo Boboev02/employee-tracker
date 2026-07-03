@@ -7,9 +7,10 @@ import { TaskRepository } from './task.repository';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AiClassifyController } from './ai-classify.controller';
 import { CustomFieldsModule } from '../custom-fields/custom-fields.module';
+import { RelationsModule } from '../relations/relations.module';
 
 @Module({
-  imports: [TelegramModule, PrismaModule, NotificationModule, CustomFieldsModule],
+  imports: [TelegramModule, PrismaModule, NotificationModule, CustomFieldsModule, RelationsModule],
   controllers: [TaskController, AiClassifyController],
   providers: [TaskService, TaskRepository],
   exports: [TaskService],

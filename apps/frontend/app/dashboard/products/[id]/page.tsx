@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
+import { RelationsBlock } from '@/components/relations/RelationsBlock';
+import { ActivityLogBlock } from '@/components/relations/ActivityLogBlock';
 
 const API = 'https://employee-tracker.ru/api/v1';
 
@@ -215,6 +217,23 @@ export default function ProductDetailPage() {
               ))}
             </div>
           )}
+
+          {/* Relations */}
+          {token && product && (
+            <div style={card}>
+              <p style={{ fontSize:'11px', fontWeight:700, color:'#9B97CC', textTransform:'uppercase', letterSpacing:'0.5px', margin:'0 0 12px' }}>Связи</p>
+              <RelationsBlock entityType="PRODUCT" entityId={product.id} token={token} />
+            </div>
+          )}
+
+          {/* Activity Log */}
+          {token && product && (
+            <div style={card}>
+              <p style={{ fontSize:'11px', fontWeight:700, color:'#9B97CC', textTransform:'uppercase', letterSpacing:'0.5px', margin:'0 0 12px' }}>История изменений</p>
+              <ActivityLogBlock entityType="PRODUCT" entityId={product.id} token={token} />
+            </div>
+          )}
+
         </div>
       </div>
     </div>

@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
+import { RelationsBlock } from '@/components/relations/RelationsBlock';
+import { ActivityLogBlock } from '@/components/relations/ActivityLogBlock';
 
 const API = 'https://employee-tracker.ru/api/v1';
 const STATUS_LABELS: Record<string,string> = { ACTIVE:'Активный', COMPLETED:'Завершён', ARCHIVED:'В архиве', ON_HOLD:'На паузе' };
@@ -318,6 +320,23 @@ export default function ProjectDetailPage() {
               ))}
             </div>
           )}
+
+          {/* Relations */}
+          {token && project && (
+            <div style={card}>
+              <p style={{ fontSize:'11px', fontWeight:700, color:'#9B97CC', textTransform:'uppercase', letterSpacing:'0.5px', margin:'0 0 12px' }}>Связи</p>
+              <RelationsBlock entityType="PROJECT" entityId={project.id} token={token} />
+            </div>
+          )}
+
+          {/* Activity Log */}
+          {token && project && (
+            <div style={card}>
+              <p style={{ fontSize:'11px', fontWeight:700, color:'#9B97CC', textTransform:'uppercase', letterSpacing:'0.5px', margin:'0 0 12px' }}>История изменений</p>
+              <ActivityLogBlock entityType="PROJECT" entityId={project.id} token={token} />
+            </div>
+          )}
+
         </div>
       </div>
     </div>

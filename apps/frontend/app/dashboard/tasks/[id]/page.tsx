@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { CustomFieldsPanel } from '@/components/custom-fields/CustomFieldsPanel';
 import { RelationsBlock } from '@/components/relations/RelationsBlock';
+import { ActivityLogBlock } from '@/components/relations/ActivityLogBlock';
 
 const STATUS_STYLE: Record<string,{bg:string;c:string;label:string}> = {
   NEW:         { bg:'#EDE9FE', c:'#7F77DD', label:'Новая' },
@@ -275,6 +276,16 @@ export default function TaskDetailPage() {
                 entityId={task.id}
                 token={token}
               />
+            </div>
+          )}
+
+          {/* Activity Log */}
+          {token && task && (
+            <div style={card}>
+              <p style={{ fontSize:'11px', fontWeight:700, color:'#9B97CC', textTransform:'uppercase', letterSpacing:'0.5px', margin:'0 0 12px' }}>
+                История изменений
+              </p>
+              <ActivityLogBlock entityType="TASK" entityId={task.id} token={token} />
             </div>
           )}
 
