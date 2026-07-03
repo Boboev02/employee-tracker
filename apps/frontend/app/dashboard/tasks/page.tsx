@@ -4,6 +4,8 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePermissions } from '@/lib/usePermissions';
 import { CustomFieldsPanel } from '@/components/custom-fields/CustomFieldsPanel';
+import { useCustomFields } from '@/hooks/useCustomFields';
+import { FieldRenderer } from '@/components/custom-fields/FieldRenderer';
 
 const STATUS_COLS = [
   { id:'NEW',         label:'Новые',          dot:'#9B97CC', colBg:'#F8F7FF', accentC:'#7F77DD', accentBg:'#EDE9FE', next:'IN_PROGRESS', nextLabel:'В работу' },
@@ -661,9 +663,6 @@ export default function TasksPage() {
 }
 
 // ── List view with dynamic custom-field columns ──────────────────────────────
-import { useCustomFields } from '@/hooks/useCustomFields';
-import { FieldRenderer } from '@/components/custom-fields/FieldRenderer';
-
 const STATUS_COL_MAP: Record<string,{bg:string;c:string;label:string}> = {
   NEW:         { bg:'#EDE9FE', c:'#7F77DD', label:'Новые' },
   IN_PROGRESS: { bg:'#DBEAFE', c:'#2563EB', label:'В работе' },
