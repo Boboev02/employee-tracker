@@ -77,7 +77,7 @@ function CustomFieldsManager({ token }: { token: string }) {
           : undefined,
       };
       if (editingField) {
-        await cf.updateField(editingField.id, payload);
+        await cf.updateField(editingField.id, payload as any);
       } else {
         await cf.createField(payload as any);
       }
