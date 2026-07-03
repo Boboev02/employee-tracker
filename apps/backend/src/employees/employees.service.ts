@@ -16,10 +16,15 @@ export class EmployeesService {
     }
     if (filters.status) where.status = filters.status;
 
+    const take = Math.min(parseInt(filters.limit ?? '100'), 500);
+    const skip = parseInt(filters.offset ?? '0');
+
     const users = await this.prisma.user.findMany({
       where,
       include: { userRoles: { include: { role: true } } },
       orderBy: { createdAt: 'desc' },
+      take,
+      skip,
     });
 
     return users.map(u => ({

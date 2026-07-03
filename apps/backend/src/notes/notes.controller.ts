@@ -9,8 +9,8 @@ export class NotesController {
   constructor(private readonly svc: NotesService) {}
 
   @Get()
-  list(@Request() req: any, @Query('status') status?: string, @Query('search') search?: string) {
-    return this.svc.list(req.user.id, req.user.orgId, status, search);
+  list(@Request() req: any, @Query('status') status?: string, @Query('search') search?: string, @Query('limit') limit?: string, @Query('offset') offset?: string) {
+    return this.svc.list(req.user.id, req.user.orgId, status, search, parseInt(limit ?? '100'), parseInt(offset ?? '0'));
   }
 
   @Post()

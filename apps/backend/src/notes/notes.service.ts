@@ -6,7 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 export class NotesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(userId: string, orgId: string, status?: string, search?: string) {
+  async list(userId: string, orgId: string, status?: string, search?: string, limit = 100, offset = 0) {
     const where: any = { userId, orgId };
     if (status) where.status = status;
     else where.status = { not: 'ARCHIVED' };
@@ -14,7 +14,12 @@ export class NotesService {
       { title: { contains: search, mode: 'insensitive' } },
       { content: { contains: search, mode: 'insensitive' } },
     ];
-    return this.prisma.note.findMany({ where, orderBy: [{ isPinned: 'desc' }, { updatedAt: 'desc' }] });
+    return this.prisma.note.findMany({
+      where,
+      orderBy: [{ isPinned: 'desc' }, { updatedAt: 'desc' }],
+      take: Math.min(limit, 200),
+      skip: offset,
+    });
   }
 
   async create(userId: string, orgId: string, dto: any) {

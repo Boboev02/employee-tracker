@@ -10,89 +10,89 @@ export class CrmController {
 
   // ===== ЛИДЫ =====
   @Get('leads')
-  @RequirePermissions('task:read:all', 'task:read:team', 'task:read:self')
+  @RequirePermissions('crm:read')
   getLeads(@CurrentUser() u: any, @Query() q: any) { return this.crm.getLeads(u.orgId, q); }
 
   @Post('leads')
-  @RequirePermissions('task:create')
+  @RequirePermissions('crm:write')
   createLead(@CurrentUser() u: any, @Body() body: any) { return this.crm.createLead(u.orgId, u.id ?? u.sub, body); }
 
   @Patch('leads/:id')
-  @RequirePermissions('task:update:any', 'task:update:self')
+  @RequirePermissions('crm:write')
   updateLead(@CurrentUser() u: any, @Param('id') id: string, @Body() body: any) { return this.crm.updateLead(u.orgId, id, u.id ?? u.sub, body); }
 
   @Delete('leads/:id')
   @HttpCode(204)
-  @RequirePermissions('task:delete')
+  @RequirePermissions('crm:delete')
   deleteLead(@CurrentUser() u: any, @Param('id') id: string) { return this.crm.deleteLead(u.orgId, id); }
 
   // ===== КОНТАКТЫ =====
   @Get('contacts')
-  @RequirePermissions('task:read:all', 'task:read:team', 'task:read:self')
+  @RequirePermissions('crm:read')
   getContacts(@CurrentUser() u: any, @Query() q: any) { return this.crm.getContacts(u.orgId, q); }
 
   @Get('contacts/:id')
-  @RequirePermissions('task:read:all', 'task:read:team', 'task:read:self')
+  @RequirePermissions('crm:read')
   getContact(@CurrentUser() u: any, @Param('id') id: string) { return this.crm.getContact(u.orgId, id); }
 
   @Post('contacts')
-  @RequirePermissions('task:create')
+  @RequirePermissions('crm:write')
   createContact(@CurrentUser() u: any, @Body() body: any) { return this.crm.createContact(u.orgId, u.id ?? u.sub, body); }
 
   @Patch('contacts/:id')
-  @RequirePermissions('task:update:any', 'task:update:self')
+  @RequirePermissions('crm:write')
   updateContact(@CurrentUser() u: any, @Param('id') id: string, @Body() body: any) { return this.crm.updateContact(u.orgId, id, u.id ?? u.sub, body); }
 
   @Delete('contacts/:id')
   @HttpCode(204)
-  @RequirePermissions('task:delete')
+  @RequirePermissions('crm:delete')
   deleteContact(@CurrentUser() u: any, @Param('id') id: string) { return this.crm.deleteContact(u.orgId, id); }
 
   // ===== КОМПАНИИ =====
   @Get('companies')
-  @RequirePermissions('task:read:all', 'task:read:team', 'task:read:self')
+  @RequirePermissions('crm:read')
   getCompanies(@CurrentUser() u: any, @Query() q: any) { return this.crm.getCompanies(u.orgId, q); }
 
   @Get('companies/:id')
-  @RequirePermissions('task:read:all', 'task:read:team', 'task:read:self')
+  @RequirePermissions('crm:read')
   getCompany(@CurrentUser() u: any, @Param('id') id: string) { return this.crm.getCompany(u.orgId, id); }
 
   @Post('companies')
-  @RequirePermissions('task:create')
+  @RequirePermissions('crm:write')
   createCompany(@CurrentUser() u: any, @Body() body: any) { return this.crm.createCompany(u.orgId, u.id ?? u.sub, body); }
 
   @Patch('companies/:id')
-  @RequirePermissions('task:update:any')
+  @RequirePermissions('crm:write')
   updateCompany(@CurrentUser() u: any, @Param('id') id: string, @Body() body: any) { return this.crm.updateCompany(u.orgId, id, body); }
 
   // ===== СДЕЛКИ =====
   @Get('deals')
-  @RequirePermissions('task:read:all', 'task:read:team', 'task:read:self')
+  @RequirePermissions('crm:read')
   getDeals(@CurrentUser() u: any, @Query() q: any) { return this.crm.getDeals(u.orgId, q); }
 
   @Get('deals/kanban')
-  @RequirePermissions('task:read:all', 'task:read:team', 'task:read:self')
+  @RequirePermissions('crm:read')
   getDealsKanban(@CurrentUser() u: any) { return this.crm.getDealsKanban(u.orgId); }
 
   @Get('deals/:id')
-  @RequirePermissions('task:read:all', 'task:read:team', 'task:read:self')
+  @RequirePermissions('crm:read')
   getDeal(@CurrentUser() u: any, @Param('id') id: string) { return this.crm.getDeal(u.orgId, id); }
 
   @Post('deals')
-  @RequirePermissions('task:create')
+  @RequirePermissions('crm:write')
   createDeal(@CurrentUser() u: any, @Body() body: any) { return this.crm.createDeal(u.orgId, u.id ?? u.sub, body); }
 
   @Patch('deals/:id')
-  @RequirePermissions('task:update:any', 'task:update:self')
+  @RequirePermissions('crm:write')
   updateDeal(@CurrentUser() u: any, @Param('id') id: string, @Body() body: any) { return this.crm.updateDeal(u.orgId, id, u.id ?? u.sub, body); }
 
   @Delete('deals/:id')
   @HttpCode(204)
-  @RequirePermissions('task:delete')
+  @RequirePermissions('crm:delete')
   deleteDeal(@CurrentUser() u: any, @Param('id') id: string) { return this.crm.deleteDeal(u.orgId, id); }
 
   // ===== АКТИВНОСТЬ =====
   @Post('activity')
-  @RequirePermissions('task:read:self')
+  @RequirePermissions('crm:read')
   addActivity(@CurrentUser() u: any, @Body() body: any) { return this.crm.addActivity(u.orgId, u.id ?? u.sub, body); }
 }
