@@ -1,6 +1,6 @@
 import {
   Controller, Post, Get, Delete, Param, UseInterceptors,
-  UploadedFile, HttpCode, UseGuards, Req,
+  UploadedFile, HttpCode, UseGuards, NotFoundException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -38,36 +38,54 @@ export class AttachmentsController {
     @Param('taskId') taskId: string,
     @UploadedFile() file: any,
   ) {
-    const task = await this.prisma.task.findFirst({ where: { id: taskId, orgId: user.orgId } });
-    if (!task) { if (existsSync(file.path)) unlinkSync(file.path); return { error: 'Task not found' }; }
+    const task = await this.prisma.task.findFirst({ where: { id: taskId, orgId: user.orgId, deletedAt: null } });
+    if (!task) {
+      if (file && existsSync(file.path)) unlinkSync(file.path);
+      throw new NotFoundException('Task not found');
+    }
 
-    const attachment = await this.prisma.$queryRaw`
-      INSERT INTO "TaskAttachment" (id, "taskId", "orgId", "uploadedById", "fileName", "fileSize", "mimeType", url, "createdAt")
-      VALUES (${uuid()}, ${taskId}, ${user.orgId}, ${user.id ?? user.sub}, ${file.originalname}, ${file.size}, ${file.mimetype}, ${'/api/v1/uploads/' + file.filename}, NOW())
-      RETURNING *
-    `;
-    return (attachment as any[])[0];
+    return this.prisma.taskAttachment.create({
+      data: {
+        taskId,
+        orgId: user.orgId,
+        uploadedById: user.id ?? user.sub,
+        fileName: Buffer.from(file.originalname, 'latin1').toString('utf8'),
+        fileSize: file.size,
+        mimeType: file.mimetype,
+        url: '/api/v1/uploads/' + file.filename,
+      },
+    });
   }
 
   @Get()
   @RequirePermissions('task:read:all', 'task:read:team', 'task:read:self')
   async getAttachments(@CurrentUser() user: any, @Param('taskId') taskId: string) {
-    return this.prisma.$queryRaw`
-      SELECT * FROM "TaskAttachment" WHERE "taskId" = ${taskId} ORDER BY "createdAt" DESC
-    `;
+    const task = await this.prisma.task.findFirst({ where: { id: taskId, orgId: user.orgId } });
+    if (!task) throw new NotFoundException('Task not found');
+
+    return this.prisma.taskAttachment.findMany({
+      where: { taskId, orgId: user.orgId },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   @Delete(':id')
   @HttpCode(204)
   @RequirePermissions('task:update:any', 'task:update:self')
-  async deleteAttachment(@CurrentUser() user: any, @Param('taskId') taskId: string, @Param('id') id: string) {
-    const rows: any[] = await this.prisma.$queryRaw`
-      SELECT * FROM "TaskAttachment" WHERE id = ${id} AND "taskId" = ${taskId}
-    `;
-    if (!rows.length) return;
-    const att = rows[0];
-    const filePath = join(UPLOAD_DIR, att.url.split('/').pop());
-    if (existsSync(filePath)) unlinkSync(filePath);
-    await this.prisma.$queryRaw`DELETE FROM "TaskAttachment" WHERE id = ${id}`;
+  async deleteAttachment(
+    @CurrentUser() user: any,
+    @Param('taskId') taskId: string,
+    @Param('id') id: string,
+  ) {
+    const att = await this.prisma.taskAttachment.findFirst({
+      where: { id, taskId, orgId: user.orgId },
+    });
+    if (!att) throw new NotFoundException('Attachment not found');
+
+    const filename = att.url.split('/').pop();
+    const filePath = join(UPLOAD_DIR, filename ?? '');
+    if (filePath && existsSync(filePath)) unlinkSync(filePath);
+
+    await this.prisma.taskAttachment.delete({ where: { id } });
   }
 }

@@ -19,7 +19,7 @@ export class KpiController {
   }
 
   @Delete(':id')
-  deleteKpi(@Param('id') id: string) {
-    return this.kpi.deleteKpi(id);
+  deleteKpi(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.kpi.deleteKpi(id, user.orgId);
   }
 }

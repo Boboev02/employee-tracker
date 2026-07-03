@@ -206,6 +206,7 @@ model Task {
   deal          CrmDeal?    @relation(fields: [dealId], references: [id])
   taskType      TaskType?   @relation("TaskTypeRelation", fields: [taskTypeId], references: [id])
   fieldValues   CustomFieldValue[]
+  attachments   TaskAttachment[]
   @@index([orgId, status])
   @@index([assigneeId])
   @@index([productId])
@@ -811,9 +812,24 @@ model SavedFilter {
 model UserSidebarConfig {
   id        String   @id @default(uuid())
   userId    String   @unique
-  orgId     String
-  config    String   @db.Text
-  sections  Json?
+  sections  Json
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model TaskAttachment {
+  id           String   @id @default(uuid())
+  taskId       String
+  orgId        String
+  uploadedById String
+  fileName     String
+  fileSize     Int
+  mimeType     String
+  url          String
+  createdAt    DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([orgId])
 }

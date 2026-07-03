@@ -23,8 +23,9 @@ export class KnowledgeService {
     return this.prisma.knowledgeCategory.update({ where: { id }, data: dto });
   }
 
-  async deleteCategory(id: string) {
-    // Сначала удаляем все статьи категории
+  async deleteCategory(id: string, orgId: string) {
+    const cat = await this.prisma.knowledgeCategory.findFirst({ where: { id, orgId } });
+    if (!cat) throw new Error('Category not found');
     await this.prisma.knowledgeArticle.deleteMany({ where: { categoryId: id } });
     return this.prisma.knowledgeCategory.delete({ where: { id } });
   }
@@ -61,7 +62,9 @@ export class KnowledgeService {
     return this.prisma.knowledgeArticle.update({ where: { id }, data: dto });
   }
 
-  async deleteArticle(id: string) {
+  async deleteArticle(id: string, orgId: string) {
+    const art = await this.prisma.knowledgeArticle.findFirst({ where: { id, orgId, deletedAt: null } });
+    if (!art) throw new Error('Article not found');
     return this.prisma.knowledgeArticle.update({ where: { id }, data: { deletedAt: new Date() } });
   }
 }

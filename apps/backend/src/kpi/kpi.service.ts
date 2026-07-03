@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -55,5 +55,9 @@ export class KpiService {
     });
   }
 
-  async deleteKpi(id: string) { return this.prisma.employeeKpi.delete({ where: { id } }); }
+  async deleteKpi(id: string, orgId: string) {
+    const kpi = await this.prisma.employeeKpi.findFirst({ where: { id, orgId } });
+    if (!kpi) throw new NotFoundException('KPI not found');
+    return this.prisma.employeeKpi.delete({ where: { id } });
+  }
 }

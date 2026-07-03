@@ -24,8 +24,8 @@ export class KnowledgeController {
   }
 
   @Delete('categories/:id')
-  deleteCategory(@Param('id') id: string) {
-    return this.knowledge.deleteCategory(id);
+  deleteCategory(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.knowledge.deleteCategory(id, user.orgId);
   }
 
   @Get('articles')
@@ -49,7 +49,7 @@ export class KnowledgeController {
   }
 
   @Delete('articles/:id')
-  deleteArticle(@Param('id') id: string) {
-    return this.knowledge.deleteArticle(id);
+  deleteArticle(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.knowledge.deleteArticle(id, user.orgId);
   }
 }
