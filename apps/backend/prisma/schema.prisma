@@ -812,7 +812,9 @@ model SavedFilter {
 model UserSidebarConfig {
   id        String   @id @default(uuid())
   userId    String   @unique
-  sections  Json
+  orgId     String
+  config    String   @db.Text
+  sections  Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
