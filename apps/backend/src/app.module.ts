@@ -35,7 +35,7 @@ import { JwtAuthGuard }    from './auth/guards/index';
     ThrottlerModule.forRoot([{
       name: 'default',
       ttl: 60000,    // 1 minute
-      limit: 300,    // 300 requests per minute per IP (normal usage)
+      limit: 600,    // 600 requests per minute per IP (10/sec — plenty for SPA)
     }, {
       name: 'auth',
       ttl: 900000,   // 15 minutes

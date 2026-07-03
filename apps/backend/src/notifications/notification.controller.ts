@@ -1,10 +1,12 @@
 import { Controller, Get, Patch, Param, UseGuards } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../auth/guards/index';
 import { CurrentUser } from '../auth/decorators/index';
 import { NotificationService } from './notification.service';
 
 @Controller('api/v1/notifications')
 @UseGuards(JwtAuthGuard)
+@SkipThrottle() // notifications are polled frequently — skip rate limiting
 export class NotificationController {
   constructor(private readonly notifications: NotificationService) {}
 
