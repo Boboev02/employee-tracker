@@ -600,8 +600,8 @@ export default function TasksPage() {
 
       {/* Create Modal */}
       {showForm && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(26,16,64,0.4)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:50, backdropFilter:'blur(4px)' }}>
-          <div style={{ background:'white', borderRadius:'24px', padding:'28px 32px', width:'460px', boxShadow:'0 24px 64px rgba(127,119,221,0.2)' }}>
+        <div style={{ position:'fixed', inset:0, background:'rgba(26,16,64,0.4)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:50, backdropFilter:'blur(4px)', padding:'16px', overflowY:'auto' }}>
+          <div style={{ background:'white', borderRadius:'24px', padding:'28px 32px', width:'460px', maxWidth:'100%', boxShadow:'0 24px 64px rgba(127,119,221,0.2)', maxHeight:'90vh', overflowY:'auto', margin:'auto' }}>
             <h2 style={{ fontSize:'18px', fontWeight:800, color:'#1a1040', margin:'0 0 22px', letterSpacing:'-0.5px' }}>Новая задача</h2>
             <form onSubmit={createTask} style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
               <div>
