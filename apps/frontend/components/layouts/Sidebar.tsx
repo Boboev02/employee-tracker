@@ -190,7 +190,7 @@ export function Sidebar() {
             <button onClick={()=>{ setShowNotifs(!showNotifs); if (!showNotifs && unread > 0) markAllRead(); }}
               style={{ width:'28px', height:'28px', background:'transparent', border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', borderRadius:'var(--radius-sm)', transition:'background var(--transition)', position:'relative' }}
               onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background='var(--bg-hover)'}
-              onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background='transparent'
+              onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background='transparent'}
               title="Уведомления">
               <i className="ti ti-bell" style={{ fontSize:'16px', color: unread > 0 ? 'var(--orange)' : 'var(--text-muted)' }} aria-hidden="true"/>
               {unread > 0 && (
