@@ -31,7 +31,7 @@ model User {
   avatarUrl      String?
   telegramChatId String?
   birthDate      DateTime?
-  gender         String?
+  gender         String?   // MALE | FEMALE
   hiredAt        DateTime?
   position       String?
   phone          String?
@@ -656,4 +656,15 @@ model CrmActivity {
   @@index([orgId, createdAt])
   @@index([contactId])
   @@index([dealId])
+}
+
+model UserSidebarConfig {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  orgId     String
+  config    String   @db.Text // JSON строка с группами и разделами
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([orgId])
 }

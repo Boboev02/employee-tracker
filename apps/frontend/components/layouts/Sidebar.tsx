@@ -45,6 +45,8 @@ function timeAgo(dateStr: string) {
 export function Sidebar() {
   const isMobile = useIsMobile();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [sidebarConfig, setSidebarConfig] = useState<any>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string,boolean>>({});
   const pathname  = usePathname();
   const router    = useRouter();
   const [user, setUser]         = useState<any>(null);
@@ -257,52 +259,39 @@ export function Sidebar() {
         {showSearch && searchRes && (
           <div style={{ position:'absolute', top:'100%', left:'8px', right:'8px', background:'#1a1d26', border:'0.5px solid rgba(255,255,255,0.1)', borderRadius:'12px', boxShadow:'0 8px 32px rgba(0,0,0,0.4)', zIndex:1000, overflow:'hidden', maxHeight:'360px', overflowY:'auto' }}>
             {searching && <div style={{ padding:'12px 14px', color:'#6b7090', fontSize:'12px' }}>Поиск...</div>}
-            {!searching && searchRes.tasks?.length===0 && searchRes.employees?.length===0 && searchRes.articles?.length===0 && (
-              <div style={{ padding:'16px 14px', color:'#6b7090', fontSize:'12px', textAlign:'center' }}>Ничего не найдено</div>
+            {!searching && searchRes.tasks?.length===0 && searchRes.employees?.length===0 && searchRes.projects?.length===0 && searchRes.products?.length===0 && (
+              <div style={{ padding:'16px 14px', color:'#6b7090', fontSize:'12px', textAlign:'center' }}>Ничего не найдено по запросу «{searchQ}»</div>
             )}
-            {searchRes.tasks?.length>0 && (
-              <div>
-                <div style={{ padding:'8px 14px 4px', fontSize:'10px', fontWeight:600, color:'#4a4d5e', textTransform:'uppercase', letterSpacing:'0.5px' }}>Задачи</div>
-                {searchRes.tasks.map((t:any)=>(
-                  <div key={t.id} onClick={()=>{router.push('/dashboard/tasks/'+t.id);setShowSearch(false);setSearchQ('');setSearchRes(null);}}
+            {[
+              { key:'tasks',     label:'Задачи',           icon:'✅', items: searchRes.tasks },
+              { key:'projects',  label:'Проекты',          icon:'📁', items: searchRes.projects },
+              { key:'products',  label:'Карточки товаров', icon:'📦', items: searchRes.products },
+              { key:'employees', label:'Сотрудники',       icon:'👤', items: searchRes.employees },
+            ].map(section => section.items?.length > 0 && (
+              <div key={section.key}>
+                <div style={{ padding:'8px 14px 4px', fontSize:'10px', fontWeight:600, color:'#4a4d5e', textTransform:'uppercase', letterSpacing:'0.5px', display:'flex', alignItems:'center', gap:'6px' }}>
+                  {section.icon} {section.label}
+                </div>
+                {section.items.map((item: any) => (
+                  <div key={item.id} onClick={()=>{ router.push(item.url); setShowSearch(false); setSearchQ(''); setSearchRes(null); }}
                     style={{ padding:'8px 14px', cursor:'pointer', display:'flex', alignItems:'center', gap:'8px', transition:'background 0.1s' }}
                     onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background='rgba(255,255,255,0.05)'}
                     onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background='transparent'}>
-                    <i className="ti ti-checkbox" style={{ fontSize:'14px', color:'#6b7090', flexShrink:0 }} aria-hidden="true"/>
-                    <span style={{ fontSize:'13px', color:'#c8cad8', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.title}</span>
+                    {item.photoUrl ? (
+                      <img src={item.photoUrl} alt="" style={{ width:'20px', height:'20px', borderRadius:'4px', objectFit:'cover', flexShrink:0 }} />
+                    ) : (
+                      <div style={{ width:'20px', height:'20px', borderRadius:'4px', background: item.color ?? 'rgba(255,255,255,0.1)', flexShrink:0 }} />
+                    )}
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:'13px', color:'#c8cad8', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.title}</div>
+                      {item.email && <div style={{ fontSize:'11px', color:'#4a4d5e' }}>{item.email}</div>}
+                      {item.marketplace && <div style={{ fontSize:'11px', color:'#4a4d5e' }}>{item.marketplace}</div>}
+                      {item.status && section.key==='tasks' && <div style={{ fontSize:'11px', color:'#4a4d5e' }}>{item.status}</div>}
+                    </div>
                   </div>
                 ))}
               </div>
-            )}
-            {searchRes.employees?.length>0 && (
-              <div>
-                <div style={{ padding:'8px 14px 4px', fontSize:'10px', fontWeight:600, color:'#4a4d5e', textTransform:'uppercase', letterSpacing:'0.5px' }}>Сотрудники</div>
-                {searchRes.employees.map((e:any)=>(
-                  <div key={e.id} onClick={()=>{router.push('/dashboard/employees/'+e.id);setShowSearch(false);setSearchQ('');setSearchRes(null);}}
-                    style={{ padding:'8px 14px', cursor:'pointer', display:'flex', alignItems:'center', gap:'8px', transition:'background 0.1s' }}
-                    onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background='rgba(255,255,255,0.05)'}
-                    onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background='transparent'}>
-                    <i className="ti ti-user" style={{ fontSize:'14px', color:'#6b7090', flexShrink:0 }} aria-hidden="true"/>
-                    <span style={{ fontSize:'13px', color:'#c8cad8' }}>{e.name}</span>
-                    <span style={{ fontSize:'11px', color:'#4a4d5e', marginLeft:'auto' }}>{e.email}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {searchRes.articles?.length>0 && (
-              <div>
-                <div style={{ padding:'8px 14px 4px', fontSize:'10px', fontWeight:600, color:'#4a4d5e', textTransform:'uppercase', letterSpacing:'0.5px' }}>База знаний</div>
-                {searchRes.articles.map((a:any)=>(
-                  <div key={a.id} onClick={()=>{router.push('/dashboard/knowledge');setShowSearch(false);setSearchQ('');setSearchRes(null);}}
-                    style={{ padding:'8px 14px', cursor:'pointer', display:'flex', alignItems:'center', gap:'8px', transition:'background 0.1s' }}
-                    onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background='rgba(255,255,255,0.05)'}
-                    onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background='transparent'}>
-                    <i className="ti ti-book" style={{ fontSize:'14px', color:'#6b7090', flexShrink:0 }} aria-hidden="true"/>
-                    <span style={{ fontSize:'13px', color:'#c8cad8', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{a.category?.icon} {a.title}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+            ))}
           </div>
         )}
       </div>
@@ -311,19 +300,79 @@ export function Sidebar() {
       <div style={{ height:'0.5px', background:'rgba(255,255,255,0.07)', margin:'0 12px' }} />
 
       {/* Nav */}
-      <nav style={{ flex:1, padding:'10px 8px', display:'flex', flexDirection:'column', gap:'1px', overflowY:'auto' }}>
-        {items.map(item => {
-          const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
-          return (
-            <Link key={item.href} href={item.href}
-              style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 10px', borderRadius:'8px', textDecoration:'none', background: active ? 'rgba(139,124,246,0.15)' : 'transparent', transition:'background 0.15s' }}
-              onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; }}
-              onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
-              <i className={'ti ' + item.icon} style={{ fontSize:'17px', color: active ? '#8b7cf6' : '#6b7090', flexShrink:0, lineHeight:1 }} aria-hidden="true"/>
-              <span style={{ fontSize:'13px', fontWeight: active ? 500 : 400, color: active ? '#e2e4ed' : '#8b909e' }}>{item.label}</span>
+      <nav style={{ flex:1, padding:'8px 6px', display:'flex', flexDirection:'column', gap:'0', overflowY:'auto' }}>
+        {sidebarConfig ? (
+          <>
+            {sidebarConfig.groups?.map((group: any) => {
+              const isCollapsed = collapsedGroups[group.id] ?? group.collapsed ?? false;
+              const groupItems = group.items
+                .map((id: string) => NAV.find(n => n.href === '/dashboard/'+id || n.href === '/dashboard'))
+                .filter(Boolean)
+                .filter((n: any) => !n.admin || perms.isAdmin || perms.isManager);
+              // Map section id to href
+              const sectionToHref: Record<string,string> = {
+                dashboard:'/dashboard', home:'/dashboard/home', employees:'/dashboard/employees',
+                tasks:'/dashboard/tasks', projects:'/dashboard/projects', crm:'/dashboard/crm',
+                analytics:'/dashboard/analytics', teams:'/dashboard/teams', productivity:'/dashboard/productivity',
+                timesheet:'/dashboard/timesheet', reports:'/dashboard/reports', knowledge:'/dashboard/knowledge',
+                routines:'/dashboard/routines', kpi:'/dashboard/kpi', products:'/dashboard/products',
+                sales:'/dashboard/sales', reviews:'/dashboard/reviews', calls:'/dashboard/calls',
+                notebook:'/dashboard/notebook', dictionaries:'/dashboard/dictionaries',
+                settings:'/dashboard/settings', audit:'/dashboard/audit',
+              };
+              const validItems = group.items
+                .map((id: string) => { const n = NAV.find(n => n.href === sectionToHref[id]); return n ? { ...n, href: sectionToHref[id] } : null; })
+                .filter(Boolean)
+                .filter((n: any) => !n.admin || perms.isAdmin || perms.isManager);
+              if (validItems.length === 0) return null;
+              return (
+                <div key={group.id} style={{ marginBottom:'4px' }}>
+                  <button onClick={()=>setCollapsedGroups(prev=>({...prev,[group.id]:!isCollapsed}))}
+                    style={{ display:'flex', alignItems:'center', gap:'6px', width:'100%', background:'none', border:'none', padding:'5px 10px', cursor:'pointer', borderRadius:'6px' }}
+                    onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background='rgba(255,255,255,0.04)'}
+                    onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background='none'}>
+                    <span style={{ fontSize:'12px' }}>{group.emoji ?? '📁'}</span>
+                    <span style={{ fontSize:'10px', fontWeight:700, color:'#4a4d5e', textTransform:'uppercase', letterSpacing:'0.6px', flex:1, textAlign:'left' }}>{group.label}</span>
+                    <span style={{ fontSize:'10px', color:'#4a4d5e' }}>{isCollapsed ? '▶' : '▼'}</span>
+                  </button>
+                  {!isCollapsed && validItems.map((item: any) => {
+                    const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
+                    return (
+                      <Link key={item.href} href={item.href}
+                        style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px 7px 22px', borderRadius:'8px', textDecoration:'none', background: active ? 'rgba(139,124,246,0.15)' : 'transparent', transition:'background 0.15s' }}
+                        onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; }}
+                        onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
+                        <i className={'ti ' + item.icon} style={{ fontSize:'16px', color: active ? '#8b7cf6' : '#6b7090', flexShrink:0, lineHeight:1 }} aria-hidden="true"/>
+                        <span style={{ fontSize:'12px', fontWeight: active ? 500 : 400, color: active ? '#e2e4ed' : '#8b909e' }}>{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              );
+            })}
+            <div style={{ height:'0.5px', background:'rgba(255,255,255,0.07)', margin:'6px 6px' }} />
+            <Link href="/dashboard/sidebar-settings"
+              style={{ display:'flex', alignItems:'center', gap:'10px', padding:'7px 10px', borderRadius:'8px', textDecoration:'none', color:'#4a4d5e', transition:'background 0.15s' }}
+              onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background='rgba(255,255,255,0.05)'}
+              onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background='transparent'}>
+              <i className="ti ti-layout-sidebar" style={{ fontSize:'16px' }} aria-hidden="true"/>
+              <span style={{ fontSize:'12px' }}>Настроить сайдбар</span>
             </Link>
-          );
-        })}
+          </>
+        ) : (
+          items.map(item => {
+            const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
+            return (
+              <Link key={item.href} href={item.href}
+                style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 10px', borderRadius:'8px', textDecoration:'none', background: active ? 'rgba(139,124,246,0.15)' : 'transparent', transition:'background 0.15s' }}
+                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; }}
+                onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
+                <i className={'ti ' + item.icon} style={{ fontSize:'17px', color: active ? '#8b7cf6' : '#6b7090', flexShrink:0, lineHeight:1 }} aria-hidden="true"/>
+                <span style={{ fontSize:'13px', fontWeight: active ? 500 : 400, color: active ? '#e2e4ed' : '#8b909e' }}>{item.label}</span>
+              </Link>
+            );
+          })
+        )}
       </nav>
 
       {/* Footer */}

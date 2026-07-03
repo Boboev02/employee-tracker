@@ -13,6 +13,7 @@ import { ProductsModule } from './products/products.module';
 import { DictionariesModule } from './dictionaries/dictionaries.module';
 import { ProjectsModule } from './projects/projects.module';
 import { CrmModule } from './crm/crm.module';
+import { SidebarModule } from './sidebar/sidebar.module';
 import { AttachmentsModule } from './attachments/attachments.module';
 import { ResetModule } from './reset/reset.module';
 import { KpiModule } from './kpi/kpi.module';
@@ -41,6 +42,7 @@ import { JwtAuthGuard }    from './auth/guards/index';
     DictionariesModule,
     ProjectsModule,
     CrmModule,
+    SidebarModule,
     AttachmentsModule,
     HealthModule,
     KpiModule,

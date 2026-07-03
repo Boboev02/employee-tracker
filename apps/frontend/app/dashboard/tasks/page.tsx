@@ -31,7 +31,17 @@ export default function TasksPage() {
   const [loading, setLoading]     = useState(true);
   const [showForm, setShowForm]   = useState(false);
   const [employees, setEmployees] = useState<any[]>([]);
-  const [newTask, setNewTask]     = useState({ title:'', priority:'MEDIUM', description:'', assigneeId:'', dueDate:'', departmentId:'' });
+  const [newTask, setNewTask]     = useState({ title:'', priority:'MEDIUM', description:'', assigneeId:'', dueDate:'', departmentId:'', productId:'' });
+  const [showProductPicker, setShowProductPicker] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
+  const [productList, setProductList] = useState<any[]>([]);
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [tagInput, setTagInput] = useState('');
+  const [pendingTags, setPendingTags] = useState<string[]>([]);
+  const [pendingSubtasks, setPendingSubtasks] = useState<string[]>([]);
+  const [subtaskInput, setSubtaskInput] = useState('');
   const [departments, setDepartments] = useState<any[]>([]);
   const [aiDept, setAiDept]     = useState<{ id: string; name: string; color: string } | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
@@ -106,6 +116,33 @@ export default function TasksPage() {
     setAiLoading(false);
   };
 
+  const searchProducts = async (q: string) => {
+    setProductSearch(q);
+    if (q.length < 1) { setProductList([]); return; }
+    setLoadingProducts(true);
+    try {
+      const res = await fetch('https://employee-tracker.ru/api/v1/products?search='+encodeURIComponent(q)+'&limit=10', {
+        headers: { Authorization: 'Bearer '+token }
+      });
+      const data = await res.json();
+      setProductList(data.products ?? []);
+    } catch {}
+    setLoadingProducts(false);
+  };
+
+  const selectProduct = (product: any) => {
+    setSelectedProduct(product);
+    setNewTask(prev => ({ ...prev, productId: product.id }));
+    setShowProductPicker(false);
+    setProductSearch('');
+    setProductList([]);
+  };
+
+  const clearProduct = () => {
+    setSelectedProduct(null);
+    setNewTask(prev => ({ ...prev, productId: '' }));
+  };
+
   const handleTitleChange = (title: string) => {
     setNewTask(prev => ({ ...prev, title }));
     setAiDept(null);
@@ -115,12 +152,38 @@ export default function TasksPage() {
 
   const createTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    await fetch('https://employee-tracker.ru/api/v1/tasks', {
+    const taskRes = await fetch('https://employee-tracker.ru/api/v1/tasks', {
       method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token },
-      body: JSON.stringify({ ...newTask, assigneeId:newTask.assigneeId||undefined, dueDate:newTask.dueDate||undefined, departmentId:newTask.departmentId||undefined }),
+      body: JSON.stringify({ ...newTask, assigneeId:newTask.assigneeId||undefined, dueDate:newTask.dueDate||undefined, departmentId:newTask.departmentId||undefined, productId:newTask.productId||undefined, tags:pendingTags }),
     });
-    setNewTask({ title:'', priority:'MEDIUM', description:'', assigneeId:'', dueDate:'', departmentId:'' });
+    const createdTask = await taskRes.json();
+    // Create pending subtasks
+    if (createdTask.id && pendingSubtasks.length > 0) {
+      await Promise.all(pendingSubtasks.map(title =>
+        fetch('https://employee-tracker.ru/api/v1/tasks', {
+          method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token },
+          body: JSON.stringify({ title, parentId: createdTask.id, priority: newTask.priority }),
+        })
+      ));
+    }
+    // Upload pending files
+    if (createdTask.id && pendingFiles.length > 0) {
+      await Promise.all(pendingFiles.map(file => {
+        const fd = new FormData();
+        fd.append('file', file);
+        return fetch('https://employee-tracker.ru/api/v1/tasks/'+createdTask.id+'/attachments', {
+          method:'POST', headers:{ Authorization:'Bearer '+token }, body: fd,
+        });
+      }));
+    }
+    setNewTask({ title:'', priority:'MEDIUM', description:'', assigneeId:'', dueDate:'', departmentId:'', productId:'' });
     setAiDept(null);
+    setSelectedProduct(null);
+    setPendingFiles([]);
+    setPendingTags([]);
+    setPendingSubtasks([]);
+    setTagInput('');
+    setSubtaskInput('');
     setShowForm(false); loadKanban(token);
   };
 
@@ -703,6 +766,163 @@ export default function TasksPage() {
                   </select>
                 </div>
               </div>
+              {/* Product picker */}
+              <div style={{ position:'relative' }}>
+                <label style={{ fontSize:'10px', color:'#9B97CC', display:'block', marginBottom:'5px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.4px' }}>
+                  📦 Карточка товара
+                </label>
+                {selectedProduct ? (
+                  <div style={{ display:'flex', alignItems:'center', gap:'8px', background:'#F0EDFF', border:'1px solid #EDE9FE', borderRadius:'12px', padding:'8px 12px' }}>
+                    {selectedProduct.photoUrl && <img src={selectedProduct.photoUrl} alt="" style={{ width:'28px', height:'28px', borderRadius:'6px', objectFit:'cover', flexShrink:0 }} />}
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <p style={{ fontSize:'12px', fontWeight:700, color:'#1a1040', margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{selectedProduct.name}</p>
+                      <p style={{ fontSize:'11px', color:'#9B97CC', margin:0 }}>{selectedProduct.articleId} · {selectedProduct.marketplace}</p>
+                    </div>
+                    <button type="button" onClick={clearProduct} style={{ background:'none', border:'none', color:'#DC2626', cursor:'pointer', fontSize:'16px', padding:0, flexShrink:0 }}>✕</button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={()=>setShowProductPicker(true)}
+                    style={{ width:'100%', background:'#F8F7FF', border:'1px dashed #EDE9FE', borderRadius:'12px', padding:'10px', fontSize:'13px', color:'#9B97CC', cursor:'pointer', textAlign:'left' }}>
+                    🔍 Выбрать карточку товара...
+                  </button>
+                )}
+
+                {/* Product picker popup */}
+                {showProductPicker && (
+                  <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.3)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center' }}
+                    onClick={e=>{ if(e.target===e.currentTarget){ setShowProductPicker(false); setProductSearch(''); setProductList([]); }}}>
+                    <div style={{ background:'white', borderRadius:'20px', padding:'20px', width:'420px', maxHeight:'500px', display:'flex', flexDirection:'column', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'14px' }}>
+                        <p style={{ fontSize:'15px', fontWeight:800, color:'#1a1040', margin:0 }}>Выбор карточки товара</p>
+                        <button type="button" onClick={()=>{ setShowProductPicker(false); setProductSearch(''); setProductList([]); }}
+                          style={{ background:'none', border:'none', fontSize:'18px', cursor:'pointer', color:'#9B97CC' }}>✕</button>
+                      </div>
+                      <input
+                        placeholder="Поиск по названию или артикулу..."
+                        value={productSearch}
+                        onChange={e=>searchProducts(e.target.value)}
+                        autoFocus
+                        style={{ width:'100%', background:'#F8F7FF', border:'1px solid #EDE9FE', borderRadius:'12px', padding:'10px 14px', fontSize:'13px', outline:'none', boxSizing:'border-box', marginBottom:'10px' }}
+                      />
+                      <div style={{ overflowY:'auto', flex:1 }}>
+                        {loadingProducts && <p style={{ textAlign:'center', color:'#9B97CC', padding:'20px 0' }}>Поиск...</p>}
+                        {!loadingProducts && productSearch.length > 0 && productList.length === 0 && (
+                          <p style={{ textAlign:'center', color:'#9B97CC', padding:'20px 0' }}>Ничего не найдено</p>
+                        )}
+                        {!loadingProducts && productSearch.length === 0 && (
+                          <p style={{ textAlign:'center', color:'#C4C0E8', padding:'20px 0', fontSize:'13px' }}>Начните вводить название или артикул</p>
+                        )}
+                        {productList.map(p => (
+                          <div key={p.id} onClick={()=>selectProduct(p)}
+                            style={{ display:'flex', alignItems:'center', gap:'10px', padding:'10px', borderRadius:'12px', cursor:'pointer', marginBottom:'4px' }}
+                            onMouseEnter={e=>(e.currentTarget as HTMLDivElement).style.background='#F8F7FF'}
+                            onMouseLeave={e=>(e.currentTarget as HTMLDivElement).style.background='transparent'}>
+                            {p.photoUrl ? (
+                              <img src={p.photoUrl} alt="" style={{ width:'40px', height:'40px', borderRadius:'8px', objectFit:'cover', flexShrink:0 }} />
+                            ) : (
+                              <div style={{ width:'40px', height:'40px', borderRadius:'8px', background:'#F8F7FF', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'18px', flexShrink:0 }}>📦</div>
+                            )}
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <p style={{ fontSize:'13px', fontWeight:700, color:'#1a1040', margin:'0 0 2px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.name}</p>
+                              <p style={{ fontSize:'11px', color:'#9B97CC', margin:0 }}>Арт: {p.articleId} · {p.marketplace}</p>
+                            </div>
+                            <span style={{ background:p.marketplace==='WB'?'#8B2FC920':'#005BFF20', color:p.marketplace==='WB'?'#8B2FC9':'#005BFF', borderRadius:'6px', padding:'2px 8px', fontSize:'10px', fontWeight:700, flexShrink:0 }}>
+                              {p.marketplace}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Tags */}
+              <div>
+                <label style={{ fontSize:'10px', color:'#9B97CC', display:'block', marginBottom:'5px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.4px' }}>
+                  🏷️ Теги {pendingTags.length > 0 && <span style={{ color:'#7F77DD' }}>({pendingTags.length})</span>}
+                </label>
+                {pendingTags.length > 0 && (
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:'6px', marginBottom:'8px' }}>
+                    {pendingTags.map((tag, i) => (
+                      <span key={i} style={{ display:'flex', alignItems:'center', gap:'4px', background:'#EDE9FE', color:'#7F77DD', borderRadius:'20px', padding:'3px 10px', fontSize:'12px', fontWeight:600 }}>
+                        #{tag}
+                        <button type="button" onClick={()=>setPendingTags(prev=>prev.filter((_,j)=>j!==i))}
+                          style={{ background:'none', border:'none', color:'#9B97CC', cursor:'pointer', fontSize:'12px', padding:0, lineHeight:1 }}>✕</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div style={{ display:'flex', gap:'6px' }}>
+                  <input placeholder="Добавить тег..." value={tagInput}
+                    onChange={e=>setTagInput(e.target.value.replace(/\s/g,''))}
+                    onKeyDown={e=>{ if((e.key==='Enter'||e.key===',')&&tagInput.trim()){ e.preventDefault(); if(!pendingTags.includes(tagInput.trim())) setPendingTags(prev=>[...prev,tagInput.trim()]); setTagInput(''); }}}
+                    style={{ flex:1, background:'#F8F7FF', border:'1px solid #EDE9FE', borderRadius:'10px', padding:'7px 12px', fontSize:'12px', outline:'none' }} />
+                  <button type="button" onClick={()=>{ if(tagInput.trim()&&!pendingTags.includes(tagInput.trim())){ setPendingTags(prev=>[...prev,tagInput.trim()]); setTagInput(''); }}}
+                    style={{ background:'#EDE9FE', color:'#7F77DD', border:'none', borderRadius:'10px', padding:'7px 14px', fontSize:'12px', cursor:'pointer', fontWeight:700 }}>
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* Subtasks */}
+              <div>
+                <label style={{ fontSize:'10px', color:'#9B97CC', display:'block', marginBottom:'5px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.4px' }}>
+                  ✅ Подзадачи {pendingSubtasks.length > 0 && <span style={{ color:'#7F77DD' }}>({pendingSubtasks.length})</span>}
+                </label>
+                {pendingSubtasks.length > 0 && (
+                  <div style={{ display:'flex', flexDirection:'column', gap:'4px', marginBottom:'8px' }}>
+                    {pendingSubtasks.map((st, i) => (
+                      <div key={i} style={{ display:'flex', alignItems:'center', gap:'8px', background:'#F8F7FF', borderRadius:'8px', padding:'6px 10px' }}>
+                        <div style={{ width:'14px', height:'14px', borderRadius:'50%', border:'2px solid #EDE9FE', flexShrink:0 }} />
+                        <span style={{ fontSize:'12px', color:'#1a1040', flex:1 }}>{st}</span>
+                        <button type="button" onClick={()=>setPendingSubtasks(prev=>prev.filter((_,j)=>j!==i))}
+                          style={{ background:'none', border:'none', color:'#9B97CC', cursor:'pointer', fontSize:'14px', padding:0 }}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ display:'flex', gap:'6px' }}>
+                  <input placeholder="Добавить подзадачу..." value={subtaskInput}
+                    onChange={e=>setSubtaskInput(e.target.value)}
+                    onKeyDown={e=>{ if(e.key==='Enter'&&subtaskInput.trim()){ e.preventDefault(); setPendingSubtasks(prev=>[...prev,subtaskInput.trim()]); setSubtaskInput(''); }}}
+                    style={{ flex:1, background:'#F8F7FF', border:'1px solid #EDE9FE', borderRadius:'10px', padding:'7px 12px', fontSize:'12px', outline:'none' }} />
+                  <button type="button" onClick={()=>{ if(subtaskInput.trim()){ setPendingSubtasks(prev=>[...prev,subtaskInput.trim()]); setSubtaskInput(''); }}}
+                    style={{ background:'#EDE9FE', color:'#7F77DD', border:'none', borderRadius:'10px', padding:'7px 14px', fontSize:'12px', cursor:'pointer', fontWeight:700 }}>
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* File attachments */}
+              <div>
+                <label style={{ fontSize:'10px', color:'#9B97CC', display:'block', marginBottom:'5px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.4px' }}>
+                  📎 Вложения {pendingFiles.length > 0 && <span style={{ color:'#7F77DD' }}>({pendingFiles.length})</span>}
+                </label>
+                {pendingFiles.length > 0 && (
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:'6px', marginBottom:'8px' }}>
+                    {pendingFiles.map((f, i) => {
+                      const isImage = f.type.startsWith('image/');
+                      const icon = f.type.includes('pdf') ? '📄' : isImage ? '🖼️' : f.type.includes('word') ? '📝' : f.type.includes('excel') || f.type.includes('sheet') ? '📊' : '📎';
+                      return (
+                        <div key={i} style={{ display:'flex', alignItems:'center', gap:'6px', background:'#F0EDFF', borderRadius:'8px', padding:'4px 10px', fontSize:'12px' }}>
+                          <span>{icon}</span>
+                          <span style={{ color:'#7F77DD', fontWeight:600, maxWidth:'120px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{f.name}</span>
+                          <span style={{ color:'#9B97CC' }}>{Math.round(f.size/1024)}KB</span>
+                          <button type="button" onClick={()=>setPendingFiles(prev=>prev.filter((_,j)=>j!==i))}
+                            style={{ background:'none', border:'none', color:'#DC2626', cursor:'pointer', fontSize:'14px', padding:0, lineHeight:1 }}>✕</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <label style={{ display:'flex', alignItems:'center', gap:'8px', background:'#F8F7FF', border:'1px dashed #EDE9FE', borderRadius:'10px', padding:'8px 14px', cursor:'pointer', fontSize:'12px', color:'#9B97CC', fontWeight:600 }}>
+                  + Добавить файлы (фото, PDF, документы)
+                  <input type="file" multiple style={{ display:'none' }}
+                    onChange={e=>{ if(e.target.files) setPendingFiles(prev=>[...prev, ...Array.from(e.target.files!)]); e.target.value=''; }} />
+                </label>
+              </div>
+
               <div style={{ display:'flex', gap:'10px', marginTop:'6px' }}>
                 <button type="button" onClick={()=>setShowForm(false)} style={{ flex:1, background:'#F8F7FF', color:'#6B7280', border:'1px solid #EDE9FE', borderRadius:'12px', padding:'11px', fontSize:'13px', cursor:'pointer', fontWeight:600 }}>Отмена</button>
                 <button type="submit" style={{ flex:1, background:'linear-gradient(135deg,#7F77DD,#5248C5)', color:'white', border:'none', borderRadius:'12px', padding:'11px', fontSize:'13px', cursor:'pointer', fontWeight:700 }}>Создать →</button>
