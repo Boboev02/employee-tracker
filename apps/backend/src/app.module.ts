@@ -34,12 +34,12 @@ import { JwtAuthGuard }    from './auth/guards/index';
   imports: [
     ThrottlerModule.forRoot([{
       name: 'default',
-      ttl: 60000,    // 1 minute
-      limit: 600,    // 600 requests per minute per IP (10/sec — plenty for SPA)
+      ttl: 60000,
+      limit: 99999, // effectively disabled for authenticated users
     }, {
       name: 'auth',
-      ttl: 900000,   // 15 minutes
-      limit: 20,     // 20 auth attempts per 15 min
+      ttl: 900000,
+      limit: 20,
     }]),
     NotesModule,
     PrismaModule,
