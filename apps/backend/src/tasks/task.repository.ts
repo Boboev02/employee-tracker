@@ -48,6 +48,15 @@ export class TaskRepository {
     if (filters.taskTypeId)   where.taskTypeId   = filters.taskTypeId;
     if (filters.projectId)    where.projectId    = filters.projectId;
     if (filters.departmentId) where.departmentId = filters.departmentId;
+    if (filters.productId)    where.productId    = filters.productId;
+
+    // parentId filter: if explicitly passed — get subtasks; if not passed — get top-level only
+    if (filters.parentId !== undefined) {
+      where.parentId = filters.parentId || null;
+    } else {
+      where.parentId = null; // default: only top-level tasks
+    }
+
     if (filters.search) {
       where.OR = [
         { title: { contains: filters.search, mode: 'insensitive' } },
@@ -60,7 +69,6 @@ export class TaskRepository {
         { OR: [{ createdById: filters._restrictToUserId }, { assigneeId: filters._restrictToUserId }] },
       ];
     }
-    // Custom field filters (pre-built by CustomFieldsService.buildCustomFieldWhere)
     if (filters._customFieldWhere) {
       Object.assign(where, filters._customFieldWhere);
     }

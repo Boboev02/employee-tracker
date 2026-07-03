@@ -34,7 +34,11 @@ export default function TasksPage() {
   const [loading, setLoading]     = useState(true);
   const [showForm, setShowForm]   = useState(false);
   const [employees, setEmployees] = useState<any[]>([]);
-  const [newTask, setNewTask]     = useState({ title:'', priority:'MEDIUM', description:'', assigneeId:'', dueDate:'', departmentId:'' });
+  const [newTask, setNewTask]     = useState({ title:'', priority:'MEDIUM', description:'', assigneeId:'', dueDate:'', departmentId:'', productId:'' });
+  const [showProductPicker, setShowProductPicker] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
+  const [products, setProducts] = useState<any[]>([]);
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [departments, setDepartments] = useState<any[]>([]);
   const [aiDept, setAiDept]     = useState<{ id: string; name: string; color: string } | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
@@ -127,11 +131,14 @@ export default function TasksPage() {
         assigneeId: newTask.assigneeId || undefined,
         dueDate: newTask.dueDate || undefined,
         departmentId: newTask.departmentId || undefined,
+        productId: newTask.productId || undefined,
         customFields: Object.keys(customFieldValues).length > 0 ? customFieldValues : undefined,
       }),
     });
-    setNewTask({ title:'', priority:'MEDIUM', description:'', assigneeId:'', dueDate:'', departmentId:'' });
+    setNewTask({ title:'', priority:'MEDIUM', description:'', assigneeId:'', dueDate:'', departmentId:'', productId:'' });
     setCustomFieldValues({});
+    setSelectedProduct(null);
+    setProductSearch('');
     setAiDept(null);
     setShowForm(false); loadKanban(token);
   };
@@ -636,6 +643,66 @@ export default function TasksPage() {
                     {departments.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
                   </select>
                 </div>
+              </div>
+
+              {/* Product picker */}
+              <div style={{ marginBottom:'10px' }}>
+                <label style={{ fontSize:'10px', color:'#9B97CC', display:'block', marginBottom:'5px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.4px' }}>
+                  Карточка товара
+                </label>
+                {selectedProduct ? (
+                  <div style={{ display:'flex', alignItems:'center', gap:'8px', background:'#F0EDFF', border:'1px solid #EDE9FE', borderRadius:'10px', padding:'8px 12px' }}>
+                    {selectedProduct.photoUrl && <img src={selectedProduct.photoUrl} style={{ width:32, height:32, borderRadius:6, objectFit:'cover' }} />}
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:'12px', fontWeight:700, color:'#1a1040', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{selectedProduct.name}</div>
+                      <div style={{ fontSize:'11px', color:'#9B97CC' }}>{selectedProduct.marketplace} · {selectedProduct.articleId}</div>
+                    </div>
+                    <button type="button" onClick={()=>{ setSelectedProduct(null); setNewTask(t=>({...t,productId:''})); }} style={{ background:'none', border:'none', cursor:'pointer', color:'#9B97CC', fontSize:16 }}>✕</button>
+                  </div>
+                ) : (
+                  <div style={{ position:'relative' }}>
+                    <input
+                      placeholder="Поиск по названию или артикулу..."
+                      value={productSearch}
+                      onChange={async e => {
+                        setProductSearch(e.target.value);
+                        if (e.target.value.length >= 2) {
+                          setShowProductPicker(true);
+                          try {
+                            const r = await fetch(`https://employee-tracker.ru/api/v1/products?search=${encodeURIComponent(e.target.value)}&limit=20`, { headers:{ Authorization:'Bearer '+token } });
+                            const d = await r.json();
+                            setProducts(Array.isArray(d) ? d : d.data ?? []);
+                          } catch {}
+                        } else {
+                          setShowProductPicker(false);
+                          setProducts([]);
+                        }
+                      }}
+                      onFocus={() => { if (products.length > 0) setShowProductPicker(true); }}
+                      style={inp}
+                    />
+                    {showProductPicker && products.length > 0 && (
+                      <div style={{ position:'absolute', top:'100%', left:0, right:0, background:'white', border:'1px solid #EDE9FE', borderRadius:'10px', boxShadow:'0 8px 24px rgba(0,0,0,0.12)', zIndex:100, maxHeight:200, overflowY:'auto', marginTop:4 }}>
+                        {products.map((p:any) => (
+                          <div key={p.id} onClick={() => {
+                            setSelectedProduct(p);
+                            setNewTask(t=>({...t, productId:p.id}));
+                            setShowProductPicker(false);
+                            setProductSearch('');
+                          }} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'8px 12px', cursor:'pointer', borderBottom:'1px solid #F8F7FF' }}
+                          onMouseEnter={e=>(e.currentTarget as HTMLDivElement).style.background='#F8F7FF'}
+                          onMouseLeave={e=>(e.currentTarget as HTMLDivElement).style.background='white'}>
+                            {p.photoUrl && <img src={p.photoUrl} style={{ width:28, height:28, borderRadius:4, objectFit:'cover', flexShrink:0 }} />}
+                            <div style={{ minWidth:0 }}>
+                              <div style={{ fontSize:'12px', fontWeight:600, color:'#1a1040', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.name}</div>
+                              <div style={{ fontSize:'11px', color:'#9B97CC' }}>{p.marketplace} · {p.articleId}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               {/* Custom fields in create form */}
               {token && (

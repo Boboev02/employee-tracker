@@ -30,8 +30,15 @@ export function CustomFieldsPanel({ taskId, token, projectId, taskTypeId, readOn
     [cf.fields, cf.conditions, values]
   );
 
+  const isCreateMode = !taskId || onChange !== undefined;
+
   const visibleFields = useMemo(() => cf.fields.filter(f => {
-    if (!f.showInCard) return false;
+    // In create mode — show fields with showOnCreate; in edit mode — showInCard
+    if (isCreateMode) {
+      if (!f.showOnCreate) return false;
+    } else {
+      if (!f.showInCard) return false;
+    }
     if (!visibility.get(f.id)) return false;
     if (projectId && f.projectBindings && f.projectBindings.length>0) {
       if (!f.projectBindings.some(b=>b.projectId===projectId)) return false;
@@ -41,7 +48,7 @@ export function CustomFieldsPanel({ taskId, token, projectId, taskTypeId, readOn
       if (tt && tt.fieldBindings.length>0 && !tt.fieldBindings.some((b:any)=>b.field.id===f.id)) return false;
     }
     return true;
-  }), [cf.fields, cf.taskTypes, visibility, projectId, taskTypeId]);
+  }), [cf.fields, cf.taskTypes, visibility, projectId, taskTypeId, isCreateMode]);
 
   const handleChange = async (fieldId: string, val: any) => {
     const next = { ...values, [fieldId]: val };
