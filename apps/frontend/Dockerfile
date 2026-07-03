@@ -1,9 +1,8 @@
 FROM node:20-alpine
 WORKDIR /app
-COPY package*.json ./
-COPY node_modules ./node_modules
-COPY .next ./.next
-COPY public ./public
-COPY next.config.ts ./
+COPY apps/frontend/package*.json ./
+RUN npm install
+COPY apps/frontend/ .
+RUN npm run build
 EXPOSE 3000
 CMD ["node_modules/.bin/next", "start"]
