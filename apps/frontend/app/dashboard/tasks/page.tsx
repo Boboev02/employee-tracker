@@ -50,7 +50,7 @@ export default function TasksPage() {
         : `https://employee-tracker.ru/api/v1/products?limit=50`;
       const r = await fetch(url, { headers:{ Authorization:'Bearer '+token } });
       const d = await r.json();
-      setProducts(Array.isArray(d) ? d : d.data ?? []);
+      setProducts(Array.isArray(d) ? d : d.products ?? d.data ?? []);
     } catch {}
     setProductsLoading(false);
   };
