@@ -42,7 +42,7 @@ export default function LoginPage() {
       <div style={{ position: 'fixed', top: '-120px', right: '-120px', width: '400px', height: '400px', borderRadius: '50%', background: 'rgba(127,119,221,0.08)', pointerEvents: 'none' }}/>
       <div style={{ position: 'fixed', bottom: '-80px', left: '-80px', width: '300px', height: '300px', borderRadius: '50%', background: 'rgba(127,119,221,0.06)', pointerEvents: 'none' }}/>
 
-      <div style={{ width: '100%', maxWidth: '400px', position: 'relative' }}>
+      <div className="float-in" style={{ width: '100%', maxWidth: '400px', position: 'relative' }}>
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div style={{ width: '56px', height: '56px', background: 'linear-gradient(135deg,#7F77DD,#5248C5)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', boxShadow: '0 8px 24px rgba(127,119,221,0.35)' }}>

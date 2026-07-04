@@ -117,8 +117,8 @@ export default function NotebookPage() {
     const isHover = hoverId === note.id;
 
     return (
-      <div onMouseEnter={() => setHoverId(note.id)} onMouseLeave={() => setHoverId(null)}
-        style={{ background: bg, borderRadius:'16px', padding:'16px', marginBottom:'12px', boxShadow: isHover ? '0 8px 24px rgba(127,119,221,0.16)' : '0 2px 8px rgba(0,0,0,0.06)', transition:'all 0.2s', border: note.isPinned ? '2px solid #7F77DD' : '1.5px solid rgba(0,0,0,0.06)', cursor:'pointer', breakInside:'avoid' }}>
+      <div className="float-in" onMouseEnter={() => setHoverId(note.id)} onMouseLeave={() => setHoverId(null)}
+        style={{ background: bg, borderRadius:'16px', padding:'16px', marginBottom:'12px', boxShadow: isHover ? '0 8px 24px rgba(127,119,221,0.16)' : '0 2px 8px rgba(0,0,0,0.06)', transition:'box-shadow 0.2s, transform 0.2s', border: note.isPinned ? '2px solid #7F77DD' : '1.5px solid rgba(0,0,0,0.06)', cursor:'pointer', breakInside:'avoid' }}>
 
         {isEdit ? (
           <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>

@@ -106,9 +106,9 @@ export default function ProductsPage() {
         ) : (
           <>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '14px' }}>
-              {products.map(p => (
+              {products.map((p, pIdx) => (
                 <Link key={p.id} href={`/dashboard/products/${p.id}`} style={{ textDecoration: 'none' }}>
-                  <div style={{ ...card, overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.15s, box-shadow 0.15s' }}
+                  <div className="row-in" style={{ ...card, overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.15s, box-shadow 0.15s', animationDelay:Math.min(pIdx*0.03,0.4)+'s' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 24px rgba(127,119,221,0.15)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = 'none'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 16px rgba(127,119,221,0.08)'; }}>
                     <div style={{ position: 'relative', aspectRatio: '1', background: '#F8F7FF', overflow: 'hidden' }}>

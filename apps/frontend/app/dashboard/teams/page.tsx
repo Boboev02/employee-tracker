@@ -93,8 +93,8 @@ export default function TeamsPage() {
           </div>
         ) : (
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))', gap:'14px' }}>
-            {teams.map(team => (
-              <div key={team.id} style={{ ...card, position:'relative', overflow:'hidden' }}>
+            {teams.map((team, tIdx) => (
+              <div key={team.id} className="float-in hover-lift" style={{ ...card, position:'relative', overflow:'hidden', animationDelay:(tIdx*0.08)+'s' }}>
                 {/* Top accent */}
                 <div style={{ position:'absolute', top:0, left:0, right:0, height:'4px', background:'linear-gradient(90deg,#7F77DD,#5248C5)' }}/>
                 <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'16px', marginTop:'4px' }}>

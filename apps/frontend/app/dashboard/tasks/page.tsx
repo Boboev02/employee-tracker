@@ -559,19 +559,20 @@ export default function TasksPage() {
                       Переместить сюда
                     </div>
                   )}
-                  {tasks.map((task:any) => {
+                  {tasks.map((task:any, taskIdx:number) => {
                     const ps = PRIORITY_STYLE[task.priority] ?? PRIORITY_STYLE.MEDIUM;
                     const isDragging = dragTask?.id===task.id;
                     const overdue = task.dueDate && new Date(task.dueDate)<new Date() && task.status!=='DONE';
                     return (
                       <div key={task.id}
+                        className="row-in"
                         draggable={true}
                         onDragStart={e=>handleDragStart(e,task.id,col.id)}
                         onDragEnd={handleDragEnd}
                         onClick={()=>!dragTask&&router.push('/dashboard/tasks/'+task.id)}
-                        style={{ background: task.status==='OVERDUE'?'#FFF5F5':'white', borderRadius:'14px', padding:'12px 14px', cursor:'grab', border:overdue?'1.5px solid #FED7D7':'1px solid #F3F0FF', boxShadow:isDragging?'0 8px 24px rgba(127,119,221,0.2)':'0 2px 8px rgba(127,119,221,0.06)', opacity:isDragging?0.5:1, transform:isDragging?'scale(1.02)':'none', transition:'all 0.15s', userSelect:'none' }}
-                        onMouseEnter={e=>{if(!dragTask)(e.currentTarget as HTMLElement).style.boxShadow='0 4px 16px rgba(127,119,221,0.15)';}}
-                        onMouseLeave={e=>{if(!isDragging)(e.currentTarget as HTMLElement).style.boxShadow='0 2px 8px rgba(127,119,221,0.06)';}}>
+                        style={{ background: task.status==='OVERDUE'?'#FFF5F5':'white', borderRadius:'14px', padding:'12px 14px', cursor:'grab', border:overdue?'1.5px solid #FED7D7':'1px solid #F3F0FF', boxShadow:isDragging?'0 8px 24px rgba(127,119,221,0.2)':'0 2px 8px rgba(127,119,221,0.06)', opacity:isDragging?0.5:1, transform:isDragging?'scale(1.02)':'none', transition:'box-shadow 0.15s, transform 0.15s', userSelect:'none', animationDelay:Math.min(taskIdx*0.04,0.3)+'s' }}
+                        onMouseEnter={e=>{if(!dragTask){(e.currentTarget as HTMLElement).style.boxShadow='0 6px 18px rgba(127,119,221,0.18)';(e.currentTarget as HTMLElement).style.transform='translateY(-2px)';}}}
+                        onMouseLeave={e=>{if(!isDragging){(e.currentTarget as HTMLElement).style.boxShadow='0 2px 8px rgba(127,119,221,0.06)';(e.currentTarget as HTMLElement).style.transform='none';}}}>
                         {/* Top row */}
                         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'8px' }}>
                           <div style={{ display:'flex', alignItems:'center', gap:'5px' }}>

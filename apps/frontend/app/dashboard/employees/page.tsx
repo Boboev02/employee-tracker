@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { usePermissions } from '@/lib/usePermissions';
 import { useSocket } from '@/lib/useSocket';
 import { DeleteSectionButton } from '@/components/admin/DeleteSectionButton';
+import { AnimatedNumber } from '@/components/AnimatedNumber';
 
 const AVATAR_COLORS = ['#7F77DD','#2563EB','#16A34A','#D97706','#DC2626','#0891B2','#7C3AED'];
 const avatarColor = (name: string) => AVATAR_COLORS[(name?.charCodeAt(0)??0) % AVATAR_COLORS.length];
@@ -160,13 +161,13 @@ export default function EmployeesPage() {
             { l:'Онлайн сейчас',     v:onlineCount,       icon:'ti-circle-check', accent:'#16A34A', accBg:'#DCFCE7', badge:'● активны', badgeC:'#16A34A', badgeBg:'#DCFCE7' },
             { l:'Активных',          v:employees.filter(e=>e.status==='ACTIVE').length, icon:'ti-user-check', accent:'#2563EB', accBg:'#DBEAFE', badge:'из '+employees.length, badgeC:'#2563EB', badgeBg:'#DBEAFE' },
           ].map((k,i) => (
-            <div key={i} style={{ ...card, position:'relative', overflow:'hidden' }}>
+            <div key={i} className="float-in hover-lift" style={{ ...card, position:'relative', overflow:'hidden', animationDelay:(i*0.07)+'s' }}>
               <div style={{ position:'absolute', top:'12px', right:'12px', fontSize:'10px', fontWeight:700, color:k.badgeC, background:k.badgeBg, padding:'2px 8px', borderRadius:'10px' }}>{k.badge}</div>
-              <div style={{ width:'40px', height:'40px', borderRadius:'12px', background:k.accBg, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:'12px' }}>
+              <div className="icon-pop" style={{ width:'40px', height:'40px', borderRadius:'12px', background:k.accBg, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:'12px' }}>
                 <i className={'ti '+k.icon} style={{ fontSize:'20px', color:k.accent }} aria-hidden="true"/>
               </div>
               <p style={{ fontSize:'10px', color:'#9B97CC', margin:'0 0 3px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.5px' }}>{k.l}</p>
-              <p style={{ fontSize:'28px', fontWeight:800, color:'#1a1040', margin:0, letterSpacing:'-1px' }}>{k.v}</p>
+              <p style={{ fontSize:'28px', fontWeight:800, color:'#1a1040', margin:0, letterSpacing:'-1px' }}><AnimatedNumber value={k.v} /></p>
             </div>
           ))}
         </div>
@@ -195,8 +196,8 @@ export default function EmployeesPage() {
               const ss = STATUS_STYLES[emp.status] ?? STATUS_STYLES.ACTIVE;
               const empRoles: string[] = emp.roles ?? ['EMPLOYEE'];
               return (
-                <div key={emp.id}
-                  style={{ display:'grid', gridTemplateColumns:'2fr 1.5fr 1.2fr 1fr 1.2fr 1fr', padding:'11px 16px', borderBottom:i<filtered.length-1?'1px solid #FAF9FF':'none', alignItems:'center', cursor:'pointer', transition:'background 0.1s' }}
+                <div key={emp.id} className="row-in"
+                  style={{ display:'grid', gridTemplateColumns:'2fr 1.5fr 1.2fr 1fr 1.2fr 1fr', padding:'11px 16px', borderBottom:i<filtered.length-1?'1px solid #FAF9FF':'none', alignItems:'center', cursor:'pointer', transition:'background 0.1s', animationDelay:Math.min(i*0.04,0.4)+'s' }}
                   onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background='#F8F7FF'}
                   onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background='transparent'}
                   onClick={()=>router.push('/dashboard/employees/'+emp.id)}>
@@ -205,7 +206,11 @@ export default function EmployeesPage() {
                   <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
                     <div style={{ position:'relative', flexShrink:0 }}>
                       <div style={{ width:'36px', height:'36px', borderRadius:'50%', background:avatarColor(emp.name), display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:'13px', color:'white', opacity:isSuspended?0.5:1 }}>{emp.name?.charAt(0)}</div>
-                      <span style={{ position:'absolute', bottom:0, right:0, width:'10px', height:'10px', borderRadius:'50%', background:isOnline?'#16A34A':isSuspended?'#DC2626':'#D1D5DB', border:'2px solid white' }}/>
+                      {isOnline ? (
+                        <span className="pulse-dot" style={{ position:'absolute', bottom:0, right:0, border:'2px solid white' }} />
+                      ) : (
+                        <span style={{ position:'absolute', bottom:0, right:0, width:'10px', height:'10px', borderRadius:'50%', background:isSuspended?'#DC2626':'#D1D5DB', border:'2px solid white' }}/>
+                      )}
                     </div>
                     <div>
                       <div style={{ fontSize:'13px', fontWeight:600, color:isSuspended?'#9B97CC':'#1a1040' }}>{emp.name}</div>

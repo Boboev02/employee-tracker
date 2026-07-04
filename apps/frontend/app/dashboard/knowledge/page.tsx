@@ -155,9 +155,9 @@ export default function KnowledgePage() {
             </div>
           ) : (
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(230px,1fr))',gap:'14px'}}>
-              {categories.map(cat=>(
-                <div key={cat.id} onClick={()=>openCategory(cat.id)}
-                  style={{...card,padding:'20px',cursor:'pointer',transition:'all 0.2s',position:'relative',overflow:'hidden'}}
+              {categories.map((cat,catIdx)=>(
+                <div key={cat.id} className="row-in" onClick={()=>openCategory(cat.id)}
+                  style={{...card,padding:'20px',cursor:'pointer',transition:'transform 0.2s, box-shadow 0.2s',position:'relative',overflow:'hidden',animationDelay:(catIdx*0.06)+'s'}}
                   onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.transform='translateY(-3px)';(e.currentTarget as HTMLElement).style.boxShadow='0 12px 32px rgba(127,119,221,0.15)';}}
                   onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.transform='none';(e.currentTarget as HTMLElement).style.boxShadow='0 4px 16px rgba(127,119,221,0.08)';}}>
                   {/* Top color bar */}

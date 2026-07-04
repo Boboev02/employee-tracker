@@ -186,11 +186,9 @@ export default function CrmPage() {
                     <p style={{ fontSize: '11px', color: '#9B97CC', margin: 0 }}>{col.deals?.length ?? 0} · {(col.total ?? 0).toLocaleString('ru')} ₽</p>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {(col.deals ?? []).map((deal: any) => (
+                    {(col.deals ?? []).map((deal: any, dIdx: number) => (
                       <Link key={deal.id} href={'/dashboard/crm/deals/' + deal.id} style={{ textDecoration: 'none' }}>
-                        <div style={{ ...card, padding: '12px', cursor: 'pointer' }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 16px rgba(127,119,221,0.2)'; }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 16px rgba(127,119,221,0.08)'; }}>
+                        <div className="row-in hover-lift" style={{ ...card, padding: '12px', cursor: 'pointer', animationDelay:Math.min(dIdx*0.05,0.35)+'s' }}>
                           <p style={{ fontSize: '12px', fontWeight: 700, color: '#1a1040', margin: '0 0 6px' }}>{deal.title}</p>
                           {deal.amount && <p style={{ fontSize: '13px', fontWeight: 800, color: '#7F77DD', margin: '0 0 4px' }}>{deal.amount.toLocaleString('ru')} ₽</p>}
                           {deal.company && <p style={{ fontSize: '11px', color: '#9B97CC', margin: '0 0 2px' }}>🏢 {deal.company.name}</p>}

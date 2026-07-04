@@ -3,6 +3,7 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { AnimatedNumber } from '@/components/AnimatedNumber';
 
 const PLATFORM_COLORS: Record<string,string> = { WILDBERRIES:'#7F77DD', OZON:'#2563EB', OTHER:'#9B97CC' };
 const STATUS_COLORS: Record<string,string>   = { NEW:'#9B97CC', IN_PROGRESS:'#2563EB', REVIEW:'#D97706', DONE:'#16A34A', OVERDUE:'#DC2626', BLOCKED:'#7F77DD' };
@@ -16,15 +17,17 @@ const avatarColor = (name: string) => AVATAR_COLORS[(name?.charCodeAt(0)??0) % A
 
 const tooltipStyle = { background:'white', border:'1px solid #EDE9FE', borderRadius:'10px', fontSize:'12px', boxShadow:'0 4px 16px rgba(127,119,221,0.12)', color:'#1a1040' };
 
-function KpiCard({ title, value, sub, subColor, icon, accent, accBg, badge, badgeC, badgeBg }: any) {
+function KpiCard({ title, value, sub, subColor, icon, accent, accBg, badge, badgeC, badgeBg, idx=0 }: any) {
   return (
-    <div style={{ background:'white', borderRadius:'20px', padding:'16px 18px', boxShadow:'0 4px 16px rgba(127,119,221,0.08)', position:'relative', overflow:'hidden' }}>
+    <div className="float-in hover-lift" style={{ background:'white', borderRadius:'20px', padding:'16px 18px', boxShadow:'0 4px 16px rgba(127,119,221,0.08)', position:'relative', overflow:'hidden', animationDelay:(idx*0.07)+'s' }}>
       <div style={{ position:'absolute', top:'12px', right:'12px', fontSize:'10px', fontWeight:700, color:badgeC, background:badgeBg, padding:'2px 8px', borderRadius:'10px' }}>{badge}</div>
-      <div style={{ width:'36px', height:'36px', borderRadius:'12px', background:accBg, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:'10px' }}>
+      <div className="icon-pop" style={{ width:'36px', height:'36px', borderRadius:'12px', background:accBg, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:'10px' }}>
         <i className={'ti '+icon} style={{ fontSize:'18px', color:accent }} aria-hidden="true"/>
       </div>
       <p style={{ fontSize:'10px', color:'#9B97CC', margin:'0 0 3px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.5px' }}>{title}</p>
-      <p style={{ fontSize:'24px', fontWeight:800, color:'#1a1040', margin:'0 0 3px', letterSpacing:'-1px', lineHeight:1 }}>{value ?? '—'}</p>
+      <p style={{ fontSize:'24px', fontWeight:800, color:'#1a1040', margin:'0 0 3px', letterSpacing:'-1px', lineHeight:1 }}>
+        {typeof value === 'number' ? <AnimatedNumber value={value} /> : (value ?? '—')}
+      </p>
       {sub && <p style={{ fontSize:'11px', color:subColor??'#9B97CC', margin:0, fontWeight:500 }}>{sub}</p>}
     </div>
   );
@@ -179,11 +182,11 @@ export default function AnalyticsPage() {
       <div style={{ padding: isMobile ? '12px' : '20px 28px', display:'flex', flexDirection:'column', gap:'16px' }}>
         {/* KPI */}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:'12px' }}>
-          <KpiCard title="Сотрудников" value={stats?.totalUsers} sub={`${stats?.totalUsers??0} в команде`} icon="ti-users" accent="#7F77DD" accBg="#EDE9FE" badge="+0" badgeC="#7F77DD" badgeBg="#EDE9FE"/>
-          <KpiCard title="Задач" value={stats?.totalTasks} sub={`${stats?.activeTasks??0} в работе`} subColor="#2563EB" icon="ti-checkbox" accent="#2563EB" accBg="#DBEAFE" badge="актив" badgeC="#2563EB" badgeBg="#DBEAFE"/>
-          <KpiCard title="В работе" value={stats?.activeTasks} sub="прямо сейчас" subColor="#D97706" icon="ti-loader" accent="#D97706" accBg="#FEF3C7" badge="⏱" badgeC="#D97706" badgeBg="#FEF3C7"/>
-          <KpiCard title="Выполнено" value={stats?.completionRate!=null?stats.completionRate+'%':null} sub="задач завершено" subColor="#16A34A" icon="ti-circle-check" accent="#16A34A" accBg="#DCFCE7" badge="✓" badgeC="#16A34A" badgeBg="#DCFCE7"/>
-          <KpiCard title="Событий" value={totalEvents?totalEvents.toLocaleString('ru'):null} sub="за период" subColor="#7F77DD" icon="ti-activity" accent="#7F77DD" accBg="#EDE9FE" badge="+12%" badgeC="#16A34A" badgeBg="#DCFCE7"/>
+          <KpiCard idx={0} title="Сотрудников" value={stats?.totalUsers} sub={`${stats?.totalUsers??0} в команде`} icon="ti-users" accent="#7F77DD" accBg="#EDE9FE" badge="+0" badgeC="#7F77DD" badgeBg="#EDE9FE"/>
+          <KpiCard idx={1} title="Задач" value={stats?.totalTasks} sub={`${stats?.activeTasks??0} в работе`} subColor="#2563EB" icon="ti-checkbox" accent="#2563EB" accBg="#DBEAFE" badge="актив" badgeC="#2563EB" badgeBg="#DBEAFE"/>
+          <KpiCard idx={2} title="В работе" value={stats?.activeTasks} sub="прямо сейчас" subColor="#D97706" icon="ti-loader" accent="#D97706" accBg="#FEF3C7" badge="⏱" badgeC="#D97706" badgeBg="#FEF3C7"/>
+          <KpiCard idx={3} title="Выполнено" value={stats?.completionRate!=null?stats.completionRate+'%':null} sub="задач завершено" subColor="#16A34A" icon="ti-circle-check" accent="#16A34A" accBg="#DCFCE7" badge="✓" badgeC="#16A34A" badgeBg="#DCFCE7"/>
+          <KpiCard idx={4} title="Событий" value={totalEvents?totalEvents.toLocaleString('ru'):null} sub="за период" subColor="#7F77DD" icon="ti-activity" accent="#7F77DD" accBg="#EDE9FE" badge="+12%" badgeC="#16A34A" badgeBg="#DCFCE7"/>
         </div>
 
         {/* Tabs */}

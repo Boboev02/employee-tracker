@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { AnimatedNumber } from '@/components/AnimatedNumber';
 
 const API = 'https://employee-tracker.ru/api/v1';
 
@@ -158,25 +159,25 @@ export default function AuditLogPage() {
 
         {tab === 'actions' && summary && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
-            <div style={{ ...card, display: 'flex', alignItems: 'center', gap: '14px' }}>
-              <div style={{ width: '44px', height: '44px', borderRadius: '14px', background: '#EDE9FE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="float-in hover-lift" style={{ ...card, display: 'flex', alignItems: 'center', gap: '14px', animationDelay:'0s' }}>
+              <div className="icon-pop" style={{ width: '44px', height: '44px', borderRadius: '14px', background: '#EDE9FE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <i className="ti ti-calendar-event" style={{ fontSize: '22px', color: '#7F77DD' }} />
               </div>
               <div>
-                <div style={{ fontSize: '22px', fontWeight: 800, color: '#1a1040' }}>{summary.totalToday}</div>
+                <div style={{ fontSize: '22px', fontWeight: 800, color: '#1a1040' }}><AnimatedNumber value={summary.totalToday} /></div>
                 <div style={{ fontSize: '11px', color: '#9B97CC' }}>Действий сегодня</div>
               </div>
             </div>
-            <div style={{ ...card, display: 'flex', alignItems: 'center', gap: '14px' }}>
-              <div style={{ width: '44px', height: '44px', borderRadius: '14px', background: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="float-in hover-lift" style={{ ...card, display: 'flex', alignItems: 'center', gap: '14px', animationDelay:'0.07s' }}>
+              <div className="icon-pop" style={{ width: '44px', height: '44px', borderRadius: '14px', background: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <i className="ti ti-database" style={{ fontSize: '22px', color: '#16A34A' }} />
               </div>
               <div>
-                <div style={{ fontSize: '22px', fontWeight: 800, color: '#1a1040' }}>{summary.totalAll}</div>
+                <div style={{ fontSize: '22px', fontWeight: 800, color: '#1a1040' }}><AnimatedNumber value={summary.totalAll} /></div>
                 <div style={{ fontSize: '11px', color: '#9B97CC' }}>Всего записей</div>
               </div>
             </div>
-            <div style={{ ...card }}>
+            <div className="float-in" style={{ ...card, animationDelay:'0.14s' }}>
               <div style={{ fontSize: '11px', color: '#9B97CC', marginBottom: '6px' }}>Активнее всего сегодня</div>
               {summary.topUsersToday?.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
@@ -227,12 +228,12 @@ export default function AuditLogPage() {
             </p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              {logs.map(log => {
+              {logs.map((log, logIdx) => {
                 const info = getCategoryInfo(log.category);
                 const isExpanded = expandedId === log.id;
                 return (
-                  <div key={log.id} onClick={() => setExpandedId(isExpanded ? null : log.id)}
-                    style={{ background: '#F8F7FF', borderRadius: '12px', padding: '10px 14px', cursor: 'pointer' }}>
+                  <div key={log.id} className="row-in" onClick={() => setExpandedId(isExpanded ? null : log.id)}
+                    style={{ background: '#F8F7FF', borderRadius: '12px', padding: '10px 14px', cursor: 'pointer', animationDelay:Math.min(logIdx*0.03,0.4)+'s' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: info.color, flexShrink: 0 }} />
                       <span style={{ fontSize: '12px', fontWeight: 700, color: '#1a1040', flexShrink: 0 }}>{getActionLabel(log.action)}</span>

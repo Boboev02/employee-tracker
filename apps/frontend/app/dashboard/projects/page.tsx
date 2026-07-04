@@ -151,9 +151,9 @@ export default function ProjectsPage() {
           </div>
         ) : (
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(320px, 1fr))', gap:'14px' }}>
-            {filtered.map(p => (
+            {filtered.map((p, pIdx) => (
               <Link key={p.id} href={'/dashboard/projects/'+p.id} style={{ textDecoration:'none' }}>
-                <div style={{ ...card, padding:'20px', cursor:'pointer', borderTop:'4px solid '+(p.color??'#7F77DD'), transition:'transform 0.15s, box-shadow 0.15s' }}
+                <div className="row-in" style={{ ...card, padding:'20px', cursor:'pointer', borderTop:'4px solid '+(p.color??'#7F77DD'), transition:'transform 0.15s, box-shadow 0.15s', animationDelay:Math.min(pIdx*0.05,0.4)+'s' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform='translateY(-2px)'; (e.currentTarget as HTMLDivElement).style.boxShadow='0 8px 24px rgba(127,119,221,0.15)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform='none'; (e.currentTarget as HTMLDivElement).style.boxShadow='0 4px 16px rgba(127,119,221,0.08)'; }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'12px' }}>

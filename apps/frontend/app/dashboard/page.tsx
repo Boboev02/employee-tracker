@@ -3,7 +3,7 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { WorkSessionWidget } from '@/components/WorkSessionWidget';
-import { useCountUp } from '@/hooks/useCountUp';
+import { AnimatedNumber } from '@/components/AnimatedNumber';
 
 const SECTION_LABELS: Record<string,string> = {
   orders:'Заказы', feedbacks:'Отзывы', reviews:'Отзывы', questions:'Вопросы',
@@ -53,11 +53,6 @@ function SectionHeader({ title, open, onToggle }: { title: string; open: boolean
       </div>
     </div>
   );
-}
-
-function AnimatedNumber({ value, suffix = '' }: { value: number; suffix?: string }) {
-  const display = useCountUp(value, 900, 250);
-  return <>{display.toLocaleString('ru-RU')}{suffix}</>;
 }
 
 export default function DashboardPage() {

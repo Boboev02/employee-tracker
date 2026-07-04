@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { AnimatedNumber } from '@/components/AnimatedNumber';
 
 const API = 'https://employee-tracker.ru/api/v1';
 const STATUS_COLORS: Record<string,string> = { NEW:'#9B97CC', IN_PROGRESS:'#2563EB', REVIEW:'#D97706', BLOCKED:'#DC2626', DONE:'#16A34A', OVERDUE:'#DC2626' };
@@ -130,13 +131,13 @@ export default function HomePage() {
             { label:'Сегодня', value:todayTasks.length, color:'#2563EB', icon:'📅' },
             { label:'Просрочено', value:overdueTasks.length, color:'#DC2626', icon:'⚠️' },
             { label:'Выполнено', value:doneTasks.length, color:'#16A34A', icon:'🏆' },
-          ].map(s => (
-            <div key={s.label} style={{ ...card, display:'flex', alignItems:'center', gap:'14px' }}>
-              <div style={{ width:'44px', height:'44px', borderRadius:'12px', background:s.color+'15', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'20px', flexShrink:0 }}>
+          ].map((s,sIdx) => (
+            <div key={s.label} className="float-in hover-lift" style={{ ...card, display:'flex', alignItems:'center', gap:'14px', animationDelay:(sIdx*0.07)+'s' }}>
+              <div className="icon-pop" style={{ width:'44px', height:'44px', borderRadius:'12px', background:s.color+'15', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'20px', flexShrink:0 }}>
                 {s.icon}
               </div>
               <div>
-                <p style={{ fontSize:'24px', fontWeight:800, color:s.color, margin:0 }}>{s.value}</p>
+                <p style={{ fontSize:'24px', fontWeight:800, color:s.color, margin:0 }}><AnimatedNumber value={s.value} /></p>
                 <p style={{ fontSize:'11px', color:'#9B97CC', margin:0, fontWeight:600 }}>{s.label}</p>
               </div>
             </div>

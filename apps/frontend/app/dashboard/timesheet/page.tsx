@@ -2,6 +2,7 @@
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { AnimatedNumber } from '@/components/AnimatedNumber';
 
 const AVATAR_COLORS = ['#7F77DD','#2563EB','#16A34A','#D97706','#DC2626','#0891B2','#7C3AED'];
 const avatarColor = (name: string) => AVATAR_COLORS[(name?.charCodeAt(0)??0) % AVATAR_COLORS.length];
@@ -94,13 +95,13 @@ export default function TimesheetPage() {
               { l:'Отсутствий', v:data.reduce((s:number,r:any)=>s+(r.absentDays??0),0), icon:'ti-user-x', accent:'#DC2626', accBg:'#FEE2E2', badge:'дней', badgeC:'#DC2626', badgeBg:'#FEE2E2' },
               { l:'Перерывы итого', v:fmtMin(data.reduce((s:number,r:any)=>s+(r.totalBreakMinutes??0),0)), icon:'ti-coffee', accent:'#6B7280', accBg:'#F3F4F6', badge:'мин', badgeC:'#6B7280', badgeBg:'#F3F4F6' },
             ].map((k,i)=>(
-              <div key={i} style={{ background:'white', borderRadius:'20px', padding:'16px 18px', boxShadow:'0 4px 16px rgba(127,119,221,0.08)', position:'relative', overflow:'hidden' }}>
+              <div key={i} className="float-in hover-lift" style={{ background:'white', borderRadius:'20px', padding:'16px 18px', boxShadow:'0 4px 16px rgba(127,119,221,0.08)', position:'relative', overflow:'hidden', animationDelay:(i*0.07)+'s' }}>
                 <div style={{ position:'absolute', top:'12px', right:'12px', fontSize:'10px', fontWeight:700, color:k.badgeC, background:k.badgeBg, padding:'2px 8px', borderRadius:'10px' }}>{k.badge}</div>
-                <div style={{ width:'36px', height:'36px', borderRadius:'12px', background:k.accBg, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:'10px' }}>
+                <div className="icon-pop" style={{ width:'36px', height:'36px', borderRadius:'12px', background:k.accBg, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:'10px' }}>
                   <i className={'ti '+k.icon} style={{ fontSize:'18px', color:k.accent }} aria-hidden="true"/>
                 </div>
                 <p style={{ fontSize:'10px', color:'#9B97CC', margin:'0 0 3px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.5px' }}>{k.l}</p>
-                <p style={{ fontSize:'26px', fontWeight:800, color:'#1a1040', margin:0, letterSpacing:'-1px' }}>{k.v}</p>
+                <p style={{ fontSize:'26px', fontWeight:800, color:'#1a1040', margin:0, letterSpacing:'-1px' }}>{typeof k.v === 'number' ? <AnimatedNumber value={k.v} /> : k.v}</p>
               </div>
             ))}
           </div>

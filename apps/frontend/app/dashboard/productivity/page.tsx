@@ -94,8 +94,10 @@ export default function ProductivityPage() {
                 const gs = GRADE_STYLE[sc.grade]??GRADE_STYLE['F'];
                 const isSelected = selected?.userId===sc.userId;
                 return (
-                  <div key={sc.userId} onClick={()=>setSelected(sc)}
-                    style={{ display:'flex', alignItems:'center', gap:'10px', padding:'12px 14px', borderRadius:'16px', cursor:'pointer', background:isSelected?'white':'#F8F7FF', boxShadow:isSelected?'0 4px 16px rgba(127,119,221,0.12)':'none', transition:'all 0.2s', border:isSelected?'1px solid #EDE9FE':'1px solid transparent' }}>
+                  <div key={sc.userId} className="row-in" onClick={()=>setSelected(sc)}
+                    style={{ display:'flex', alignItems:'center', gap:'10px', padding:'12px 14px', borderRadius:'16px', cursor:'pointer', background:isSelected?'white':'#F8F7FF', boxShadow:isSelected?'0 4px 16px rgba(127,119,221,0.12)':'none', transition:'background 0.2s, box-shadow 0.2s, border-color 0.2s, transform 0.15s', border:isSelected?'1px solid #EDE9FE':'1px solid transparent', animationDelay:Math.min(i*0.06,0.4)+'s' }}
+                    onMouseEnter={e=>{if(!isSelected)(e.currentTarget as HTMLElement).style.transform='translateX(2px)';}}
+                    onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.transform='none';}}>
                     <span style={{ fontSize:'13px', fontWeight:700, color:'#9B97CC', width:'18px', flexShrink:0 }}>{i+1}</span>
                     <div style={{ width:'34px', height:'34px', borderRadius:'50%', background:avatarColor(sc.name), display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                       <span style={{ color:'white', fontSize:'12px', fontWeight:700 }}>{sc.name?.charAt(0)}</span>
