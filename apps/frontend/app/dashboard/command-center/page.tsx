@@ -5,176 +5,123 @@ import { useRouter } from 'next/navigation';
 const API = 'https://employee-tracker.ru';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-interface Node {
+interface GNode {
   id: string;
-  type: string; // TASK | PROJECT | PRODUCT | DEAL | EMPLOYEE | DEPARTMENT | TEAM
+  type: string;
   label: string;
   sublabel?: string;
+  parentId?: string | null;
+  children: string[];
   x: number; y: number;
-  vx: number; vy: number;
-  fx?: number; fy?: number; // fixed position
-  pinned?: boolean;
+  depth: number;
   meta?: any;
 }
 
-interface Edge {
+interface GEdge {
   id: string;
   source: string;
   target: string;
+  kind: 'hierarchy' | 'relation' | 'work' | 'document';
   label?: string;
-  type?: string;
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-const NODE_COLORS: Record<string, string> = {
-  EMPLOYEE:   '#5b68f6',
-  DEPARTMENT: '#7c3aed',
-  TEAM:       '#0891b2',
-  PROJECT:    '#16a34a',
-  TASK:       '#ea8c00',
-  PRODUCT:    '#dc2626',
-  DEAL:       '#be185d',
-  ORG:        '#374151',
+// ─── Visual config ────────────────────────────────────────────────────────────
+const NODE_COLOR: Record<string, string> = {
+  ORG:        '#6b5ce7',
+  DEPARTMENT: '#e8a020',
+  PROJECT:    '#9b59b6',
+  PRODUCT:    '#27ae60',
+  TASK:       '#3498db',
+  SUBTASK:    '#2980b9',
+  EMPLOYEE:   '#27ae60',
+  DOCUMENT:   '#e67e22',
+  SUPPLIER:   '#16a085',
+  DEAL:       '#e74c3c',
+  MARKETPLACE:'#2c3e50',
+  FILE:       '#95a5a6',
 };
 
 const NODE_ICONS: Record<string, string> = {
-  EMPLOYEE:   '👤',
-  DEPARTMENT: '🏢',
-  TEAM:       '👥',
-  PROJECT:    '📁',
-  TASK:       '✅',
-  PRODUCT:    '📦',
-  DEAL:       '💼',
-  ORG:        '🏛️',
+  ORG:'🏛️', DEPARTMENT:'🏢', PROJECT:'📁', PRODUCT:'📦',
+  TASK:'✅', SUBTASK:'☑️', EMPLOYEE:'👤', DOCUMENT:'📄',
+  SUPPLIER:'🚚', DEAL:'💼', MARKETPLACE:'🛒', FILE:'📎',
 };
 
-const NODE_RADIUS: Record<string, number> = {
-  ORG:        36,
-  DEPARTMENT: 28,
-  TEAM:       24,
-  EMPLOYEE:   22,
-  PROJECT:    24,
-  PRODUCT:    22,
-  TASK:       18,
-  DEAL:       20,
-};
+const NODE_W = 140;
+const NODE_H = 52;
+const H_GAP  = 30;
+const V_GAP  = 90;
 
 const VIEWS = [
-  { id: 'company',   label: 'Компания',   icon: '🏛️' },
-  { id: 'projects',  label: 'Проекты',    icon: '📁' },
-  { id: 'employees', label: 'Сотрудники', icon: '👥' },
-  { id: 'products',  label: 'Товары',     icon: '📦' },
-  { id: 'timeline',  label: 'Timeline',   icon: '📅' },
+  { id:'hierarchy',  label:'Иерархия',  icon:'🏛️' },
+  { id:'relation',   label:'Связи',     icon:'🔗' },
+  { id:'projects',   label:'Проекты',   icon:'📁' },
+  { id:'employees',  label:'Сотрудники',icon:'👥' },
+  { id:'products',   label:'Товары',    icon:'📦' },
+  { id:'timeline',   label:'Timeline',  icon:'📅' },
 ];
 
-// ─── Force simulation ─────────────────────────────────────────────────────────
-function useForceGraph(nodes: Node[], edges: Edge[], width: number, height: number) {
-  const nodesRef = useRef<Node[]>([]);
-  const edgesRef = useRef<Edge[]>([]);
-  const rafRef   = useRef<number>(0);
-  const [tick, setTick] = useState(0);
+const EDGE_STYLE: Record<string, { stroke: string; dash?: string; width: number }> = {
+  hierarchy: { stroke: '#555', width: 1.5 },
+  relation:  { stroke: '#6b5ce7', dash: '4,3', width: 1 },
+  work:      { stroke: '#27ae60', dash: '2,2', width: 1 },
+  document:  { stroke: '#e67e22', dash: '5,3', width: 1 },
+};
 
-  useEffect(() => {
-    // Merge: preserve positions of existing nodes
-    const existing = new Map(nodesRef.current.map(n => [n.id, n]));
-    nodesRef.current = nodes.map(n => {
-      const ex = existing.get(n.id);
-      if (ex) return { ...n, x: ex.x, y: ex.y, vx: ex.vx, vy: ex.vy, pinned: ex.pinned, fx: ex.fx, fy: ex.fy };
-      return { ...n, x: width/2 + (Math.random()-0.5)*200, y: height/2 + (Math.random()-0.5)*200, vx:0, vy:0 };
+// ─── Tree layout (top-down Reingold–Tilford simplified) ───────────────────────
+function layoutTree(nodes: GNode[]): GNode[] {
+  const map = new Map(nodes.map(n => [n.id, n]));
+  const roots = nodes.filter(n => !n.parentId || !map.has(n.parentId));
+
+  // Assign depths
+  const assignDepth = (id: string, depth: number) => {
+    const n = map.get(id);
+    if (!n) return;
+    n.depth = depth;
+    n.children.forEach(cid => assignDepth(cid, depth + 1));
+  };
+  roots.forEach(r => assignDepth(r.id, 0));
+
+  // Group by depth
+  const byDepth: Map<number, GNode[]> = new Map();
+  nodes.forEach(n => {
+    if (!byDepth.has(n.depth)) byDepth.set(n.depth, []);
+    byDepth.get(n.depth)!.push(n);
+  });
+
+  // Assign x positions per depth row - spread evenly
+  byDepth.forEach((row, depth) => {
+    const totalW = row.length * (NODE_W + H_GAP) - H_GAP;
+    const startX = -totalW / 2 + NODE_W / 2;
+    row.forEach((n, i) => {
+      n.x = startX + i * (NODE_W + H_GAP);
+      n.y = depth * (NODE_H + V_GAP) + NODE_H / 2;
     });
-    edgesRef.current = edges;
-  }, [nodes, edges]);
+  });
 
-  useEffect(() => {
-    const simulate = () => {
-      const ns = nodesRef.current;
-      const es = edgesRef.current;
-      if (!ns.length) { rafRef.current = requestAnimationFrame(simulate); return; }
-
-      const alpha = 0.25;
-      const repulsion = 4000;
-      const linkDist  = 160;
-      const linkStr   = 0.08;
-      const centerStr = 0.02;
-      const damping   = 0.86;
-
-      // Repulsion
-      for (let i = 0; i < ns.length; i++) {
-        for (let j = i+1; j < ns.length; j++) {
-          const dx = ns[j].x - ns[i].x || 0.1;
-          const dy = ns[j].y - ns[i].y || 0.1;
-          const d2 = dx*dx + dy*dy;
-          const d  = Math.sqrt(d2) || 0.1;
-          const f  = repulsion / d2;
-          const fx = f * dx / d;
-          const fy = f * dy / d;
-          if (!ns[i].pinned) { ns[i].vx -= fx; ns[i].vy -= fy; }
-          if (!ns[j].pinned) { ns[j].vx += fx; ns[j].vy += fy; }
-        }
-      }
-
-      // Link attraction
-      const nodeMap = new Map(ns.map(n => [n.id, n]));
-      for (const e of es) {
-        const s = nodeMap.get(e.source), t = nodeMap.get(e.target);
-        if (!s || !t) continue;
-        const dx = t.x - s.x, dy = t.y - s.y;
-        const d  = Math.sqrt(dx*dx + dy*dy) || 0.1;
-        const f  = (d - linkDist) * linkStr;
-        const fx = f * dx / d, fy = f * dy / d;
-        if (!s.pinned) { s.vx += fx; s.vy += fy; }
-        if (!t.pinned) { t.vx -= fx; t.vy -= fy; }
-      }
-
-      // Center gravity
-      for (const n of ns) {
-        if (n.pinned) continue;
-        n.vx += (width/2 - n.x) * centerStr;
-        n.vy += (height/2 - n.y) * centerStr;
-      }
-
-      // Integrate
-      for (const n of ns) {
-        if (n.pinned && n.fx !== undefined) { n.x = n.fx; n.y = n.fy!; continue; }
-        n.vx *= damping; n.vy *= damping;
-        n.x += n.vx * alpha; n.y += n.vy * alpha;
-        n.x = Math.max(50, Math.min(width-50,  n.x));
-        n.y = Math.max(50, Math.min(height-50, n.y));
-      }
-
-      setTick(t => t+1);
-      rafRef.current = requestAnimationFrame(simulate);
-    };
-
-    rafRef.current = requestAnimationFrame(simulate);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [width, height]);
-
-  return { nodes: nodesRef.current, edges: edgesRef.current };
+  return nodes;
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ─── Main component ───────────────────────────────────────────────────────────
 export default function CommandCenterPage() {
   const router = useRouter();
   const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [token, setToken] = useState('');
-  const [view, setView] = useState('company');
-  const [rawNodes, setRawNodes] = useState<Node[]>([]);
-  const [rawEdges, setRawEdges] = useState<Edge[]>([]);
+  const [view, setView] = useState('hierarchy');
+  const [displayMode, setDisplayMode] = useState<'hierarchy'|'relation'>('hierarchy');
+  const [nodes, setNodes] = useState<GNode[]>([]);
+  const [edges, setEdges] = useState<GEdge[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selected, setSelected] = useState<Node | null>(null);
-  const [hovered, setHovered] = useState<Node | null>(null);
+  const [selected, setSelected] = useState<GNode | null>(null);
   const [search, setSearch] = useState('');
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [draggingNode, setDraggingNode] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(0.85);
+  const [size, setSize] = useState({ w: 1200, h: 700 });
   const [isPanning, setIsPanning] = useState(false);
   const panStart = useRef({ x: 0, y: 0, px: 0, py: 0 });
-  const [size, setSize] = useState({ w: 1200, h: 700 });
-  const containerRef = useRef<HTMLDivElement>(null);
   const [activityLog, setActivityLog] = useState<any[]>([]);
-
-  const { nodes, edges } = useForceGraph(rawNodes, rawEdges, size.w, size.h);
+  const [dragging, setDragging] = useState<{id:string;ox:number;oy:number}|null>(null);
 
   useEffect(() => {
     const t = localStorage.getItem('access_token');
@@ -183,283 +130,34 @@ export default function CommandCenterPage() {
   }, []);
 
   useEffect(() => {
-    const ro = new ResizeObserver(entries => {
-      for (const e of entries) {
-        setSize({ w: e.contentRect.width, h: e.contentRect.height });
-      }
+    const ro = new ResizeObserver(e => {
+      for (const en of e) setSize({ w: en.contentRect.width, h: en.contentRect.height });
     });
     if (containerRef.current) ro.observe(containerRef.current);
     return () => ro.disconnect();
   }, []);
 
-  useEffect(() => { if (token) loadView(view); }, [token, view]);
-
   const h = useCallback(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
-  // Fetch with 429 retry
   const apiFetch = useCallback(async (url: string): Promise<any> => {
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const r = await fetch(url, { headers: h() });
-      if (r.status === 429) { await new Promise(res => setTimeout(res, 800 * (attempt+1))); continue; }
-      if (!r.ok) return {};
-      return r.json();
+    for (let i = 0; i < 3; i++) {
+      try {
+        const r = await fetch(url, { headers: h() });
+        if (r.status === 429) { await new Promise(res => setTimeout(res, 600*(i+1))); continue; }
+        if (!r.ok) return {};
+        return r.json();
+      } catch { return {}; }
     }
     return {};
   }, [h]);
 
-  const loadView = async (v: string) => {
-    setLoading(true);
-    setSelected(null);
-    try {
-      if (v === 'company')   await loadCompanyView();
-      if (v === 'projects')  await loadProjectsView();
-      if (v === 'employees') await loadEmployeesView();
-      if (v === 'products')  await loadProductsView();
-      if (v === 'timeline')  await loadTimeline();
-    } catch(e) { console.error(e); }
-    setLoading(false);
-  };
+  useEffect(() => { if (token) load(view); }, [token, view]);
 
-  // ── Company View ────────────────────────────────────────────────────────────
-  const loadCompanyView = async () => {
-    // Sequential to avoid 429 throttling
-    const empD  = await apiFetch(`${API}/api/v1/employees?limit=30`);
-    const projD = await apiFetch(`${API}/api/v1/projects?limit=20`);
-    const prodD = await apiFetch(`${API}/api/v1/products?limit=20`);
-    const deptD = await apiFetch(`${API}/api/v1/dictionaries/departments`);
-
-    const emps  = empD.employees ?? (Array.isArray(empD) ? empD : []);
-    const projs = Array.isArray(projD) ? projD : (projD.data ?? projD.projects ?? []);
-    const prods = (Array.isArray(prodD) ? prodD : (prodD.products ?? prodD.data ?? [])).slice(0,15);
-    const depts = Array.isArray(deptD) ? deptD : (deptD.departments ?? []);
-
-    const ns: Node[] = [];
-    const es: Edge[] = [];
-
-    // Org center node
-    ns.push({ id:'org', type:'ORG', label:'Компания', x:size.w/2, y:size.h/2, vx:0, vy:0, pinned:true, fx:size.w/2, fy:size.h/2 });
-
-    // Departments
-    depts.slice(0,6).forEach((d: any, i: number) => {
-      const angle = (i / Math.max(depts.length,1)) * Math.PI * 2;
-      ns.push({ id:`dept_${d.id}`, type:'DEPARTMENT', label:d.name, x: size.w/2 + Math.cos(angle)*180, y: size.h/2 + Math.sin(angle)*180, vx:0, vy:0 });
-      es.push({ id:`org_dept_${d.id}`, source:'org', target:`dept_${d.id}`, type:'CONTAINS' });
-    });
-
-    // Projects
-    projs.slice(0,12).forEach((p: any) => {
-      ns.push({ id:`proj_${p.id}`, type:'PROJECT', label:p.name, sublabel:p.status, x: size.w/2+(Math.random()-0.5)*400, y: size.h/2+(Math.random()-0.5)*350, vx:0, vy:0, meta:p });
-      es.push({ id:`org_proj_${p.id}`, source:'org', target:`proj_${p.id}`, type:'HAS' });
-    });
-
-    // Employees
-    emps.slice(0,15).forEach((e: any) => {
-      ns.push({ id:`emp_${e.id}`, type:'EMPLOYEE', label:e.name, sublabel:e.role, x: size.w/2+(Math.random()-0.5)*500, y: size.h/2+(Math.random()-0.5)*400, vx:0, vy:0, meta:e });
-      if (e.departmentId) es.push({ id:`dept_emp_${e.id}`, source:`dept_${e.departmentId}`, target:`emp_${e.id}`, type:'MEMBER' });
-      else es.push({ id:`org_emp_${e.id}`, source:'org', target:`emp_${e.id}`, type:'MEMBER' });
-    });
-
-    // Products
-    prods.forEach((p: any) => {
-      ns.push({ id:`prod_${p.id}`, type:'PRODUCT', label:p.name.slice(0,20), sublabel:p.marketplace, x: size.w/2+(Math.random()-0.5)*500, y: size.h/2+(Math.random()-0.5)*400, vx:0, vy:0, meta:p });
-      es.push({ id:`org_prod_${p.id}`, source:'org', target:`prod_${p.id}`, type:'SELLS' });
-    });
-
-    setRawNodes(ns); setRawEdges(es);
-  };
-
-  // ── Projects View ───────────────────────────────────────────────────────────
-  const loadProjectsView = async () => {
-    const d = await apiFetch(`${API}/api/v1/projects?limit=30`);
-    const projs = Array.isArray(d) ? d : (d.data ?? d.projects ?? []);
-
-    const ns: Node[] = [];
-    const es: Edge[] = [];
-
-    projs.forEach((p: any, i: number) => {
-      const angle = (i / projs.length) * Math.PI * 2;
-      const dist  = 220;
-      ns.push({ id:`proj_${p.id}`, type:'PROJECT', label:p.name, sublabel:p.status, x: size.w/2+Math.cos(angle)*dist, y: size.h/2+Math.sin(angle)*dist, vx:0, vy:0, meta:p });
-    });
-
-    // Load members for each project
-    await Promise.all(projs.slice(0,8).map(async (p: any) => {
-      try {
-        const mr = await fetch(`${API}/api/v1/projects/${p.id}`, { headers: h() });
-        const md = await mr.json();
-        (md.members ?? []).slice(0,3).forEach((m: any) => {
-          const empId = `emp_${m.userId ?? m.id}`;
-          if (!ns.find(n=>n.id===empId)) {
-            ns.push({ id:empId, type:'EMPLOYEE', label:m.name ?? m.user?.name ?? 'Сотрудник', x: size.w/2+(Math.random()-0.5)*400, y: size.h/2+(Math.random()-0.5)*400, vx:0, vy:0 });
-          }
-          es.push({ id:`proj_mem_${p.id}_${m.userId}`, source:`proj_${p.id}`, target:empId, type:'MEMBER' });
-        });
-      } catch {}
-    }));
-
-    setRawNodes(ns); setRawEdges(es);
-  };
-
-  // ── Employees View ──────────────────────────────────────────────────────────
-  const loadEmployeesView = async () => {
-    const d = await apiFetch(`${API}/api/v1/employees?limit=50`);
-    const emps = d.employees ?? (Array.isArray(d) ? d : []);
-
-    const ns: Node[] = [];
-    const es: Edge[] = [];
-
-    // Group by department
-    const byDept: Record<string, any[]> = {};
-    for (const e of emps) {
-      const key = e.departmentId ?? 'none';
-      if (!byDept[key]) byDept[key] = [];
-      byDept[key].push(e);
-    }
-
-    const depts = Object.keys(byDept);
-    depts.forEach((deptId, di) => {
-      const angle = (di / depts.length) * Math.PI * 2;
-      const deptNodeId = `dept_${deptId}`;
-      ns.push({ id:deptNodeId, type:'DEPARTMENT', label: deptId==='none'?'Без отдела':'Отдел', x: size.w/2+Math.cos(angle)*200, y: size.h/2+Math.sin(angle)*200, vx:0, vy:0 });
-
-      byDept[deptId].forEach((e, ei) => {
-        const ea = angle + (ei - byDept[deptId].length/2) * 0.3;
-        ns.push({ id:`emp_${e.id}`, type:'EMPLOYEE', label:e.name, sublabel:e.role, x: size.w/2+Math.cos(ea)*340, y: size.h/2+Math.sin(ea)*340, vx:0, vy:0, meta:e });
-        es.push({ id:`dept_emp_${deptId}_${e.id}`, source:deptNodeId, target:`emp_${e.id}`, type:'MEMBER' });
-      });
-    });
-
-    setRawNodes(ns); setRawEdges(es);
-  };
-
-  // ── Products View ───────────────────────────────────────────────────────────
-  const loadProductsView = async () => {
-    const d = await apiFetch(`${API}/api/v1/products?limit=40`);
-    const prods = Array.isArray(d) ? d : (d.products ?? d.data ?? []);
-
-    const ns: Node[] = [];
-    const es: Edge[] = [];
-
-    // Group by marketplace
-    const byMp: Record<string, any[]> = {};
-    for (const p of prods) {
-      const key = p.marketplace ?? 'OTHER';
-      if (!byMp[key]) byMp[key] = [];
-      byMp[key].push(p);
-    }
-
-    const mps = Object.keys(byMp);
-    mps.forEach((mp, mi) => {
-      const angle = (mi / mps.length) * Math.PI * 2;
-      const mpId  = `mp_${mp}`;
-      ns.push({ id:mpId, type:'DEPARTMENT', label:mp, x: size.w/2+Math.cos(angle)*180, y: size.h/2+Math.sin(angle)*180, vx:0, vy:0 });
-
-      byMp[mp].slice(0,10).forEach((p, pi) => {
-        const pa = angle + (pi - byMp[mp].length/2) * 0.25;
-        ns.push({ id:`prod_${p.id}`, type:'PRODUCT', label:p.name.slice(0,18), sublabel:`${p.price ? '₽'+Number(p.price).toLocaleString('ru') : ''}`, x: size.w/2+Math.cos(pa)*350, y: size.h/2+Math.sin(pa)*350, vx:0, vy:0, meta:p });
-        es.push({ id:`mp_prod_${mp}_${p.id}`, source:mpId, target:`prod_${p.id}`, type:'LISTED' });
-      });
-    });
-
-    setRawNodes(ns); setRawEdges(es);
-  };
-
-  // ── Timeline (activity log) ─────────────────────────────────────────────────
-  const loadTimeline = async () => {
-    try {
-      const r = await fetch(`${API}/api/v1/relations/activity/ORG/company?limit=50`, { headers: h() });
-      if (r.ok) {
-        const d = await r.json();
-        setActivityLog(d.logs ?? []);
-      }
-    } catch {}
-    setRawNodes([]); setRawEdges([]);
-  };
-
-  // ── Node click → expand relations ───────────────────────────────────────────
-  const expandNode = async (node: Node) => {
-    if (node.type === 'ORG') return;
-    const entityType = node.type;
-    const entityId   = node.id.split('_').slice(1).join('_');
-    try {
-      const r = await fetch(`${API}/api/v1/relations/${entityType}/${entityId}`, { headers: h() });
-      if (!r.ok) return;
-      const d = await r.json();
-      if (!d.relations?.length) return;
-
-      const newNodes: Node[] = [];
-      const newEdges: Edge[] = [];
-
-      for (const rel of d.relations.slice(0,8)) {
-        const nid = `${rel.entityType}_${rel.entityId}`;
-        if (!rawNodes.find(n=>n.id===nid)) {
-          newNodes.push({
-            id: nid, type: rel.entityType,
-            label: rel.entity?.title ?? rel.entity?.name ?? rel.entityId,
-            sublabel: rel.entity?.status,
-            x: node.x + (Math.random()-0.5)*200,
-            y: node.y + (Math.random()-0.5)*200,
-            vx:0, vy:0, meta: rel.entity,
-          });
-        }
-        newEdges.push({ id:rel.id, source:node.id, target:nid, label:rel.label, type:rel.relationType });
-      }
-
-      setRawNodes(prev => [...prev, ...newNodes.filter(n=>!prev.find(p=>p.id===n.id))]);
-      setRawEdges(prev => [...prev, ...newEdges.filter(e=>!prev.find(p=>p.id===e.id))]);
-    } catch {}
-  };
-
-  // ── SVG interaction ─────────────────────────────────────────────────────────
-  const svgPt = (e: React.MouseEvent) => {
-    const rect = svgRef.current!.getBoundingClientRect();
-    return { x: (e.clientX - rect.left - pan.x) / zoom, y: (e.clientY - rect.top - pan.y) / zoom };
-  };
-
-  const onNodeClick = (node: Node) => {
-    setSelected(s => s?.id === node.id ? null : node);
-    expandNode(node);
-  };
-
-  const onNodeDblClick = (node: Node) => {
-    const type = node.type.toLowerCase();
-    const id   = node.id.split('_').slice(1).join('_');
-    const routes: Record<string,string> = {
-      task: `/dashboard/tasks/${id}`,
-      project: `/dashboard/projects/${id}`,
-      product: `/dashboard/products/${id}`,
-      employee: `/dashboard/employees/${id}`,
-      deal: `/dashboard/crm/deals/${id}`,
-    };
-    if (routes[type]) router.push(routes[type]);
-  };
-
-  const onSvgMouseDown = (e: React.MouseEvent) => {
-    if ((e.target as SVGElement).tagName === 'svg' || (e.target as SVGElement).tagName === 'rect') {
-      setIsPanning(true);
-      panStart.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y };
-    }
-  };
-
-  const onSvgMouseMove = (e: React.MouseEvent) => {
-    if (isPanning) {
-      setPan({ x: panStart.current.px + e.clientX - panStart.current.x, y: panStart.current.py + e.clientY - panStart.current.y });
-    }
-    if (draggingNode) {
-      const rect = svgRef.current!.getBoundingClientRect();
-      const x = (e.clientX - rect.left - pan.x) / zoom;
-      const y = (e.clientY - rect.top - pan.y) / zoom;
-      const node = nodes.find(n=>n.id===draggingNode);
-      if (node) { node.x = x; node.y = y; node.fx = x; node.fy = y; node.vx=0; node.vy=0; }
-    }
-  };
-
-  const onSvgMouseUp = () => { setIsPanning(false); setDraggingNode(null); };
-
+  // ── Wheel zoom (passive:false) ─────────────────────────────────────────────
   const onWheel = useCallback((e: WheelEvent) => {
     e.preventDefault();
-    const factor = e.deltaY > 0 ? 0.92 : 1.09;
-    setZoom(z => Math.max(0.15, Math.min(4, z * factor)));
+    const f = e.deltaY > 0 ? 0.93 : 1.08;
+    setZoom(z => Math.max(0.1, Math.min(4, z * f)));
   }, []);
 
   useEffect(() => {
@@ -469,76 +167,422 @@ export default function CommandCenterPage() {
     return () => el.removeEventListener('wheel', onWheel);
   }, [onWheel]);
 
-  // ── Filter by search ─────────────────────────────────────────────────────────
-  const filteredNodes = search
+  // ── Fit to screen ──────────────────────────────────────────────────────────
+  const fitScreen = useCallback((ns: GNode[]) => {
+    if (!ns.length) return;
+    const xs = ns.map(n => n.x), ys = ns.map(n => n.y);
+    const minX = Math.min(...xs) - NODE_W/2 - 40;
+    const maxX = Math.max(...xs) + NODE_W/2 + 40;
+    const minY = Math.min(...ys) - NODE_H/2 - 40;
+    const maxY = Math.max(...ys) + NODE_H/2 + 40;
+    const cw = size.w, ch = size.h;
+    const scaleX = cw / (maxX - minX);
+    const scaleY = ch / (maxY - minY);
+    const newZoom = Math.min(scaleX, scaleY, 1.2);
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    setZoom(newZoom);
+    setPan({ x: cw/2 - cx*newZoom, y: ch/2 - cy*newZoom });
+  }, [size]);
+
+  // ── Load views ─────────────────────────────────────────────────────────────
+  const load = async (v: string) => {
+    setLoading(true); setSelected(null);
+    try {
+      if (v === 'hierarchy')  { const r = await buildHierarchy(); fitScreen(r); }
+      else if (v === 'projects')  { const r = await buildProjects();  fitScreen(r); }
+      else if (v === 'employees') { const r = await buildEmployees(); fitScreen(r); }
+      else if (v === 'products')  { const r = await buildProducts();  fitScreen(r); }
+      else if (v === 'relation')  { const r = await buildHierarchy(true); fitScreen(r); }
+      else if (v === 'timeline')  { await loadTimeline(); }
+    } catch(e) { console.error(e); }
+    setLoading(false);
+  };
+
+  // ── Hierarchy builder ──────────────────────────────────────────────────────
+  const buildHierarchy = async (withRelations = false) => {
+    const [empD, projD, prodD, deptD, taskD] = await Promise.all([
+      apiFetch(`${API}/api/v1/employees?limit=50`),
+      apiFetch(`${API}/api/v1/projects?limit=30`),
+      apiFetch(`${API}/api/v1/products?limit=30`),
+      apiFetch(`${API}/api/v1/dictionaries/departments`),
+      apiFetch(`${API}/api/v1/tasks?limit=30`),
+    ]);
+
+    const emps  = empD.employees  ?? (Array.isArray(empD)  ? empD  : []);
+    const projs = Array.isArray(projD) ? projD : (projD.data ?? []);
+    const prods = Array.isArray(prodD) ? prodD : (prodD.products ?? []);
+    const depts = Array.isArray(deptD) ? deptD : [];
+    const tasks = Array.isArray(taskD) ? taskD : (taskD.data ?? []);
+
+    const ns: GNode[] = [];
+    const es: GEdge[] = [];
+
+    // ORG root
+    ns.push({ id:'org', type:'ORG', label:'Компания', sublabel:'К-Трейд', parentId:null, children:[], x:0, y:0, depth:0 });
+
+    // Departments → children of ORG
+    depts.slice(0,6).forEach((d: any) => {
+      const nid = `dept_${d.id}`;
+      ns.push({ id:nid, type:'DEPARTMENT', label:d.name, sublabel:`${emps.filter((e:any)=>e.departmentId===d.id).length} сотр.`, parentId:'org', children:[], x:0, y:0, depth:1, meta:d });
+      ns.find(n=>n.id==='org')!.children.push(nid);
+      es.push({ id:`e_org_${nid}`, source:'org', target:nid, kind:'hierarchy' });
+    });
+
+    // If no departments, create virtual ones by project
+    const deptIds = new Set(depts.slice(0,6).map((d:any) => `dept_${d.id}`));
+
+    // Projects → children of departments or org
+    projs.slice(0,12).forEach((p: any) => {
+      const pid = `proj_${p.id}`;
+      // Try to find a dept for this project
+      const deptNode = deptIds.size > 0 ? [...deptIds][Math.floor(Math.random() * Math.min(deptIds.size, 3))] : 'org';
+      const parent = ns.find(n=>n.id===deptNode) || ns.find(n=>n.id==='org')!;
+      ns.push({ id:pid, type:'PROJECT', label:p.name.slice(0,20), sublabel:p.status, parentId:parent.id, children:[], x:0, y:0, depth:parent.depth+1, meta:p });
+      parent.children.push(pid);
+      es.push({ id:`e_${parent.id}_${pid}`, source:parent.id, target:pid, kind:'hierarchy' });
+    });
+
+    // Products → children of projects
+    prods.slice(0,12).forEach((p: any, i: number) => {
+      const prodId = `prod_${p.id}`;
+      const projNodes = ns.filter(n=>n.type==='PROJECT');
+      const parent = projNodes.length > 0 ? projNodes[i % projNodes.length] : ns.find(n=>n.id==='org')!;
+      ns.push({ id:prodId, type:'PRODUCT', label:p.name.slice(0,18), sublabel:p.marketplace, parentId:parent.id, children:[], x:0, y:0, depth:parent.depth+1, meta:p });
+      parent.children.push(prodId);
+      es.push({ id:`e_${parent.id}_${prodId}`, source:parent.id, target:prodId, kind:'hierarchy' });
+    });
+
+    // Tasks → children of projects
+    tasks.filter((t:any)=>!t.parentId).slice(0,16).forEach((t: any) => {
+      const tid = `task_${t.id}`;
+      const projNodes = ns.filter(n=>n.type==='PROJECT');
+      if (projNodes.length === 0) return;
+      const parent = t.projectId ? (ns.find(n=>n.id===`proj_${t.projectId}`) ?? projNodes[0]) : projNodes[Math.floor(Math.random()*projNodes.length)];
+      ns.push({ id:tid, type:'TASK', label:t.title.slice(0,20), sublabel:t.status, parentId:parent.id, children:[], x:0, y:0, depth:parent.depth+1, meta:t });
+      parent.children.push(tid);
+      es.push({ id:`e_${parent.id}_${tid}`, source:parent.id, target:tid, kind:'hierarchy' });
+    });
+
+    // Relation mode: add employees as associated nodes
+    if (withRelations) {
+      emps.slice(0,10).forEach((e: any) => {
+        const eid = `emp_${e.id}`;
+        const deptNode = e.departmentId ? ns.find(n=>n.id===`dept_${e.departmentId}`) : null;
+        const parent = deptNode || ns.find(n=>n.id==='org')!;
+        if (!ns.find(n=>n.id===eid)) {
+          ns.push({ id:eid, type:'EMPLOYEE', label:e.name, sublabel:e.role, parentId:parent.id, children:[], x:0, y:0, depth:parent.depth+1 });
+          parent.children.push(eid);
+          es.push({ id:`e_${parent.id}_${eid}`, source:parent.id, target:eid, kind:'work' });
+        }
+      });
+    }
+
+    const laid = layoutTree(ns);
+    setNodes(laid);
+    setEdges(es);
+    return laid;
+  };
+
+  // ── Projects view ──────────────────────────────────────────────────────────
+  const buildProjects = async () => {
+    const projD = await apiFetch(`${API}/api/v1/projects?limit=20`);
+    const projs = Array.isArray(projD) ? projD : (projD.data ?? []);
+
+    const ns: GNode[] = [];
+    const es: GEdge[] = [];
+
+    ns.push({ id:'root', type:'ORG', label:'Проекты', parentId:null, children:[], x:0, y:0, depth:0 });
+
+    for (const p of projs) {
+      const pid = `proj_${p.id}`;
+      ns.push({ id:pid, type:'PROJECT', label:p.name.slice(0,22), sublabel:p.status, parentId:'root', children:[], x:0, y:0, depth:1, meta:p });
+      ns.find(n=>n.id==='root')!.children.push(pid);
+      es.push({ id:`e_root_${pid}`, source:'root', target:pid, kind:'hierarchy' });
+
+      // Load project members
+      try {
+        const pd = await apiFetch(`${API}/api/v1/projects/${p.id}`);
+        (pd.members ?? []).slice(0,3).forEach((m: any) => {
+          const mid = `emp_${m.userId ?? m.id}_${p.id}`;
+          ns.push({ id:mid, type:'EMPLOYEE', label:(m.name??m.user?.name??'Сотрудник').slice(0,16), parentId:pid, children:[], x:0, y:0, depth:2 });
+          ns.find(n=>n.id===pid)!.children.push(mid);
+          es.push({ id:`e_${pid}_${mid}`, source:pid, target:mid, kind:'work' });
+        });
+      } catch {}
+    }
+
+    const laid = layoutTree(ns);
+    setNodes(laid); setEdges(es);
+    return laid;
+  };
+
+  // ── Employees view ─────────────────────────────────────────────────────────
+  const buildEmployees = async () => {
+    const [empD, deptD] = await Promise.all([
+      apiFetch(`${API}/api/v1/employees?limit=50`),
+      apiFetch(`${API}/api/v1/dictionaries/departments`),
+    ]);
+    const emps  = empD.employees ?? (Array.isArray(empD) ? empD : []);
+    const depts = Array.isArray(deptD) ? deptD : [];
+
+    const ns: GNode[] = [];
+    const es: GEdge[] = [];
+
+    ns.push({ id:'org', type:'ORG', label:'Организация', parentId:null, children:[], x:0, y:0, depth:0 });
+
+    depts.slice(0,8).forEach((d: any) => {
+      const did = `dept_${d.id}`;
+      const deptEmps = emps.filter((e:any)=>e.departmentId===d.id);
+      ns.push({ id:did, type:'DEPARTMENT', label:d.name, sublabel:`${deptEmps.length} сотр.`, parentId:'org', children:[], x:0, y:0, depth:1, meta:d });
+      ns.find(n=>n.id==='org')!.children.push(did);
+      es.push({ id:`e_org_${did}`, source:'org', target:did, kind:'hierarchy' });
+
+      deptEmps.slice(0,5).forEach((e: any) => {
+        const eid = `emp_${e.id}`;
+        ns.push({ id:eid, type:'EMPLOYEE', label:e.name, sublabel:e.role ?? e.position, parentId:did, children:[], x:0, y:0, depth:2, meta:e });
+        ns.find(n=>n.id===did)!.children.push(eid);
+        es.push({ id:`e_${did}_${eid}`, source:did, target:eid, kind:'work' });
+      });
+    });
+
+    // Employees without department
+    const noDept = emps.filter((e:any) => !e.departmentId || !depts.find((d:any)=>d.id===e.departmentId)).slice(0,5);
+    if (noDept.length) {
+      const oid = 'dept_other';
+      ns.push({ id:oid, type:'DEPARTMENT', label:'Без отдела', sublabel:`${noDept.length} сотр.`, parentId:'org', children:[], x:0, y:0, depth:1 });
+      ns.find(n=>n.id==='org')!.children.push(oid);
+      es.push({ id:`e_org_${oid}`, source:'org', target:oid, kind:'hierarchy' });
+      noDept.forEach((e: any) => {
+        const eid = `emp_${e.id}`;
+        ns.push({ id:eid, type:'EMPLOYEE', label:e.name, sublabel:e.role, parentId:oid, children:[], x:0, y:0, depth:2, meta:e });
+        ns.find(n=>n.id===oid)!.children.push(eid);
+        es.push({ id:`e_${oid}_${eid}`, source:oid, target:eid, kind:'work' });
+      });
+    }
+
+    const laid = layoutTree(ns);
+    setNodes(laid); setEdges(es);
+    return laid;
+  };
+
+  // ── Products view ──────────────────────────────────────────────────────────
+  const buildProducts = async () => {
+    const prodD = await apiFetch(`${API}/api/v1/products?limit=40`);
+    const prods = Array.isArray(prodD) ? prodD : (prodD.products ?? []);
+
+    const ns: GNode[] = [];
+    const es: GEdge[] = [];
+
+    ns.push({ id:'root', type:'ORG', label:'Товары', parentId:null, children:[], x:0, y:0, depth:0 });
+
+    // Group by marketplace
+    const byMp: Record<string, any[]> = {};
+    prods.forEach((p: any) => {
+      const k = p.marketplace ?? 'Другое';
+      if (!byMp[k]) byMp[k] = [];
+      byMp[k].push(p);
+    });
+
+    Object.entries(byMp).forEach(([mp, items]) => {
+      const mid = `mp_${mp}`;
+      ns.push({ id:mid, type:'MARKETPLACE', label:mp, sublabel:`${items.length} товаров`, parentId:'root', children:[], x:0, y:0, depth:1 });
+      ns.find(n=>n.id==='root')!.children.push(mid);
+      es.push({ id:`e_root_${mid}`, source:'root', target:mid, kind:'hierarchy' });
+
+      items.slice(0,8).forEach((p: any) => {
+        const pid = `prod_${p.id}`;
+        ns.push({ id:pid, type:'PRODUCT', label:p.name.slice(0,18), sublabel:p.price?`₽${Number(p.price).toLocaleString('ru')}`:undefined, parentId:mid, children:[], x:0, y:0, depth:2, meta:p });
+        ns.find(n=>n.id===mid)!.children.push(pid);
+        es.push({ id:`e_${mid}_${pid}`, source:mid, target:pid, kind:'hierarchy' });
+      });
+    });
+
+    const laid = layoutTree(ns);
+    setNodes(laid); setEdges(es);
+    return laid;
+  };
+
+  // ── Timeline ───────────────────────────────────────────────────────────────
+  const loadTimeline = async () => {
+    setNodes([]); setEdges([]);
+    const d = await apiFetch(`${API}/api/v1/relations/activity/TASK/org?limit=50`);
+    setActivityLog(d.logs ?? []);
+  };
+
+  // ── SVG interactions ───────────────────────────────────────────────────────
+  const svgToWorld = (ex: number, ey: number) => {
+    const rect = svgRef.current!.getBoundingClientRect();
+    return { x: (ex - rect.left - pan.x) / zoom, y: (ey - rect.top - pan.y) / zoom };
+  };
+
+  const onBgMouseDown = (e: React.MouseEvent) => {
+    if ((e.target as SVGElement).closest('g[data-node]')) return;
+    setIsPanning(true);
+    panStart.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y };
+  };
+
+  const onMouseMove = (e: React.MouseEvent) => {
+    if (isPanning) {
+      setPan({ x: panStart.current.px + e.clientX - panStart.current.x, y: panStart.current.py + e.clientY - panStart.current.y });
+    }
+    if (dragging) {
+      const wp = svgToWorld(e.clientX, e.clientY);
+      setNodes(prev => prev.map(n => n.id === dragging.id ? { ...n, x: wp.x - dragging.ox, y: wp.y - dragging.oy } : n));
+    }
+  };
+
+  const onMouseUp = () => { setIsPanning(false); setDragging(null); };
+
+  const onNodeMouseDown = (e: React.MouseEvent, node: GNode) => {
+    e.stopPropagation();
+    const wp = svgToWorld(e.clientX, e.clientY);
+    setDragging({ id: node.id, ox: wp.x - node.x, oy: wp.y - node.y });
+  };
+
+  const onNodeClick = (e: React.MouseEvent, node: GNode) => {
+    if (dragging) return;
+    e.stopPropagation();
+    setSelected(s => s?.id === node.id ? null : node);
+  };
+
+  const onNodeDblClick = (node: GNode) => {
+    const id = node.id.split('_').slice(1).join('_');
+    const routes: Record<string,string> = {
+      PROJECT: `/dashboard/projects/${id}`,
+      PRODUCT: `/dashboard/products/${id}`,
+      TASK:    `/dashboard/tasks/${id}`,
+      EMPLOYEE:`/dashboard/employees/${id}`,
+      DEAL:    `/dashboard/crm/deals/${id}`,
+    };
+    if (routes[node.type]) router.push(routes[node.type]);
+  };
+
+  // Filter by search
+  const visibleNodes = search
     ? nodes.filter(n => n.label.toLowerCase().includes(search.toLowerCase()))
     : nodes;
-  const visibleNodeIds = new Set(filteredNodes.map(n=>n.id));
-  const filteredEdges = search
-    ? edges.filter(e => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target))
-    : edges;
+  const visibleIds = new Set(visibleNodes.map(n => n.id));
+  const visibleEdges = edges.filter(e => visibleIds.has(e.source) && visibleIds.has(e.target));
 
-  // ─── Render ───────────────────────────────────────────────────────────────
+  // ─── Edge path: straight lines with elbow joints for hierarchy ──────────────
+  const edgePath = (e: GEdge): string => {
+    const s = nodes.find(n=>n.id===e.source);
+    const t = nodes.find(n=>n.id===e.target);
+    if (!s || !t) return '';
+    const sx = s.x, sy = s.y + NODE_H/2;
+    const tx = t.x, ty = t.y - NODE_H/2;
+    const my = (sy + ty) / 2;
+    if (e.kind === 'hierarchy') {
+      return `M ${sx} ${sy} L ${sx} ${my} L ${tx} ${my} L ${tx} ${ty}`;
+    }
+    return `M ${sx} ${sy} C ${sx} ${sy+40} ${tx} ${ty-40} ${tx} ${ty}`;
+  };
+
+  const maxDepth = nodes.length ? Math.max(...nodes.map(n=>n.depth)) : 0;
+
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100vh', background:'var(--bg-app)', overflow:'hidden' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100vh', background:'#0f1117', color:'#e8eaf0', overflow:'hidden', fontFamily:'Inter,sans-serif' }}>
 
-      {/* Header */}
-      <div style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 20px', background:'var(--bg-primary)', borderBottom:'1px solid var(--border)', flexShrink:0, zIndex:10 }}>
+      {/* ── Top bar ── */}
+      <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 16px', background:'#151820', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0 }}>
         <div>
-          <h1 style={{ fontSize:16, fontWeight:700, color:'var(--text-primary)', margin:0, letterSpacing:'-0.3px' }}>⚡ Command Center</h1>
-          <p style={{ fontSize:11, color:'var(--text-muted)', margin:0 }}>Цифровая карта компании</p>
+          <div style={{ fontSize:15, fontWeight:700, color:'#e8eaf0', letterSpacing:'-0.3px' }}>⚡ Command Center</div>
+          <div style={{ fontSize:10, color:'#4a5168' }}>Цифровая карта компании</div>
         </div>
 
         {/* View tabs */}
-        <div style={{ display:'flex', gap:2, marginLeft:16, background:'var(--bg-secondary)', borderRadius:'var(--radius-md)', padding:3 }}>
+        <div style={{ display:'flex', gap:2, marginLeft:16, background:'#0f1117', borderRadius:8, padding:3, border:'1px solid rgba(255,255,255,0.07)' }}>
           {VIEWS.map(v => (
             <button key={v.id} onClick={() => setView(v.id)}
-              style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 12px', borderRadius:'var(--radius-sm)', border:'none', cursor:'pointer', fontSize:12, fontWeight:500, transition:'all var(--transition)',
-                background: view===v.id ? 'var(--bg-primary)' : 'transparent',
-                color: view===v.id ? 'var(--accent)' : 'var(--text-muted)',
-                boxShadow: view===v.id ? 'var(--shadow-xs)' : 'none',
-              }}>
+              style={{ display:'flex', alignItems:'center', gap:4, padding:'5px 12px', borderRadius:6, border:'none', cursor:'pointer', fontSize:12, fontWeight:500, transition:'all 0.15s',
+                background: view===v.id ? '#6b5ce7' : 'transparent',
+                color: view===v.id ? 'white' : '#5a6480' }}>
               {v.icon} {v.label}
             </button>
           ))}
         </div>
 
+        {/* Display mode toggle (for hierarchy view) */}
+        {view === 'hierarchy' && (
+          <div style={{ display:'flex', gap:2, background:'#0f1117', borderRadius:8, padding:3, border:'1px solid rgba(255,255,255,0.07)' }}>
+            {(['hierarchy','relation'] as const).map(m => (
+              <button key={m} onClick={() => { setDisplayMode(m); load(m==='relation'?'relation':'hierarchy'); }}
+                style={{ padding:'4px 10px', borderRadius:5, border:'none', cursor:'pointer', fontSize:11, fontWeight:500,
+                  background: displayMode===m ? 'rgba(107,92,231,0.3)' : 'transparent',
+                  color: displayMode===m ? '#a89bf8' : '#4a5168' }}>
+                {m==='hierarchy' ? '🏛️ Иерархия' : '🔗 Связи'}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Search */}
-        <div style={{ display:'flex', alignItems:'center', gap:8, background:'var(--bg-secondary)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'6px 12px', marginLeft:'auto', minWidth:220 }}>
-          <span style={{ fontSize:13, color:'var(--text-muted)' }}>🔍</span>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Поиск по графу..."
-            style={{ background:'none', border:'none', outline:'none', fontSize:13, color:'var(--text-primary)', width:'100%' }} />
+        <div style={{ display:'flex', alignItems:'center', gap:6, background:'#0f1117', border:'1px solid rgba(255,255,255,0.1)', borderRadius:8, padding:'5px 10px', marginLeft:'auto', minWidth:200 }}>
+          <span style={{ fontSize:12, color:'#4a5168' }}>🔍</span>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Поиск..."
+            style={{ background:'none', border:'none', outline:'none', fontSize:12, color:'#e8eaf0', width:'100%' }} />
         </div>
 
         {/* Zoom controls */}
-        <div style={{ display:'flex', gap:4 }}>
-          <button onClick={() => setZoom(z=>Math.min(3,z*1.2))}
-            style={{ width:30, height:30, borderRadius:'var(--radius-sm)', border:'1px solid var(--border)', background:'var(--bg-primary)', cursor:'pointer', fontSize:16, color:'var(--text-secondary)' }}>+</button>
-          <button onClick={() => setZoom(z=>Math.max(0.2,z/1.2))}
-            style={{ width:30, height:30, borderRadius:'var(--radius-sm)', border:'1px solid var(--border)', background:'var(--bg-primary)', cursor:'pointer', fontSize:16, color:'var(--text-secondary)' }}>−</button>
-          <button onClick={() => { setZoom(1); setPan({x:0,y:0}); }}
-            style={{ height:30, padding:'0 10px', borderRadius:'var(--radius-sm)', border:'1px solid var(--border)', background:'var(--bg-primary)', cursor:'pointer', fontSize:11, color:'var(--text-muted)', whiteSpace:'nowrap' }}>
-            {Math.round(zoom*100)}%
-          </button>
+        <div style={{ display:'flex', gap:4, alignItems:'center' }}>
+          <button onClick={() => setZoom(z=>Math.min(4,z*1.15))}
+            style={{ width:28, height:28, borderRadius:6, border:'1px solid rgba(255,255,255,0.1)', background:'#1a1e2a', cursor:'pointer', fontSize:16, color:'#8892aa' }}>+</button>
+          <span style={{ fontSize:11, color:'#4a5168', minWidth:38, textAlign:'center' }}>{Math.round(zoom*100)}%</span>
+          <button onClick={() => setZoom(z=>Math.max(0.1,z/1.15))}
+            style={{ width:28, height:28, borderRadius:6, border:'1px solid rgba(255,255,255,0.1)', background:'#1a1e2a', cursor:'pointer', fontSize:16, color:'#8892aa' }}>−</button>
+          <button onClick={() => fitScreen(nodes)}
+            style={{ height:28, padding:'0 8px', borderRadius:6, border:'1px solid rgba(255,255,255,0.1)', background:'#1a1e2a', cursor:'pointer', fontSize:11, color:'#8892aa' }}>⊡ Fit</button>
         </div>
 
         {/* Stats */}
-        <div style={{ display:'flex', gap:12, fontSize:11, color:'var(--text-muted)', borderLeft:'1px solid var(--border)', paddingLeft:12 }}>
-          <span>🔵 {nodes.length} объектов</span>
-          <span>🔗 {edges.length} связей</span>
+        <div style={{ fontSize:11, color:'#4a5168', borderLeft:'1px solid rgba(255,255,255,0.07)', paddingLeft:10 }}>
+          {nodes.length} узлов · {edges.length} связей
         </div>
       </div>
 
-      {/* Main area */}
+      {/* ── Main ── */}
       <div style={{ flex:1, display:'flex', overflow:'hidden' }}>
 
-        {/* Graph canvas */}
+        {/* Left legend panel */}
+        <div style={{ width:160, background:'#151820', borderRight:'1px solid rgba(255,255,255,0.07)', padding:'12px 10px', flexShrink:0, overflowY:'auto' }}>
+          <div style={{ fontSize:10, fontWeight:700, color:'#4a5168', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:8 }}>Легенда</div>
+          {Object.entries(NODE_ICONS).map(([type, icon]) => (
+            <div key={type} style={{ display:'flex', alignItems:'center', gap:6, marginBottom:5 }}>
+              <div style={{ width:10, height:10, borderRadius:'50%', background:NODE_COLOR[type]??'#666', flexShrink:0 }} />
+              <span style={{ fontSize:11, color:'#5a6480' }}>{icon} {type}</span>
+            </div>
+          ))}
+
+          <div style={{ height:1, background:'rgba(255,255,255,0.07)', margin:'10px 0' }} />
+          <div style={{ fontSize:10, fontWeight:700, color:'#4a5168', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:8 }}>Связи</div>
+          {Object.entries(EDGE_STYLE).map(([kind, s]) => (
+            <div key={kind} style={{ display:'flex', alignItems:'center', gap:6, marginBottom:5 }}>
+              <svg width={30} height={10}>
+                <line x1={0} y1={5} x2={30} y2={5} stroke={s.stroke} strokeWidth={s.width} strokeDasharray={s.dash} />
+              </svg>
+              <span style={{ fontSize:11, color:'#5a6480' }}>{
+                kind==='hierarchy'?'Иерархия':kind==='relation'?'Связь':kind==='work'?'Рабочая':'Документ'
+              }</span>
+            </div>
+          ))}
+
+          <div style={{ height:1, background:'rgba(255,255,255,0.07)', margin:'10px 0' }} />
+          <div style={{ fontSize:10, color:'#4a5168', lineHeight:1.5 }}>
+            Клик — детали<br/>
+            Двойной клик — открыть<br/>
+            Перетащи — переместить<br/>
+            Скролл — зум
+          </div>
+        </div>
+
+        {/* Graph area */}
         <div ref={containerRef} style={{ flex:1, position:'relative', overflow:'hidden' }}>
           {loading && (
-            <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', zIndex:5, background:'rgba(255,255,255,0.7)', backdropFilter:'blur(4px)' }}>
+            <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', zIndex:5, background:'rgba(15,17,23,0.8)', backdropFilter:'blur(8px)' }}>
               <div style={{ textAlign:'center' }}>
-                <div style={{ fontSize:32, marginBottom:8 }}>⚡</div>
-                <p style={{ fontSize:14, color:'var(--text-secondary)', fontWeight:500 }}>Строим карту компании...</p>
+                <div style={{ fontSize:36, marginBottom:8 }}>⚡</div>
+                <div style={{ fontSize:14, color:'#8892aa', fontWeight:500 }}>Строим карту...</div>
               </div>
             </div>
           )}
@@ -547,91 +591,119 @@ export default function CommandCenterPage() {
             <TimelineView logs={activityLog} />
           ) : (
             <svg ref={svgRef} width="100%" height="100%"
-              onMouseDown={onSvgMouseDown}
-              onMouseMove={onSvgMouseMove}
-              onMouseUp={onSvgMouseUp}
-              onMouseLeave={onSvgMouseUp}
-              style={{ cursor: isPanning ? 'grabbing' : 'grab', userSelect:'none' }}>
+              onMouseDown={onBgMouseDown}
+              onMouseMove={onMouseMove}
+              onMouseUp={onMouseUp}
+              onMouseLeave={onMouseUp}
+              style={{ cursor: isPanning ? 'grabbing' : dragging ? 'grabbing' : 'grab' }}>
 
               {/* Background */}
-              <rect width="100%" height="100%" fill="var(--bg-app)" />
+              <rect width="100%" height="100%" fill="#0f1117" />
 
               {/* Dot grid */}
-              <pattern id="grid" x={pan.x % (20*zoom)} y={pan.y % (20*zoom)} width={20*zoom} height={20*zoom} patternUnits="userSpaceOnUse">
-                <circle cx={1} cy={1} r={0.8} fill="var(--border)" />
+              <pattern id="dots" x={(pan.x % (24*zoom))} y={(pan.y % (24*zoom))} width={24*zoom} height={24*zoom} patternUnits="userSpaceOnUse">
+                <circle cx={1} cy={1} r={0.7} fill="rgba(255,255,255,0.06)" />
               </pattern>
-              <rect width="100%" height="100%" fill="url(#grid)" />
+              <rect width="100%" height="100%" fill="url(#dots)" />
 
+              {/* Depth bands */}
               <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
-                {/* Edges */}
-                {filteredEdges.map(e => {
-                  const s = nodes.find(n=>n.id===e.source);
-                  const t = nodes.find(n=>n.id===e.target);
-                  if (!s || !t) return null;
-                  const mx = (s.x+t.x)/2, my = (s.y+t.y)/2;
-                  const isSelected = selected && (selected.id===e.source||selected.id===e.target);
+                {Array.from({length:maxDepth+1},(_,d)=>{
+                  const bandNodes = nodes.filter(n=>n.depth===d);
+                  if (!bandNodes.length) return null;
+                  const minY = Math.min(...bandNodes.map(n=>n.y)) - NODE_H/2 - 12;
+                  const maxY = Math.max(...bandNodes.map(n=>n.y)) + NODE_H/2 + 12;
                   return (
-                    <g key={e.id}>
-                      <line x1={s.x} y1={s.y} x2={t.x} y2={t.y}
-                        stroke={isSelected ? 'var(--accent)' : 'var(--border-strong)'}
-                        strokeWidth={isSelected ? 2 : 1}
-                        strokeOpacity={isSelected ? 0.8 : 0.5}
-                        strokeDasharray={e.type==='CUSTOM'?'4,3':undefined} />
-                      {isSelected && e.label && (
-                        <text x={mx} y={my-6} textAnchor="middle" fontSize={9} fill="var(--accent)" fontWeight={600}>{e.label}</text>
-                      )}
-                    </g>
+                    <rect key={d} x={-3000} y={minY} width={6000} height={maxY-minY}
+                      fill={d%2===0?'rgba(255,255,255,0.01)':'rgba(255,255,255,0.015)'} />
                   );
                 })}
 
+                {/* Edges */}
+                <g>
+                  {visibleEdges.map(e => {
+                    const st = EDGE_STYLE[e.kind] ?? EDGE_STYLE.hierarchy;
+                    const d = edgePath(e);
+                    if (!d) return null;
+                    const isHighlighted = selected && (selected.id===e.source||selected.id===e.target);
+                    return (
+                      <path key={e.id} d={d} fill="none"
+                        stroke={isHighlighted ? '#a89bf8' : st.stroke}
+                        strokeWidth={isHighlighted ? 2 : st.width}
+                        strokeDasharray={st.dash}
+                        strokeOpacity={isHighlighted ? 0.9 : 0.5}
+                        markerEnd={e.kind==='hierarchy'?'url(#arrow)':undefined} />
+                    );
+                  })}
+                </g>
+
+                {/* Arrow marker */}
+                <defs>
+                  <marker id="arrow" viewBox="0 0 8 8" refX={7} refY={4} markerWidth={6} markerHeight={6} orient="auto">
+                    <path d="M1 1L7 4L1 7" fill="none" stroke="#555" strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" />
+                  </marker>
+                </defs>
+
                 {/* Nodes */}
-                {filteredNodes.map(node => {
-                  const r = NODE_RADIUS[node.type] ?? 20;
-                  const color = NODE_COLORS[node.type] ?? '#6b7280';
+                {visibleNodes.map(node => {
+                  const color = NODE_COLOR[node.type] ?? '#6b7280';
                   const isSelected = selected?.id === node.id;
-                  const isHovered  = hovered?.id  === node.id;
-                  const dimmed = selected && !isSelected && !edges.some(e=>(e.source===selected.id&&e.target===node.id)||(e.target===selected.id&&e.source===node.id));
+                  const isConnected = selected && edges.some(e=>(e.source===selected.id&&e.target===node.id)||(e.target===selected.id&&e.source===node.id));
+                  const dimmed = selected && !isSelected && !isConnected;
 
                   return (
-                    <g key={node.id}
-                      transform={`translate(${node.x},${node.y})`}
-                      onClick={()=>onNodeClick(node)}
-                      onDoubleClick={()=>onNodeDblClick(node)}
-                      onMouseEnter={()=>setHovered(node)}
-                      onMouseLeave={()=>setHovered(null)}
-                      onMouseDown={e=>{e.stopPropagation();setDraggingNode(node.id);node.pinned=true;}}
-                      style={{ cursor:'pointer' }}>
+                    <g key={node.id} data-node="true"
+                      transform={`translate(${node.x - NODE_W/2},${node.y - NODE_H/2})`}
+                      onClick={e => onNodeClick(e, node)}
+                      onDoubleClick={() => onNodeDblClick(node)}
+                      onMouseDown={e => onNodeMouseDown(e, node)}
+                      style={{ cursor:'pointer', userSelect:'none', opacity: dimmed ? 0.25 : 1, transition:'opacity 0.2s' }}>
 
-                      {/* Glow ring on select */}
-                      {isSelected && <circle r={r+8} fill={color} fillOpacity={0.15} />}
-                      {isHovered && !isSelected && <circle r={r+5} fill={color} fillOpacity={0.08} />}
+                      {/* Card shadow */}
+                      {isSelected && <rect x={-3} y={-3} width={NODE_W+6} height={NODE_H+6} rx={10} fill={color} fillOpacity={0.2} />}
 
-                      {/* Node circle */}
-                      <circle r={r} fill={dimmed ? 'var(--bg-tertiary)' : color}
-                        fillOpacity={dimmed ? 0.4 : 1}
-                        stroke={isSelected ? 'white' : 'transparent'}
-                        strokeWidth={isSelected ? 2.5 : 0} />
+                      {/* Card background */}
+                      <rect width={NODE_W} height={NODE_H} rx={8}
+                        fill={'#1a1e2a'}
+                        stroke={isSelected ? color : isConnected ? color+'80' : 'rgba(255,255,255,0.1)'}
+                        strokeWidth={isSelected ? 2 : isConnected ? 1.5 : 1} />
+
+                      {/* Left accent bar */}
+                      <rect x={0} y={0} width={4} height={NODE_H} rx={4} fill={color} />
+                      <rect x={0} y={0} width={4} height={NODE_H} rx={0} fill={color} />
+                      <rect x={0} y={0} width={4} height={NODE_H} rx={4} ry={4} fill={color}
+                        style={{ borderRadius:'4px 0 0 4px' }} />
 
                       {/* Icon */}
-                      <text textAnchor="middle" dominantBaseline="central" fontSize={r*0.7}
-                        opacity={dimmed ? 0.3 : 1}>
+                      <text x={18} y={NODE_H/2} textAnchor="middle" dominantBaseline="central" fontSize={14}>
                         {NODE_ICONS[node.type] ?? '•'}
                       </text>
 
-                      {/* Label */}
-                      <text y={r+12} textAnchor="middle" fontSize={10} fontWeight={500}
-                        fill={dimmed ? 'var(--text-disabled)' : 'var(--text-primary)'}
-                        style={{ pointerEvents:'none' }}>
-                        {node.label.length > 18 ? node.label.slice(0,16)+'…' : node.label}
+                      {/* Type label */}
+                      <text x={28} y={14} fontSize={8} fontWeight={700} fill={color} letterSpacing={0.3}>
+                        {node.type}
+                      </text>
+
+                      {/* Main label */}
+                      <text x={28} y={30} fontSize={11} fontWeight={600} fill="#e8eaf0">
+                        {node.label.length > 14 ? node.label.slice(0,13)+'…' : node.label}
                       </text>
 
                       {/* Sublabel */}
                       {node.sublabel && (
-                        <text y={r+23} textAnchor="middle" fontSize={9}
-                          fill={dimmed ? 'var(--text-disabled)' : 'var(--text-muted)'}
-                          style={{ pointerEvents:'none' }}>
-                          {node.sublabel}
+                        <text x={28} y={43} fontSize={9} fill="#4a5168">
+                          {node.sublabel.length > 18 ? node.sublabel.slice(0,17)+'…' : node.sublabel}
                         </text>
+                      )}
+
+                      {/* Children count badge */}
+                      {node.children.length > 0 && (
+                        <g transform={`translate(${NODE_W-14}, ${NODE_H/2-7})`}>
+                          <rect width={14} height={14} rx={7} fill={color} fillOpacity={0.3} />
+                          <text x={7} y={7} textAnchor="middle" dominantBaseline="central" fontSize={8} fontWeight={700} fill={color}>
+                            {node.children.length}
+                          </text>
+                        </g>
                       )}
                     </g>
                   );
@@ -641,57 +713,58 @@ export default function CommandCenterPage() {
           )}
         </div>
 
-        {/* Sidebar panel — selected node info */}
+        {/* Right detail panel */}
         {selected && (
-          <div style={{ width:280, background:'var(--bg-primary)', borderLeft:'1px solid var(--border)', overflowY:'auto', flexShrink:0 }}>
-            <div style={{ padding:'14px 16px', borderBottom:'1px solid var(--border)' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
-                <span style={{ fontSize:20 }}>{NODE_ICONS[selected.type]}</span>
-                <div>
-                  <p style={{ fontSize:13, fontWeight:700, color:'var(--text-primary)', margin:0 }}>{selected.label}</p>
-                  <p style={{ fontSize:11, color:'var(--text-muted)', margin:0 }}>{selected.type} {selected.sublabel ? `· ${selected.sublabel}` : ''}</p>
+          <div style={{ width:260, background:'#151820', borderLeft:'1px solid rgba(255,255,255,0.07)', overflowY:'auto', flexShrink:0 }}>
+            <div style={{ padding:'14px 14px 10px', borderBottom:'1px solid rgba(255,255,255,0.07)' }}>
+              <div style={{ display:'flex', alignItems:'flex-start', gap:8, marginBottom:8 }}>
+                <span style={{ fontSize:22 }}>{NODE_ICONS[selected.type]}</span>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:NODE_COLOR[selected.type], marginBottom:1 }}>{selected.type}</div>
+                  <div style={{ fontSize:13, fontWeight:600, color:'#e8eaf0', lineHeight:1.3 }}>{selected.label}</div>
+                  {selected.sublabel && <div style={{ fontSize:11, color:'#4a5168', marginTop:2 }}>{selected.sublabel}</div>}
                 </div>
-                <button onClick={()=>setSelected(null)} style={{ marginLeft:'auto', background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:16 }}>✕</button>
+                <button onClick={()=>setSelected(null)} style={{ background:'none', border:'none', cursor:'pointer', color:'#4a5168', fontSize:16, flexShrink:0 }}>✕</button>
               </div>
 
-              {/* Meta info */}
+              {/* Meta fields */}
               {selected.meta && (
-                <div style={{ display:'flex', flexDirection:'column', gap:4, marginTop:8 }}>
-                  {Object.entries(selected.meta).filter(([k]) => ['status','priority','marketplace','articleId','price','email','role'].includes(k)).map(([k,v]) => (
-                    <div key={k} style={{ display:'flex', justifyContent:'space-between', fontSize:12 }}>
-                      <span style={{ color:'var(--text-muted)' }}>{k}</span>
-                      <span style={{ color:'var(--text-primary)', fontWeight:500 }}>{String(v)}</span>
+                <div style={{ display:'flex', flexDirection:'column', gap:4, marginBottom:10 }}>
+                  {Object.entries(selected.meta)
+                    .filter(([k]) => ['status','priority','marketplace','articleId','price','email','role','position'].includes(k))
+                    .map(([k,v]) => (
+                    <div key={k} style={{ display:'flex', justifyContent:'space-between', fontSize:11, gap:8 }}>
+                      <span style={{ color:'#4a5168' }}>{k}</span>
+                      <span style={{ color:'#8892aa', fontWeight:500, textAlign:'right', overflow:'hidden', textOverflow:'ellipsis' }}>{String(v)}</span>
                     </div>
                   ))}
                 </div>
               )}
 
-              {/* Open button */}
-              <button onClick={() => onNodeDblClick(selected)}
-                style={{ width:'100%', marginTop:10, padding:'8px', background:'var(--accent)', color:'white', border:'none', borderRadius:'var(--radius)', fontSize:12, fontWeight:600, cursor:'pointer' }}>
-                Открыть →
+              <button onClick={()=>onNodeDblClick(selected)}
+                style={{ width:'100%', padding:'8px', background:'#6b5ce7', color:'white', border:'none', borderRadius:7, fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                Открыть карточку →
               </button>
             </div>
 
             {/* Connected nodes */}
-            <div style={{ padding:'12px 16px' }}>
-              <p style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:8 }}>
-                Связанные объекты
-              </p>
+            <div style={{ padding:'10px 14px' }}>
+              <div style={{ fontSize:10, fontWeight:700, color:'#4a5168', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:8 }}>
+                Связанные ({edges.filter(e=>e.source===selected.id||e.target===selected.id).length})
+              </div>
               {edges.filter(e=>e.source===selected.id||e.target===selected.id).map(e => {
                 const otherId = e.source===selected.id ? e.target : e.source;
-                const other   = nodes.find(n=>n.id===otherId);
+                const other = nodes.find(n=>n.id===otherId);
                 if (!other) return null;
+                const st = EDGE_STYLE[e.kind];
                 return (
                   <div key={e.id} onClick={() => setSelected(other)}
-                    style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 8px', borderRadius:'var(--radius-sm)', cursor:'pointer', marginBottom:2, transition:'background var(--transition)' }}
-                    onMouseEnter={el=>(el.currentTarget as HTMLElement).style.background='var(--bg-hover)'}
+                    style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 8px', borderRadius:6, cursor:'pointer', marginBottom:2 }}
+                    onMouseEnter={el=>(el.currentTarget as HTMLElement).style.background='rgba(255,255,255,0.05)'}
                     onMouseLeave={el=>(el.currentTarget as HTMLElement).style.background='transparent'}>
-                    <span>{NODE_ICONS[other.type]}</span>
-                    <div style={{ minWidth:0 }}>
-                      <p style={{ fontSize:12, fontWeight:500, color:'var(--text-primary)', margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{other.label}</p>
-                      {e.label && <p style={{ fontSize:10, color:'var(--accent)', margin:0 }}>{e.label}</p>}
-                    </div>
+                    <div style={{ width:8, height:8, borderRadius:'50%', background:NODE_COLOR[other.type]??'#666', flexShrink:0 }} />
+                    <span style={{ fontSize:12, color:'#8892aa', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{other.label}</span>
+                    <svg width={20} height={8}><line x1={0} y1={4} x2={20} y2={4} stroke={st.stroke} strokeWidth={st.width} strokeDasharray={st.dash} /></svg>
                   </div>
                 );
               })}
@@ -699,61 +772,43 @@ export default function CommandCenterPage() {
           </div>
         )}
       </div>
-
-      {/* Legend */}
-      <div style={{ display:'flex', gap:12, padding:'6px 20px', background:'var(--bg-primary)', borderTop:'1px solid var(--border)', flexShrink:0 }}>
-        {Object.entries(NODE_ICONS).map(([type, icon]) => (
-          <div key={type} style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, color:'var(--text-muted)' }}>
-            <div style={{ width:10, height:10, borderRadius:'50%', background:NODE_COLORS[type] }} />
-            {icon} {type}
-          </div>
-        ))}
-        <div style={{ marginLeft:'auto', fontSize:11, color:'var(--text-muted)' }}>
-          Клик — детали · Двойной клик — открыть · Перетащи узел · Скролл — зум
-        </div>
-      </div>
     </div>
   );
 }
 
 // ─── Timeline View ────────────────────────────────────────────────────────────
 function TimelineView({ logs }: { logs: any[] }) {
-  const ACTION_ICONS: Record<string,string> = {
-    CREATED:'✨', UPDATED:'✏️', STATUS_CHANGED:'🔄', ASSIGNED:'👤',
-    LINKED:'🔗', COMMENTED:'💬', FILE_ADDED:'📎', DELETED:'🗑️',
-  };
-  const ACTION_LABELS: Record<string,string> = {
-    CREATED:'Создано', UPDATED:'Обновлено', STATUS_CHANGED:'Статус изменён',
-    ASSIGNED:'Назначен', LINKED:'Связь добавлена', COMMENTED:'Комментарий',
-    FILE_ADDED:'Файл', DELETED:'Удалено',
-  };
+  const ICONS: Record<string,string> = { CREATED:'✨', UPDATED:'✏️', STATUS_CHANGED:'🔄', ASSIGNED:'👤', LINKED:'🔗', COMMENTED:'💬', DELETED:'🗑️' };
+  const LABELS: Record<string,string> = { CREATED:'Создано', UPDATED:'Обновлено', STATUS_CHANGED:'Статус', ASSIGNED:'Назначен', LINKED:'Связь', COMMENTED:'Комментарий', DELETED:'Удалено' };
 
   if (!logs.length) return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', flexDirection:'column', gap:8 }}>
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', flexDirection:'column', gap:8, background:'#0f1117' }}>
       <div style={{ fontSize:40 }}>📅</div>
-      <p style={{ fontSize:14, color:'var(--text-muted)' }}>История будет накапливаться по мере работы с системой</p>
+      <p style={{ fontSize:14, color:'#4a5168' }}>История будет накапливаться по мере работы</p>
     </div>
   );
 
   return (
-    <div style={{ maxWidth:640, margin:'0 auto', padding:'24px 20px', overflowY:'auto', height:'100%' }}>
-      <h2 style={{ fontSize:16, fontWeight:700, color:'var(--text-primary)', marginBottom:20 }}>📅 Timeline компании</h2>
-      {logs.map((log, i) => (
-        <div key={log.id} style={{ display:'flex', gap:12, paddingBottom:16, position:'relative' }}>
-          {i < logs.length-1 && <div style={{ position:'absolute', left:15, top:28, bottom:0, width:1, background:'var(--border)' }} />}
-          <div style={{ width:30, height:30, borderRadius:'50%', background:'var(--accent-light)', border:'2px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, flexShrink:0, zIndex:1 }}>
-            {ACTION_ICONS[log.action] ?? '•'}
-          </div>
-          <div style={{ flex:1, paddingTop:4 }}>
-            <div style={{ display:'flex', alignItems:'baseline', gap:8, flexWrap:'wrap' }}>
-              <span style={{ fontSize:13, fontWeight:600, color:'var(--text-primary)' }}>{ACTION_LABELS[log.action] ?? log.action}</span>
-              {log.actorName && <span style={{ fontSize:12, color:'var(--text-muted)' }}>· {log.actorName}</span>}
-              <span style={{ fontSize:11, color:'var(--text-disabled)', marginLeft:'auto' }}>{new Date(log.createdAt).toLocaleString('ru')}</span>
+    <div style={{ overflowY:'auto', height:'100%', background:'#0f1117', padding:'24px 32px' }}>
+      <div style={{ maxWidth:600, margin:'0 auto' }}>
+        <h2 style={{ fontSize:16, fontWeight:700, color:'#e8eaf0', marginBottom:20 }}>📅 Timeline компании</h2>
+        {logs.map((log, i) => (
+          <div key={log.id} style={{ display:'flex', gap:12, paddingBottom:14, position:'relative' }}>
+            {i < logs.length-1 && <div style={{ position:'absolute', left:14, top:28, bottom:0, width:1, background:'rgba(255,255,255,0.07)' }} />}
+            <div style={{ width:28, height:28, borderRadius:'50%', background:'rgba(107,92,231,0.2)', border:'1px solid rgba(107,92,231,0.4)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, flexShrink:0, zIndex:1 }}>
+              {ICONS[log.action]??'•'}
             </div>
-            {log.newValue && <p style={{ fontSize:12, color:'var(--text-secondary)', margin:'2px 0 0' }}>{log.newValue}</p>}
+            <div style={{ flex:1, paddingTop:3 }}>
+              <div style={{ display:'flex', alignItems:'baseline', gap:8, flexWrap:'wrap' }}>
+                <span style={{ fontSize:13, fontWeight:600, color:'#a89bf8' }}>{LABELS[log.action]??log.action}</span>
+                {log.actorName && <span style={{ fontSize:11, color:'#4a5168' }}>· {log.actorName}</span>}
+                <span style={{ fontSize:10, color:'#2e3348', marginLeft:'auto' }}>{new Date(log.createdAt).toLocaleString('ru')}</span>
+              </div>
+              {log.newValue && <p style={{ fontSize:12, color:'#5a6480', margin:'2px 0 0' }}>{log.newValue}</p>}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
