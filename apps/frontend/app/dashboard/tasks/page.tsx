@@ -8,12 +8,12 @@ import { useCustomFields } from '@/hooks/useCustomFields';
 import { FieldRenderer } from '@/components/custom-fields/FieldRenderer';
 
 const STATUS_COLS = [
-  { id:'NEW',         label:'Новые',          dot:'#9B97CC', colBg:'#F8F7FF', accentC:'#7F77DD', accentBg:'#EDE9FE', next:'IN_PROGRESS', nextLabel:'В работу' },
-  { id:'IN_PROGRESS', label:'В работе',       dot:'#2563EB', colBg:'#F0F7FF', accentC:'#2563EB', accentBg:'#DBEAFE', next:'REVIEW',      nextLabel:'На проверку' },
-  { id:'REVIEW',      label:'Проверка',       dot:'#D97706', colBg:'#FFFBF0', accentC:'#D97706', accentBg:'#FEF3C7', next:'DONE',        nextLabel:'Готово' },
-  { id:'BLOCKED',     label:'Заблокировано',  dot:'#DC2626', colBg:'#FFF5F5', accentC:'#DC2626', accentBg:'#FEE2E2', next:'IN_PROGRESS', nextLabel:'Вернуть в работу' },
-  { id:'OVERDUE',     label:'Просрочено',     dot:'#DC2626', colBg:'#FFF0F0', accentC:'#DC2626', accentBg:'#FEE2E2', next:'IN_PROGRESS', nextLabel:'Вернуть в работу' },
-  { id:'DONE',        label:'Готово',         dot:'#16A34A', colBg:'#F0FDF4', accentC:'#16A34A', accentBg:'#DCFCE7', next:null,          nextLabel:'' },
+  { id:'NEW',         label:'Новые',          dot:'var(--accent)',  colBg:'var(--bg-app)', accentC:'var(--accent)',  accentBg:'var(--accent-light)', next:'IN_PROGRESS', nextLabel:'В работу' },
+  { id:'IN_PROGRESS', label:'В работе',       dot:'var(--blue)',    colBg:'var(--bg-app)', accentC:'var(--blue)',    accentBg:'var(--blue-bg)',      next:'REVIEW',      nextLabel:'На проверку' },
+  { id:'REVIEW',      label:'Проверка',       dot:'var(--orange)',  colBg:'var(--bg-app)', accentC:'var(--orange)',  accentBg:'var(--orange-bg)',    next:'DONE',        nextLabel:'Готово' },
+  { id:'BLOCKED',     label:'Заблокировано',  dot:'var(--red)',     colBg:'var(--bg-app)', accentC:'var(--red)',     accentBg:'var(--red-bg)',       next:'IN_PROGRESS', nextLabel:'Вернуть в работу' },
+  { id:'OVERDUE',     label:'Просрочено',     dot:'var(--red)',     colBg:'var(--bg-app)', accentC:'var(--red)',     accentBg:'var(--red-bg)',       next:'IN_PROGRESS', nextLabel:'Вернуть в работу' },
+  { id:'DONE',        label:'Готово',         dot:'var(--green)',   colBg:'var(--bg-app)', accentC:'var(--green)',   accentBg:'var(--green-bg)',     next:null,          nextLabel:'' },
 ];
 
 const PRIORITY_STYLE: Record<string,{c:string;bg:string;l:string}> = {
@@ -524,19 +524,19 @@ export default function TasksPage() {
                 <div style={{ background:'white', borderRadius:'16px 16px 0 0', padding:'12px 14px', display:'flex', alignItems:'center', gap:'8px', borderBottom:'1px solid #F3F0FF', boxShadow:'0 4px 16px rgba(127,119,221,0.06)' }}>
                   <span style={{ width:'8px', height:'8px', borderRadius:'50%', background:col.dot, flexShrink:0, boxShadow:`0 0 6px ${col.dot}60` }} />
                   <span style={{ fontSize:'13px', fontWeight:700, color:'#1a1040' }}>{col.label}</span>
-                  <span style={{ marginLeft:'auto', fontSize:'10px', fontWeight:700, color:col.accentC, background:col.accentBg, padding:'2px 8px', borderRadius:'10px' }}>
+                  <span style={{ marginLeft:'auto', fontSize:'11px', fontWeight:600, color:'var(--text-muted)', background:'var(--bg-secondary)', padding:'2px 8px', borderRadius:'20px', border:'1px solid var(--border)' }}>
                     {hasActiveFilters ? `${tasks.length}/${allTasks.length}` : tasks.length}
                   </span>
                 </div>
                 {/* Tasks area */}
-                <div style={{ flex:1, padding:'8px', background:isDragOver?col.accentBg:col.colBg, borderRadius:'0 0 16px 16px', border:isDragOver?`2px dashed ${col.accentC}40`:'2px solid transparent', overflowY:'auto', transition:'all 0.15s', display:'flex', flexDirection:'column', gap:'8px', boxShadow:'0 4px 16px rgba(127,119,221,0.04)' }}>
+                <div style={{ flex:1, padding:'8px', background:'var(--bg-app)', borderRadius:'0 0 var(--radius-xl) var(--radius-xl)', border:isDragOver?'2px dashed var(--border-focus)':'2px solid transparent', overflowY:'auto', transition:'all 0.15s', display:'flex', flexDirection:'column', gap:'6px' }}>
                   {tasks.length===0 && !isDragOver && (
                     <div style={{ padding:'24px', textAlign:'center', color:'#C4C0E8', fontSize:'12px' }}>
                       {hasActiveFilters && allTasks.length>0 ? 'Не совпадает с фильтром' : 'Нет задач'}
                     </div>
                   )}
                   {isDragOver && tasks.length===0 && (
-                    <div style={{ padding:'20px', textAlign:'center', color:col.accentC, fontSize:'12px', fontWeight:600, background:col.accentBg, borderRadius:'12px', border:`1.5px dashed ${col.accentC}60` }}>
+                    <div style={{ padding:'20px', textAlign:'center', color:'var(--text-muted)', fontSize:'12px', fontWeight:500, background:'var(--bg-secondary)', borderRadius:'var(--radius-md)', border:'1.5px dashed var(--border-strong)' }}>
                       Переместить сюда
                     </div>
                   )}
@@ -580,7 +580,7 @@ export default function TasksPage() {
                         {mounted && perms.canUpdateAnyTask && col.next && (
                           <div style={{ marginTop:'8px', paddingTop:'8px', borderTop:'1px solid #F3F0FF' }} onClick={e=>e.stopPropagation()}>
                             <button onClick={()=>moveTask(task.id,col.next!)}
-                              style={{ fontSize:'10px', fontWeight:700, color:col.accentC, background:col.accentBg, border:'none', borderRadius:'8px', padding:'4px 10px', cursor:'pointer', width:'100%' }}>
+                              style={{ fontSize:'11px', fontWeight:500, color:'var(--text-secondary)', background:'var(--bg-secondary)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:'5px 10px', cursor:'pointer', width:'100%', transition:'all var(--transition)' }}>
                               {col.nextLabel} →
                             </button>
                           </div>
@@ -589,7 +589,7 @@ export default function TasksPage() {
                     );
                   })}
                   {isDragOver && tasks.length>0 && (
-                    <div style={{ height:'3px', background:col.accentC, borderRadius:'3px', opacity:0.6 }} />
+                    <div style={{ height:'2px', background:'var(--border)', borderRadius:'2px' }} />
                   )}
                 </div>
               </div>

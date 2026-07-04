@@ -8,6 +8,7 @@ import { usePermissions } from '@/lib/usePermissions';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 const NAV = [
+  { href: '/dashboard/command-center', icon: 'ti-topology-star-3', label: '⚡ Command Center', admin: false },
   { href: '/dashboard',              icon: 'ti-layout-dashboard', label: 'Дашборд',        admin: false },
   { href: '/dashboard/home',          icon: 'ti-home',             label: 'Мои задачи',     admin: false },
   { href: '/dashboard/employees',    icon: 'ti-users',            label: 'Сотрудники',     admin: false },
