@@ -226,29 +226,21 @@ export default function CommandCenterPage() {
         }
       });
 
-      // ── Projects → Departments ────────────────────────────────────────────────
+      // ── Projects → Departments (using real Project.departmentId) ───────────────
       for (const p of projs) {
         const pid = `proj_${p.id}`;
-        // Try to find dept from project members
-        let parentId = 'org';
-        // Load project details to get members
+        const deptId = p.departmentId ?? p.department?.id;
+        const parentId = (deptId && added.has(`dept_${deptId}`)) ? `dept_${deptId}` : 'org';
+
+        addNode({ id: pid, type: 'PROJECT', label: p.name.slice(0, 22), sublabel: p.status, parentId, children: [], depth: 0, x: 0, y: 0, meta: p, isOrphan: parentId === 'org' });
+        const parentNode = ns.find(n => n.id === parentId);
+        if (parentNode) parentNode.children.push(pid);
+        addEdge({ id: `${parentId}_${pid}`, source: parentId, target: pid, kind: 'parent' });
+
+        // Project members → associative edges to project (not new tree nodes, just links)
         try {
           const pd = await apiFetch(`${API}/api/v1/projects/${p.id}`);
           const members = pd.members ?? [];
-          // Find dept from first member
-          if (members.length > 0) {
-            const firstMember = emps.find((e: any) => e.id === (members[0].userId ?? members[0].id));
-            if (firstMember?.departmentId) {
-              parentId = `dept_${firstMember.departmentId}`;
-            }
-          }
-
-          addNode({ id: pid, type: 'PROJECT', label: p.name.slice(0, 22), sublabel: p.status, parentId, children: [], depth: 0, x: 0, y: 0, meta: p });
-          const parentNode = ns.find(n => n.id === parentId);
-          if (parentNode) parentNode.children.push(pid);
-          addEdge({ id: `${parentId}_${pid}`, source: parentId, target: pid, kind: 'parent' });
-
-          // Project members → edges to project (not new nodes if already added)
           members.slice(0, 5).forEach((m: any) => {
             const mId = m.userId ?? m.id;
             const eid = `emp_${mId}`;
@@ -257,7 +249,7 @@ export default function CommandCenterPage() {
             } else {
               const emp = emps.find((e: any) => e.id === mId);
               if (emp) {
-                addNode({ id: eid, type: 'EMPLOYEE', label: emp.name, sublabel: emp.role ?? '', parentId: pid, children: [], depth: 0, x: 0, y: 0, meta: emp });
+                addNode({ id: eid, type: 'EMPLOYEE', label: emp.name, sublabel: emp.role ?? '', parentId: pid, children: [], depth: 0, x: 0, y: 0, meta: emp, isOrphan: true });
                 ns.find(n => n.id === pid)!.children.push(eid);
                 addEdge({ id: `${pid}_${eid}`, source: pid, target: eid, kind: 'member' });
                 empAdded.add(mId);

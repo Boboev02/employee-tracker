@@ -51,8 +51,9 @@ export class TaskRepository {
     if (filters.productId)    where.productId    = filters.productId;
 
     // parentId filter: if explicitly passed — get subtasks; if not passed — get top-level only
+    // Note: query strings send parentId=null as the literal string "null", not JS null
     if (filters.parentId !== undefined) {
-      where.parentId = filters.parentId || null;
+      where.parentId = (filters.parentId === 'null' || filters.parentId === '' || !filters.parentId) ? null : filters.parentId;
     } else {
       where.parentId = null; // default: only top-level tasks
     }
