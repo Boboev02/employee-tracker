@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 export function useCountUp(value: number, durationMs = 900, delayMs = 200): number {
   const [display, setDisplay] = useState(value);
   const prevValue = useRef<number | null>(null);
-  const rafId = useRef<number>();
+  const rafId = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     // Skip animating if value hasn't actually changed (avoids re-animating on unrelated re-renders)
