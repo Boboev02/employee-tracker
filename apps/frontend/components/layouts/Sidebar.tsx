@@ -7,16 +7,31 @@ import { useSocket } from '@/lib/useSocket';
 import { usePermissions } from '@/lib/usePermissions';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
-const NAV = [
+type NavItem = { href: string; icon: string; label: string; admin: boolean };
+type NavGroup = { id: string; label: string; icon: string; items: NavItem[] };
+type NavEntry = NavItem | NavGroup;
+
+const isGroup = (e: NavEntry): e is NavGroup => 'items' in e;
+
+const NAV: NavEntry[] = [
   { href: '/dashboard/command-center', icon: 'ti-topology-star-3', label: '⚡ Command Center', admin: false },
   { href: '/dashboard',              icon: 'ti-layout-dashboard', label: 'Дашборд',        admin: false },
-  { href: '/dashboard/home',          icon: 'ti-home',             label: 'Мои задачи',     admin: false },
   { href: '/dashboard/employees',    icon: 'ti-users',            label: 'Сотрудники',     admin: false },
-  { href: '/dashboard/tasks',        icon: 'ti-checkbox',         label: 'Задачи',         admin: false },
-  { href: '/dashboard/projects',     icon: 'ti-layout-kanban',    label: 'Проекты',        admin: false },
+
+  {
+    id: 'pm', label: 'Управление проектами и задачами', icon: 'ti-briefcase',
+    items: [
+      { href: '/dashboard/tasks',        icon: 'ti-checkbox',         label: 'Задачи',         admin: false },
+      { href: '/dashboard/home',          icon: 'ti-home',             label: 'Мои задачи',     admin: false },
+      { href: '/dashboard/projects',     icon: 'ti-layout-kanban',    label: 'Проекты',        admin: false },
+      { href: '/dashboard/teams',        icon: 'ti-tag',              label: 'Команды',        admin: true  },
+      { href: '/dashboard/dictionaries', icon: 'ti-list-details',     label: 'Справочники',    admin: true  },
+      { href: '/dashboard/settings/custom-fields', icon: 'ti-adjustments-horizontal', label: 'Поля задач', admin: true },
+    ],
+  },
+
   { href: '/dashboard/crm',          icon: 'ti-chart-arrows',     label: 'CRM',            admin: false },
   { href: '/dashboard/analytics',    icon: 'ti-chart-bar',        label: 'Аналитика',      admin: false },
-  { href: '/dashboard/teams',        icon: 'ti-tag',              label: 'Команды',        admin: true  },
   { href: '/dashboard/productivity', icon: 'ti-star',             label: 'Продуктивность', admin: true  },
   { href: '/dashboard/timesheet',    icon: 'ti-calendar',         label: 'Табель',         admin: false },
   { href: '/dashboard/reports',      icon: 'ti-file-report',      label: 'Отчёты и экспорт', admin: true  },
@@ -28,8 +43,6 @@ const NAV = [
   { href: '/dashboard/reviews',      icon: 'ti-star',             label: 'Отзывы WB',      admin: true  },
   { href: '/dashboard/calls',        icon: 'ti-video',            label: 'Видеозвонки',    admin: false },
   { href: '/dashboard/notebook', icon: 'ti-notebook', label: 'Мой блокнот', admin: false },
-  { href: '/dashboard/dictionaries', icon: 'ti-list-details',     label: 'Справочники',    admin: true  },
-  { href: '/dashboard/settings/custom-fields', icon: 'ti-adjustments-horizontal', label: 'Поля задач', admin: true },
   { href: '/dashboard/settings',     icon: 'ti-settings',         label: 'Настройки',      admin: true  },
   { href: '/dashboard/audit',        icon: 'ti-shield-lock',      label: 'Журнал действий', admin: true  },
 ];
@@ -136,9 +149,13 @@ export function Sidebar() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const items = mounted
-    ? NAV.filter(n => !n.admin || perms.isAdmin || perms.isManager)
-    : NAV.filter(n => !n.admin);
+  const filterAdmin = (n: NavItem) => !n.admin || perms.isAdmin || perms.isManager;
+  const items: NavEntry[] = mounted
+    ? NAV.map(e => isGroup(e) ? { ...e, items: e.items.filter(filterAdmin) } : e).filter(e => isGroup(e) ? e.items.length > 0 : filterAdmin(e))
+    : NAV.filter(e => !isGroup(e) && !e.admin);
+
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ pm: true });
+  const toggleGroup = (id: string) => setOpenGroups(p => ({ ...p, [id]: !p[id] }));
 
   const NOTIF_ICONS: Record<string, string> = {
     task_assigned: 'ti-clipboard-plus',
@@ -314,7 +331,41 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav style={S.nav}>
-        {items.map(item => {
+        {items.map(entry => {
+          if (isGroup(entry)) {
+            const isOpen = openGroups[entry.id] ?? false;
+            const groupActive = entry.items.some(it => pathname === it.href || (it.href !== '/dashboard' && pathname.startsWith(it.href)));
+            return (
+              <div key={entry.id}>
+                <button onClick={() => toggleGroup(entry.id)}
+                  style={{ display:'flex', alignItems:'center', gap:'9px', width:'100%', padding:'6px 10px', borderRadius:'var(--radius)', background: groupActive && !isOpen ? 'var(--accent-light)' : 'transparent', border:'none', cursor:'pointer', transition:'background var(--transition)' }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = (groupActive && !isOpen) ? 'var(--accent-light)' : 'transparent'}>
+                  <i className={'ti ' + entry.icon} style={{ fontSize:'16px', color: groupActive ? 'var(--accent)' : 'var(--text-muted)', flexShrink:0, lineHeight:1 }} aria-hidden="true"/>
+                  <span style={{ fontSize:'13px', fontWeight: groupActive ? 500 : 400, color: groupActive ? 'var(--accent)' : 'var(--text-secondary)', flex:1, textAlign:'left' }}>{entry.label}</span>
+                  <i className={'ti ' + (isOpen ? 'ti-chevron-down' : 'ti-chevron-right')} style={{ fontSize:'13px', color:'var(--text-muted)', transition:'transform var(--transition)' }} aria-hidden="true"/>
+                </button>
+                {isOpen && (
+                  <div style={{ display:'flex', flexDirection:'column', gap:'1px', marginTop:'2px', marginLeft:'8px', paddingLeft:'12px', borderLeft:'1px solid var(--border)' }}>
+                    {entry.items.map(item => {
+                      const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
+                      return (
+                        <Link key={item.href} href={item.href}
+                          style={{ display:'flex', alignItems:'center', gap:'9px', padding:'6px 10px', borderRadius:'var(--radius)', textDecoration:'none', background: active ? 'var(--accent-light)' : 'transparent', transition:'background var(--transition)' }}
+                          onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+                          onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
+                          <i className={'ti ' + item.icon} style={{ fontSize:'15px', color: active ? 'var(--accent)' : 'var(--text-muted)', flexShrink:0, lineHeight:1 }} aria-hidden="true"/>
+                          <span style={{ fontSize:'13px', fontWeight: active ? 500 : 400, color: active ? 'var(--accent)' : 'var(--text-secondary)' }}>{item.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          const item = entry;
           const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
           return (
             <Link key={item.href} href={item.href}
