@@ -227,7 +227,13 @@ export default function DictionariesPage() {
                     ) : (
                       <>
                         <div style={{ flex: 1 }}>
-                          <span style={{ fontSize: '13px', fontWeight: 700, color: '#1a1040' }}>{item.name}</span>
+                          {tab === 'departments' ? (
+                            <a href={`/dashboard/departments/${item.id}`} style={{ fontSize: '13px', fontWeight: 700, color: '#1a1040', textDecoration:'none' }}
+                              onMouseEnter={e=>(e.currentTarget as HTMLAnchorElement).style.textDecoration='underline'}
+                              onMouseLeave={e=>(e.currentTarget as HTMLAnchorElement).style.textDecoration='none'}>{item.name}</a>
+                          ) : (
+                            <span style={{ fontSize: '13px', fontWeight: 700, color: '#1a1040' }}>{item.name}</span>
+                          )}
                           {item.description && <span style={{ fontSize: '12px', color: '#9B97CC', marginLeft: '8px' }}>{item.description}</span>}
                           {tab === 'departments' && item._count && (
                             <span style={{ fontSize: '11px', color: '#9B97CC', marginLeft: '8px' }}>

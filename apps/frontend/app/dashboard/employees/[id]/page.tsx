@@ -247,6 +247,55 @@ export default function EmployeeProfilePage() {
             </div>
           )}
 
+          {/* Отделы / Проекты / Задачи */}
+          {(emp.departments?.length > 0 || emp.projects?.length > 0 || emp.tasks?.length > 0) && (
+            <div style={card}>
+              <p style={{ fontSize:'11px', fontWeight:700, color:'#9B97CC', textTransform:'uppercase', letterSpacing:'0.5px', margin:'0 0 14px' }}>Связи</p>
+
+              {emp.departments?.length > 0 && (
+                <div style={{ marginBottom:14 }}>
+                  <p style={{ fontSize:11, color:'#9B97CC', margin:'0 0 6px', fontWeight:600 }}>🏢 Отделы</p>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                    {emp.departments.map((d:any) => (
+                      <span key={d.id} style={{ display:'flex', alignItems:'center', gap:5, fontSize:12, fontWeight:600, color:'#1a1040', background:'#F8F7FF', padding:'4px 10px', borderRadius:20 }}>
+                        <span style={{ width:7, height:7, borderRadius:'50%', background:d.color??'#7F77DD' }} /> {d.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {emp.projects?.length > 0 && (
+                <div style={{ marginBottom:14 }}>
+                  <p style={{ fontSize:11, color:'#9B97CC', margin:'0 0 6px', fontWeight:600 }}>📁 Проекты ({emp.projects.length})</p>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                    {emp.projects.map((p:any) => (
+                      <a key={p.id} href={`/dashboard/projects/${p.id}`} style={{ fontSize:12, fontWeight:600, color:'#7F77DD', background:'#EDE9FE', padding:'4px 10px', borderRadius:20, textDecoration:'none' }}>
+                        {p.name}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {emp.tasks?.length > 0 && (
+                <div>
+                  <p style={{ fontSize:11, color:'#9B97CC', margin:'0 0 6px', fontWeight:600 }}>
+                    ✅ Задачи ({emp.taskStats?.total ?? emp.tasks.length}) — готово: {emp.taskStats?.byStatus?.DONE ?? 0}
+                  </p>
+                  <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                    {emp.tasks.slice(0,8).map((t:any) => (
+                      <a key={t.id} href={`/dashboard/tasks/${t.id}`} style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, color:'#1a1040', textDecoration:'none', padding:'5px 8px', background:'#F8F7FF', borderRadius:8 }}>
+                        <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.title}</span>
+                        <span style={{ fontSize:10, fontWeight:700, color:'#9B97CC' }}>{t.status}</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {isAdmin && !editing && (
             <div style={card}>
               <p style={{fontSize:'13px',fontWeight:700,color:'#1a1040',margin:'0 0 12px'}}>Действия</p>

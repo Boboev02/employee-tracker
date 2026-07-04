@@ -60,9 +60,33 @@ export class EmployeesService {
   async getById(id: string, orgId: string) {
     const user = await this.prisma.user.findFirst({
       where: { id, orgId, deletedAt: null },
-      include: { userRoles: { include: { role: true } } },
+      include: {
+        userRoles: { include: { role: true } },
+        primaryDepartment: { select: { id: true, name: true, color: true } },
+        departmentLinks: { include: { department: { select: { id: true, name: true, color: true } } } },
+      },
     });
     if (!user) throw new NotFoundException('Employee not found');
+
+    const [projects, tasks, taskStats] = await Promise.all([
+      this.prisma.projectMember.findMany({
+        where: { userId: id, project: { orgId, deletedAt: null } },
+        include: { project: { select: { id: true, name: true, status: true, color: true } } },
+        take: 20,
+      }),
+      this.prisma.task.findMany({
+        where: { orgId, assigneeId: id, deletedAt: null },
+        select: { id: true, title: true, status: true, priority: true, dueDate: true },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      }),
+      this.prisma.task.groupBy({
+        by: ['status'],
+        where: { orgId, assigneeId: id, deletedAt: null },
+        _count: true,
+      }),
+    ]);
+
     return {
       id:        user.id,
       name:      user.name,
@@ -76,6 +100,14 @@ export class EmployeesService {
       hiredAt:   (user as any).hiredAt,
       position:  (user as any).position,
       phone:     (user as any).phone,
+      primaryDepartment: (user as any).primaryDepartment,
+      departments: user.departmentLinks.map((dl: any) => dl.department),
+      projects:    projects.map(pm => pm.project),
+      tasks,
+      taskStats: {
+        total: taskStats.reduce((s, t) => s + t._count, 0),
+        byStatus: Object.fromEntries(taskStats.map(t => [t.status, t._count])),
+      },
     };
   }
 

@@ -255,6 +255,27 @@ export default function TaskDetailPage() {
         {/* Left — description + comments */}
         <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
 
+          {/* Department / Project breadcrumb */}
+          {(task.department || task.project) && (
+            <div style={{ ...card, padding:'12px 16px', display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+              {task.department && (
+                <span style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, fontWeight:600, color:'#1a1040', background:'#F8F7FF', padding:'5px 12px', borderRadius:20 }}>
+                  <span style={{ width:8, height:8, borderRadius:'50%', background: task.department.color ?? '#7F77DD' }} />
+                  🏢 {task.department.name}
+                </span>
+              )}
+              {task.department && task.project && <span style={{ color:'#C4C0E8' }}>→</span>}
+              {task.project && (
+                <a href={`/dashboard/projects/${task.project.id}`} style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, fontWeight:600, color:'#7F77DD', background:'#EDE9FE', padding:'5px 12px', borderRadius:20, textDecoration:'none' }}>
+                  📁 {task.project.name}
+                </a>
+              )}
+              {!task.project && (
+                <span style={{ fontSize:11, color:'#D97706', background:'#FFFBEB', padding:'5px 12px', borderRadius:20 }}>⚠ Не привязана к проекту</span>
+              )}
+            </div>
+          )}
+
           {/* Description */}
           <div style={card}>
             <p style={{ fontSize:'11px', fontWeight:700, color:'#9B97CC', textTransform:'uppercase', letterSpacing:'0.5px', margin:'0 0 12px' }}>Описание</p>

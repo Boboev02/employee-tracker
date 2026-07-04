@@ -11,6 +11,9 @@ export class TaskRepository {
       include: {
         comments: { where: { deletedAt: null }, orderBy: { createdAt: 'asc' } },
         history:  { orderBy: { createdAt: 'desc' }, take: 50 },
+        project:    { select: { id: true, name: true, status: true, color: true } },
+        department: { select: { id: true, name: true, color: true } },
+        assignee:   { select: { id: true, name: true, avatarUrl: true } },
       },
     });
   }
