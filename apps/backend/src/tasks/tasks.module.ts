@@ -8,9 +8,10 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { AiClassifyController } from './ai-classify.controller';
 import { CustomFieldsModule } from '../custom-fields/custom-fields.module';
 import { RelationsModule } from '../relations/relations.module';
+import { ApprovalsModule } from '../approvals/approvals.module';
 
 @Module({
-  imports: [TelegramModule, PrismaModule, NotificationModule, CustomFieldsModule, RelationsModule],
+  imports: [TelegramModule, PrismaModule, NotificationModule, CustomFieldsModule, RelationsModule, ApprovalsModule],
   controllers: [TaskController, AiClassifyController],
   providers: [TaskService, TaskRepository],
   exports: [TaskService],
