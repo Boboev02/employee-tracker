@@ -121,6 +121,8 @@ export default function CommandCenterPage() {
   const [isPanning, setIsPanning] = useState(false);
   const panStart = useRef({ x: 0, y: 0, px: 0, py: 0 });
   const [dragging, setDragging] = useState<{ id: string; ox: number; oy: number } | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [appearedIds, setAppearedIds] = useState<Set<string>>(new Set());
   const [showOrphans, setShowOrphans] = useState(true);
   const [filterType, setFilterType] = useState<string>('ALL');
 
@@ -367,7 +369,20 @@ export default function CommandCenterPage() {
       const laid = treeLayout(ns);
       setNodes(laid);
       setEdges(es);
+      setAppearedIds(new Set());
       setTimeout(() => fitScreen(laid), 100);
+
+      // Cascading appear animation: reveal nodes depth by depth
+      const maxD = laid.length ? Math.max(...laid.map(n => n.depth)) : 0;
+      for (let d = 0; d <= maxD; d++) {
+        setTimeout(() => {
+          setAppearedIds(prev => {
+            const next = new Set(prev);
+            laid.filter(n => n.depth === d).forEach(n => next.add(n.id));
+            return next;
+          });
+        }, 150 + d * 120);
+      }
     } catch (e) { console.error(e); }
     setLoading(false);
   };
@@ -579,22 +594,40 @@ export default function CommandCenterPage() {
                 const isSel = selected?.id === node.id;
                 const isConn = selected && visEdges.some(e=>(e.source===selected.id&&e.target===node.id)||(e.target===selected.id&&e.source===node.id));
                 const dim = selected && !isSel && !isConn;
+                const isHovered = hoveredId === node.id && !dragging;
+                const hasAppeared = appearedIds.has(node.id);
+                const hoverScale = isHovered ? 1.045 : 1;
 
                 return (
                   <g key={node.id} data-node="true"
-                    transform={`translate(${node.x-NODE_W/2},${node.y-NODE_H/2})`}
-                    style={{ cursor:'pointer', opacity: dim?0.18:1, transition:'opacity 0.2s' }}
+                    transform={`translate(${node.x-NODE_W/2},${node.y-NODE_H/2}) scale(${hasAppeared ? hoverScale : 0.4})`}
+                    style={{
+                      cursor:'pointer',
+                      opacity: hasAppeared ? (dim?0.18:1) : 0,
+                      transformOrigin: `${NODE_W/2}px ${NODE_H/2}px`,
+                      transformBox: 'fill-box',
+                      transition: hasAppeared
+                        ? 'opacity 0.2s ease, transform 0.18s cubic-bezier(0.34,1.56,0.64,1)'
+                        : 'opacity 0.35s ease, transform 0.35s cubic-bezier(0.34,1.56,0.64,1)',
+                    }}
                     onClick={e=>onNodeClick(e,node)}
                     onDoubleClick={()=>onNodeDblClick(node)}
-                    onMouseDown={e=>onNodeDown(e,node)}>
+                    onMouseDown={e=>onNodeDown(e,node)}
+                    onMouseEnter={()=>setHoveredId(node.id)}
+                    onMouseLeave={()=>setHoveredId(null)}>
 
+                    {isHovered && !isSel && (
+                      <rect x={-6} y={-6} width={NODE_W+12} height={NODE_H+12} rx={12} fill={color} fillOpacity={0.12}
+                        style={{ transition:'opacity 0.15s ease' }} />
+                    )}
                     {isSel && <rect x={-4} y={-4} width={NODE_W+8} height={NODE_H+8} rx={11} fill={color} fillOpacity={0.18} />}
 
                     {/* Card */}
                     <rect width={NODE_W} height={NODE_H} rx={8} fill="#1a1e2a"
-                      stroke={isSel ? color : isConn ? color+'90' : node.isOrphan ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.1)'}
-                      strokeWidth={isSel?2:isConn?1.5:1}
-                      strokeDasharray={node.isOrphan?'4,3':undefined} />
+                      stroke={isSel ? color : isHovered ? color+'c0' : isConn ? color+'90' : node.isOrphan ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.1)'}
+                      strokeWidth={isSel?2:isHovered?1.8:isConn?1.5:1}
+                      strokeDasharray={node.isOrphan?'4,3':undefined}
+                      style={{ transition:'stroke 0.15s ease, stroke-width 0.15s ease', filter: isHovered ? `drop-shadow(0 4px 12px ${color}50)` : 'none' }} />
 
                     {/* Left bar */}
                     <rect x={0} y={0} width={4} height={NODE_H} rx={2} fill={color} />
