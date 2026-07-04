@@ -91,12 +91,12 @@ function useForceGraph(nodes: Node[], edges: Edge[], width: number, height: numb
       const es = edgesRef.current;
       if (!ns.length) { rafRef.current = requestAnimationFrame(simulate); return; }
 
-      const alpha = 0.3;
+      const alpha = 0.25;
       const repulsion = 4000;
       const linkDist  = 160;
       const linkStr   = 0.08;
       const centerStr = 0.02;
-      const damping   = 0.82;
+      const damping   = 0.86;
 
       // Repulsion
       for (let i = 0; i < ns.length; i++) {
@@ -196,6 +196,17 @@ export default function CommandCenterPage() {
 
   const h = useCallback(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
+  // Fetch with 429 retry
+  const apiFetch = useCallback(async (url: string): Promise<any> => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const r = await fetch(url, { headers: h() });
+      if (r.status === 429) { await new Promise(res => setTimeout(res, 800 * (attempt+1))); continue; }
+      if (!r.ok) return {};
+      return r.json();
+    }
+    return {};
+  }, [h]);
+
   const loadView = async (v: string) => {
     setLoading(true);
     setSelected(null);
@@ -211,18 +222,16 @@ export default function CommandCenterPage() {
 
   // ── Company View ────────────────────────────────────────────────────────────
   const loadCompanyView = async () => {
-    const [empR, projR, prodR, deptR] = await Promise.all([
-      fetch(`${API}/api/v1/employees?limit=30`, { headers: h() }),
-      fetch(`${API}/api/v1/projects?limit=20`,  { headers: h() }),
-      fetch(`${API}/api/v1/products?limit=20`,  { headers: h() }),
-      fetch(`${API}/api/v1/dictionaries/departments`, { headers: h() }),
-    ]);
-    const [empD, projD, prodD, deptD] = await Promise.all([empR.json(), projR.json(), prodR.json(), deptR.json()]);
+    // Sequential to avoid 429 throttling
+    const empD  = await apiFetch(`${API}/api/v1/employees?limit=30`);
+    const projD = await apiFetch(`${API}/api/v1/projects?limit=20`);
+    const prodD = await apiFetch(`${API}/api/v1/products?limit=20`);
+    const deptD = await apiFetch(`${API}/api/v1/dictionaries/departments`);
 
-    const emps  = empD.employees ?? empD ?? [];
-    const projs = Array.isArray(projD) ? projD : projD.data ?? [];
-    const prods = (Array.isArray(prodD) ? prodD : prodD.products ?? []).slice(0,15);
-    const depts = Array.isArray(deptD) ? deptD : [];
+    const emps  = empD.employees ?? (Array.isArray(empD) ? empD : []);
+    const projs = Array.isArray(projD) ? projD : (projD.data ?? projD.projects ?? []);
+    const prods = (Array.isArray(prodD) ? prodD : (prodD.products ?? prodD.data ?? [])).slice(0,15);
+    const depts = Array.isArray(deptD) ? deptD : (deptD.departments ?? []);
 
     const ns: Node[] = [];
     const es: Edge[] = [];
@@ -261,9 +270,8 @@ export default function CommandCenterPage() {
 
   // ── Projects View ───────────────────────────────────────────────────────────
   const loadProjectsView = async () => {
-    const r = await fetch(`${API}/api/v1/projects?limit=30`, { headers: h() });
-    const d = await r.json();
-    const projs = Array.isArray(d) ? d : d.data ?? [];
+    const d = await apiFetch(`${API}/api/v1/projects?limit=30`);
+    const projs = Array.isArray(d) ? d : (d.data ?? d.projects ?? []);
 
     const ns: Node[] = [];
     const es: Edge[] = [];
@@ -294,9 +302,8 @@ export default function CommandCenterPage() {
 
   // ── Employees View ──────────────────────────────────────────────────────────
   const loadEmployeesView = async () => {
-    const r = await fetch(`${API}/api/v1/employees?limit=50`, { headers: h() });
-    const d = await r.json();
-    const emps = d.employees ?? d ?? [];
+    const d = await apiFetch(`${API}/api/v1/employees?limit=50`);
+    const emps = d.employees ?? (Array.isArray(d) ? d : []);
 
     const ns: Node[] = [];
     const es: Edge[] = [];
@@ -327,9 +334,8 @@ export default function CommandCenterPage() {
 
   // ── Products View ───────────────────────────────────────────────────────────
   const loadProductsView = async () => {
-    const r = await fetch(`${API}/api/v1/products?limit=40`, { headers: h() });
-    const d = await r.json();
-    const prods = Array.isArray(d) ? d : d.products ?? [];
+    const d = await apiFetch(`${API}/api/v1/products?limit=40`);
+    const prods = Array.isArray(d) ? d : (d.products ?? d.data ?? []);
 
     const ns: Node[] = [];
     const es: Edge[] = [];
@@ -440,19 +446,28 @@ export default function CommandCenterPage() {
       setPan({ x: panStart.current.px + e.clientX - panStart.current.x, y: panStart.current.py + e.clientY - panStart.current.y });
     }
     if (draggingNode) {
-      const pt = svgPt(e);
+      const rect = svgRef.current!.getBoundingClientRect();
+      const x = (e.clientX - rect.left - pan.x) / zoom;
+      const y = (e.clientY - rect.top - pan.y) / zoom;
       const node = nodes.find(n=>n.id===draggingNode);
-      if (node) { node.x = pt.x; node.y = pt.y; node.fx = pt.x; node.fy = pt.y; }
+      if (node) { node.x = x; node.y = y; node.fx = x; node.fy = y; node.vx=0; node.vy=0; }
     }
   };
 
   const onSvgMouseUp = () => { setIsPanning(false); setDraggingNode(null); };
 
-  const onWheel = (e: React.WheelEvent) => {
+  const onWheel = useCallback((e: WheelEvent) => {
     e.preventDefault();
-    const factor = e.deltaY > 0 ? 0.9 : 1.1;
-    setZoom(z => Math.max(0.2, Math.min(3, z * factor)));
-  };
+    const factor = e.deltaY > 0 ? 0.92 : 1.09;
+    setZoom(z => Math.max(0.15, Math.min(4, z * factor)));
+  }, []);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [onWheel]);
 
   // ── Filter by search ─────────────────────────────────────────────────────────
   const filteredNodes = search
@@ -536,7 +551,6 @@ export default function CommandCenterPage() {
               onMouseMove={onSvgMouseMove}
               onMouseUp={onSvgMouseUp}
               onMouseLeave={onSvgMouseUp}
-              onWheel={onWheel}
               style={{ cursor: isPanning ? 'grabbing' : 'grab', userSelect:'none' }}>
 
               {/* Background */}
