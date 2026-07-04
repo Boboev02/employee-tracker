@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, HttpCode, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, HttpCode, UseGuards } from '@nestjs/common';
 import { DictionariesService } from './dictionaries.service';
 import { CurrentUser, RequirePermissions } from '../auth/decorators/index';
 import { RbacGuard } from '../auth/guards/index';
@@ -15,9 +15,21 @@ export class DictionariesController {
     return this.dicts.getDepartments(user.orgId);
   }
 
+  @Get('departments/:id')
+  @RequirePermissions('task:read:all', 'task:read:team', 'task:read:self')
+  getDepartmentDetail(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.dicts.getDepartmentDetail(user.orgId, id);
+  }
+
+  @Get('departments/:id/employees')
+  @RequirePermissions('task:read:all', 'task:read:team', 'task:read:self')
+  getDepartmentEmployees(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.dicts.getDepartmentEmployees(user.orgId, id);
+  }
+
   @Post('departments')
   @RequirePermissions('org:update')
-  createDepartment(@CurrentUser() user: any, @Body() body: { name: string; color?: string }) {
+  createDepartment(@CurrentUser() user: any, @Body() body: { name: string; color?: string; employeeIds?: string[] }) {
     return this.dicts.createDepartment(user.orgId, body);
   }
 
@@ -28,10 +40,9 @@ export class DictionariesController {
   }
 
   @Delete('departments/:id')
-  @HttpCode(204)
   @RequirePermissions('org:update')
-  deleteDepartment(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.dicts.deleteDepartment(user.orgId, id);
+  deleteDepartment(@CurrentUser() user: any, @Param('id') id: string, @Query('force') force?: string) {
+    return this.dicts.deleteDepartment(user.orgId, id, force === 'true');
   }
 
   // ===== СТАДИИ КАРТОЧЕК =====

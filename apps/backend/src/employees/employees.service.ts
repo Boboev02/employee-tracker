@@ -15,13 +15,24 @@ export class EmployeesService {
       ];
     }
     if (filters.status) where.status = filters.status;
+    if (filters.departmentId) {
+      where.OR = [
+        ...(where.OR ?? []),
+        { primaryDepartmentId: filters.departmentId },
+        { departmentLinks: { some: { departmentId: filters.departmentId } } },
+      ];
+    }
 
     const take = Math.min(parseInt(filters.limit ?? '100'), 500);
     const skip = parseInt(filters.offset ?? '0');
 
     const users = await this.prisma.user.findMany({
       where,
-      include: { userRoles: { include: { role: true } } },
+      include: {
+        userRoles: { include: { role: true } },
+        primaryDepartment: { select: { id: true, name: true, color: true } },
+        departmentLinks: { include: { department: { select: { id: true, name: true, color: true } } } },
+      },
       orderBy: { createdAt: 'desc' },
       take,
       skip,
@@ -40,6 +51,9 @@ export class EmployeesService {
       hiredAt:   (u as any).hiredAt,
       position:  (u as any).position,
       phone:     (u as any).phone,
+      departmentId: (u as any).primaryDepartmentId,
+      department:   (u as any).primaryDepartment,
+      departments:  u.departmentLinks.map((dl: any) => dl.department),
     }));
   }
 

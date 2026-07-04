@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notifications/notification.service';
 import { CustomFieldsService } from '../custom-fields/custom-fields.service';
 import { RelationsService } from '../relations/relations.service';
+import { ApprovalsService } from '../approvals/approvals.service';
 
 // Проверяет может ли пользователь редактировать/удалить конкретную задачу.
 // Если у него есть "any"-право (ADMIN/MANAGER) — разрешено всё.
@@ -24,6 +25,7 @@ export class TaskService {
     private readonly notificationService: NotificationService,
     private readonly customFields: CustomFieldsService,
     private readonly relations: RelationsService,
+    private readonly approvals: ApprovalsService,
   ) {}
 
   // Если у пользователя нет права видеть все/командные задачи — ограничиваем выборку
@@ -65,17 +67,39 @@ export class TaskService {
   }
 
   async create(orgId: string, userId: string, dto: any) {
+    let { departmentId, projectId, assigneeId, parentId } = dto;
+
+    if (parentId) {
+      // Подзадача: наследует отдел и проект от родительской задачи
+      const parent = await this.prisma.task.findFirst({ where: { id: parentId, orgId, deletedAt: null } });
+      if (!parent) throw new BadRequestException('Родительская задача не найдена');
+      departmentId = parent.departmentId;
+      projectId    = parent.projectId;
+      // Исполнитель у подзадачи не обязателен
+    } else {
+      // Обычная задача: Отдел, Проект и Исполнитель обязательны
+      if (!projectId) throw new BadRequestException('Поле "Проект" обязательно для создания задачи');
+      if (!assigneeId) throw new BadRequestException('Поле "Исполнитель" обязательно для создания задачи');
+
+      // Автонаследование: отдел определяется проектом (гарантирует согласованность)
+      const project = await this.prisma.project.findFirst({ where: { id: projectId, orgId, deletedAt: null } });
+      if (!project) throw new BadRequestException('Указанный проект не найден');
+      if (!project.departmentId) throw new BadRequestException('У выбранного проекта не задан отдел — сначала привяжите проект к отделу');
+      departmentId = project.departmentId;
+    }
+
     const task = await this.repo.create({
       orgId,
       createdById: userId,
       title:        dto.title,
       description:  dto.description,
       priority:     dto.priority ?? 'MEDIUM',
-      assigneeId:   dto.assigneeId,
+      assigneeId,
       teamId:       dto.teamId,
-      departmentId: dto.departmentId,
+      departmentId,
+      projectId,
       productId:    dto.productId,
-      parentId:     dto.parentId,
+      parentId,
       taskTypeId:   dto.taskTypeId,
       dueDate:      dto.dueDate ? new Date(dto.dueDate) : undefined,
       status:       'NEW',
@@ -159,6 +183,11 @@ export class TaskService {
       action: 'STATUS_CHANGED', field: 'status',
       oldValue: task.status, newValue: newStatus,
     }).catch(() => {});
+
+    // Auto-trigger approval flow if configured
+    await this.approvals.checkAutoTrigger(
+      orgId, userId, 'TASK', id, newStatus, task.title,
+    ).catch(() => {});
 
     // Уведомление исполнителю
     if (task.assigneeId && task.assigneeId !== userId) {

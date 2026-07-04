@@ -49,6 +49,11 @@ model User {
   notes            Note[]        @relation("UserNotes")
   ownedProjects    Project[]       @relation("ProjectOwner")
   projectComments  ProjectComment[] @relation("ProjectCommentAuthor")
+
+  // Основной отдел (для быстрых фильтров и обратной совместимости)
+  primaryDepartmentId String?
+  primaryDepartment   Department? @relation("PrimaryDeptMembers", fields: [primaryDepartmentId], references: [id])
+  departmentLinks     DepartmentMember[]
 }
 
 model Role {
@@ -425,9 +430,28 @@ model Department {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   tasks     Task[]
+  projects  Project[]
+  members   DepartmentMember[]
+  primaryMembers User[] @relation("PrimaryDeptMembers")
 
   @@index([orgId])
   @@unique([orgId, name])
+}
+
+// Сотрудник может состоять в нескольких отделах (M2M)
+model DepartmentMember {
+  id           String   @id @default(uuid())
+  departmentId String
+  userId       String
+  isPrimary    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([departmentId, userId])
+  @@index([departmentId])
+  @@index([userId])
 }
 
 model CardStage {
@@ -485,6 +509,7 @@ model Project {
   description String?   @db.Text
   status      String    @default("ACTIVE") // ACTIVE | COMPLETED | ARCHIVED | ON_HOLD
   ownerId     String
+  departmentId String?  // Обязателен на уровне API; nullable в БД для совместимости со старыми данными
   color       String?   @default("#7F77DD")
   startDate   DateTime?
   dueDate     DateTime?
@@ -494,6 +519,7 @@ model Project {
   updatedAt   DateTime  @updatedAt
 
   owner       User              @relation("ProjectOwner", fields: [ownerId], references: [id])
+  department  Department?       @relation(fields: [departmentId], references: [id])
   members     ProjectMember[]
   tasks       Task[]
   comments    ProjectComment[]
@@ -501,6 +527,7 @@ model Project {
 
   @@index([orgId, status])
   @@index([ownerId])
+  @@index([departmentId])
 }
 
 model ProjectMember {
@@ -885,4 +912,101 @@ model ActivityLog {
 
   @@index([orgId, entityType, entityId, createdAt])
   @@index([orgId, actorId])
+}
+
+// ===== APPROVAL SYSTEM =====
+
+// Шаблон маршрута согласования
+model ApprovalFlow {
+  id          String   @id @default(uuid())
+  orgId       String
+  name        String
+  description String?
+  // Триггер: MANUAL | TASK_STATUS | DEAL_STAGE | CUSTOM_FIELD
+  trigger     String   @default("MANUAL")
+  triggerConfig Json?  // { status: "REVIEW", fieldId: "xxx", value: "...", entityType: "TASK" }
+  isActive    Boolean  @default(true)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  steps    ApprovalStep[]
+  requests ApprovalRequest[]
+
+  @@index([orgId, isActive])
+}
+
+// Шаг маршрута
+model ApprovalStep {
+  id       String @id @default(uuid())
+  flowId   String
+  // Порядок шага
+  order    Int
+  name     String
+  // Тип: SEQUENTIAL (один за другим) | PARALLEL (все одновременно) | ANY_ONE (любой один)
+  type     String @default("SEQUENTIAL")
+  // Кто согласует: USER | ROLE | DEPARTMENT_HEAD | MANAGER
+  approverType String @default("USER")
+  approverIds  Json   // [userId, ...] или ["ADMIN", "MANAGER"] для role-based
+  // Дедлайн в часах (0 = без дедлайна)
+  deadlineHours Int @default(0)
+  // Действие при истечении: SKIP | ESCALATE | REJECT
+  onTimeout String @default("SKIP")
+  // Условие пропуска шага
+  skipCondition Json?
+
+  flow     ApprovalFlow      @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  decisions ApprovalDecision[]
+
+  @@index([flowId, order])
+}
+
+// Запрос на согласование (конкретный экземпляр)
+model ApprovalRequest {
+  id         String   @id @default(uuid())
+  orgId      String
+  flowId     String
+  // Что согласуем
+  entityType String   // TASK | DEAL | DOCUMENT | CUSTOM
+  entityId   String
+  entityTitle String
+  // Инициатор
+  requestedById String
+  requestedByName String
+  // Текущий шаг (индекс)
+  currentStep Int     @default(0)
+  // Статус: PENDING | APPROVED | REJECTED | CANCELLED | EXPIRED
+  status     String   @default("PENDING")
+  comment    String?  // комментарий при финальном решении
+  completedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  flow      ApprovalFlow      @relation(fields: [flowId], references: [id])
+  decisions ApprovalDecision[]
+
+  @@index([orgId, status])
+  @@index([orgId, entityType, entityId])
+  @@index([orgId, requestedById])
+}
+
+// Решение по шагу
+model ApprovalDecision {
+  id         String   @id @default(uuid())
+  requestId  String
+  stepId     String
+  approverId String
+  approverName String
+  // PENDING | APPROVED | REJECTED | SKIPPED
+  status     String   @default("PENDING")
+  comment    String?
+  decidedAt  DateTime?
+  createdAt  DateTime @default(now())
+
+  request ApprovalRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  step    ApprovalStep    @relation(fields: [stepId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, stepId, approverId])
+  @@index([requestId])
+  @@index([approverId, status])
 }

@@ -16,13 +16,16 @@ export default function ProjectsPage() {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name:'', description:'', color:'#7F77DD', dueDate:'' });
+  const [form, setForm] = useState({ name:'', description:'', color:'#7F77DD', dueDate:'', departmentId:'' });
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [formError, setFormError] = useState('');
 
   const h = () => ({ 'Content-Type':'application/json', Authorization:'Bearer '+localStorage.getItem('access_token') });
 
   useEffect(() => {
     if (!localStorage.getItem('access_token')) { router.push('/login'); return; }
     load();
+    fetch(API+'/dictionaries/departments', { headers: h() }).then(r=>r.json()).then(d=>setDepartments(Array.isArray(d)?d:[])).catch(()=>{});
   }, []);
 
   const load = async () => {
@@ -36,9 +39,17 @@ export default function ProjectsPage() {
 
   const create = async () => {
     if (!form.name.trim()) return;
+    if (!form.departmentId) { setFormError('Выберите отдел — это обязательное поле'); return; }
+    setFormError('');
     setSaving(true);
     try {
       const res = await fetch(API+'/projects', { method:'POST', headers:h(), body:JSON.stringify(form) });
+      if (!res.ok) {
+        const err = await res.json().catch(()=>({}));
+        setFormError(err.message ?? 'Ошибка создания проекта');
+        setSaving(false);
+        return;
+      }
       const p = await res.json();
       router.push('/dashboard/projects/'+p.id);
     } catch {}
@@ -87,6 +98,14 @@ export default function ProjectsPage() {
             <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
               <input placeholder="Название проекта *" value={form.name} onChange={e => setForm(f=>({...f,name:e.target.value}))} style={inp} autoFocus />
               <textarea placeholder="Описание (необязательно)" value={form.description} onChange={e => setForm(f=>({...f,description:e.target.value}))} rows={2} style={{ ...inp, resize:'vertical' }} />
+              <div>
+                <p style={{ fontSize:'11px', color:'#9B97CC', margin:'0 0 6px', fontWeight:600 }}>Отдел *</p>
+                <select value={form.departmentId} onChange={e => setForm(f=>({...f,departmentId:e.target.value}))} style={inp}>
+                  <option value="">— выбрать отдел —</option>
+                  {departments.map((d:any) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              </div>
+              {formError && <div style={{ background:'#FEF2F2', color:'#DC2626', padding:'8px 12px', borderRadius:8, fontSize:12 }}>{formError}</div>}
               <div style={{ display:'flex', gap:'10px', alignItems:'center' }}>
                 <div>
                   <p style={{ fontSize:'11px', color:'#9B97CC', margin:'0 0 6px', fontWeight:600 }}>Цвет</p>

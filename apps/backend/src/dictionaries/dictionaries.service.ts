@@ -10,24 +10,98 @@ export class DictionariesService {
     return this.prisma.department.findMany({
       where: { orgId, isActive: true },
       orderBy: { sortOrder: 'asc' },
-      include: { _count: { select: { tasks: { where: { deletedAt: null } } } } },
+      include: {
+        _count: {
+          select: {
+            tasks: { where: { deletedAt: null } },
+            projects: { where: { deletedAt: null } },
+            members: true,
+          },
+        },
+      },
     });
   }
 
-  async createDepartment(orgId: string, dto: { name: string; color?: string }) {
+  async getDepartmentDetail(orgId: string, id: string) {
+    const dept = await this.prisma.department.findFirst({
+      where: { id, orgId },
+      include: {
+        members: { include: { user: { select: { id: true, name: true, email: true, avatarUrl: true, position: true } } } },
+        projects: { where: { deletedAt: null }, select: { id: true, name: true, status: true, _count: { select: { tasks: true } } } },
+        _count: { select: { tasks: { where: { deletedAt: null } } } },
+      },
+    });
+    if (!dept) return null;
+    const completedTasks = await this.prisma.task.count({ where: { departmentId: id, orgId, status: 'DONE', deletedAt: null } });
+    return { ...dept, completedTasks };
+  }
+
+  async createDepartment(orgId: string, dto: { name: string; color?: string; employeeIds?: string[] }) {
     const maxSort = await this.prisma.department.aggregate({ where: { orgId }, _max: { sortOrder: true } });
-    return this.prisma.department.create({
+    const dept = await this.prisma.department.create({
       data: { orgId, name: dto.name, color: dto.color ?? '#7F77DD', sortOrder: (maxSort._max.sortOrder ?? 0) + 1 },
     });
+
+    // Автосвязь: привязываем выбранных сотрудников к отделу
+    if (dto.employeeIds?.length) {
+      await this.prisma.departmentMember.createMany({
+        data: dto.employeeIds.map(userId => ({ departmentId: dept.id, userId, isPrimary: true })),
+        skipDuplicates: true,
+      });
+      // Устанавливаем как основной отдел, если ещё не задан
+      await this.prisma.user.updateMany({
+        where: { id: { in: dto.employeeIds }, orgId, primaryDepartmentId: null },
+        data: { primaryDepartmentId: dept.id },
+      });
+    }
+
+    return dept;
   }
 
-  async updateDepartment(orgId: string, id: string, dto: { name?: string; color?: string; sortOrder?: number; isActive?: boolean }) {
-    return this.prisma.department.update({ where: { id, orgId }, data: dto });
+  async updateDepartment(orgId: string, id: string, dto: { name?: string; color?: string; sortOrder?: number; isActive?: boolean; employeeIds?: string[] }) {
+    const dept = await this.prisma.department.update({
+      where: { id, orgId },
+      data: { name: dto.name, color: dto.color, sortOrder: dto.sortOrder, isActive: dto.isActive },
+    });
+
+    if (dto.employeeIds) {
+      // Синхронизация состава: удаляем отсутствующих, добавляем новых
+      await this.prisma.departmentMember.deleteMany({ where: { departmentId: id, userId: { notIn: dto.employeeIds } } });
+      if (dto.employeeIds.length) {
+        await this.prisma.departmentMember.createMany({
+          data: dto.employeeIds.map(userId => ({ departmentId: id, userId })),
+          skipDuplicates: true,
+        });
+      }
+    }
+    return dept;
   }
 
-  async deleteDepartment(orgId: string, id: string) {
+  async deleteDepartment(orgId: string, id: string, force = false) {
+    const [projectCount, memberCount] = await Promise.all([
+      this.prisma.project.count({ where: { departmentId: id, orgId, deletedAt: null } }),
+      this.prisma.departmentMember.count({ where: { departmentId: id } }),
+    ]);
+
+    if (!force && (projectCount > 0 || memberCount > 0)) {
+      return {
+        error: 'HAS_DEPENDENCIES',
+        message: `В отделе есть ${projectCount} проектов и ${memberCount} сотрудников. Подтвердите удаление.`,
+        projectCount, memberCount,
+      };
+    }
+
     // Мягкое удаление — деактивируем, не удаляем (задачи сохраняются)
     return this.prisma.department.update({ where: { id, orgId }, data: { isActive: false } });
+  }
+
+  // Список сотрудников отдела (для каскадных dropdown)
+  async getDepartmentEmployees(orgId: string, departmentId: string) {
+    const members = await this.prisma.departmentMember.findMany({
+      where: { departmentId },
+      include: { user: { select: { id: true, name: true, email: true, avatarUrl: true, position: true } } },
+    });
+    return members.map(m => m.user);
   }
 
   // ===== СТАДИИ КАРТОЧЕК =====

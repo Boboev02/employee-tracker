@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -9,12 +9,14 @@ export class ProjectsService {
     const where: any = { orgId, deletedAt: null };
     if (filters.status) where.status = filters.status;
     if (filters.search) where.name = { contains: filters.search, mode: 'insensitive' };
+    if (filters.departmentId) where.departmentId = filters.departmentId;
 
     const projects = await this.prisma.project.findMany({
       where,
       orderBy: { updatedAt: 'desc' },
       include: {
         owner: { select: { id: true, name: true, avatarUrl: true } },
+        department: { select: { id: true, name: true, color: true } },
         members: { include: { project: false } },
         _count: { select: { tasks: { where: { deletedAt: null } } } },
       },
@@ -27,6 +29,7 @@ export class ProjectsService {
       where: { id, orgId, deletedAt: null },
       include: {
         owner: { select: { id: true, name: true, avatarUrl: true } },
+        department: { select: { id: true, name: true, color: true } },
         members: true,
         tasks: {
           where: { deletedAt: null },
@@ -41,14 +44,23 @@ export class ProjectsService {
       },
     });
     if (!project) throw new NotFoundException('Проект не найден');
-    return project;
+    const completedTasks = project.tasks.filter((t: any) => t.status === 'DONE').length;
+    const totalTasks = project.tasks.length;
+    return { ...project, stats: { totalTasks, completedTasks, completionPercent: totalTasks ? Math.round((completedTasks/totalTasks)*100) : 0 } };
   }
 
   async create(orgId: string, userId: string, dto: any) {
+    if (!dto.departmentId) {
+      throw new BadRequestException('Поле "Отдел" обязательно для создания проекта');
+    }
+    const dept = await this.prisma.department.findFirst({ where: { id: dto.departmentId, orgId } });
+    if (!dept) throw new BadRequestException('Указанный отдел не найден');
+
     const project = await this.prisma.project.create({
       data: {
         orgId,
         ownerId: userId,
+        departmentId: dto.departmentId,
         name: dto.name,
         description: dto.description,
         color: dto.color ?? '#7F77DD',
@@ -90,10 +102,17 @@ export class ProjectsService {
     return updated;
   }
 
-  async delete(orgId: string, id: string, userId: string) {
+  async delete(orgId: string, id: string, userId: string, force = false) {
     const project = await this.prisma.project.findFirst({ where: { id, orgId } });
     if (!project) throw new NotFoundException('Проект не найден');
     if (project.ownerId !== userId) throw new ForbiddenException('Только владелец может удалить проект');
+
+    const activeTasks = await this.prisma.task.count({
+      where: { projectId: id, orgId, deletedAt: null, status: { notIn: ['DONE'] } },
+    });
+    if (!force && activeTasks > 0) {
+      return { error: 'HAS_ACTIVE_TASKS', message: `В проекте есть ${activeTasks} активных задач. Подтвердите удаление.`, activeTasks };
+    }
 
     await this.prisma.project.update({ where: { id }, data: { deletedAt: new Date() } });
     return { success: true };

@@ -39,10 +39,9 @@ export class ProjectsController {
   }
 
   @Delete(':id')
-  @HttpCode(204)
   @RequirePermissions('task:delete')
-  delete(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.projects.delete(user.orgId, id, user.id ?? user.sub);
+  delete(@CurrentUser() user: any, @Param('id') id: string, @Query('force') force?: string) {
+    return this.projects.delete(user.orgId, id, user.id ?? user.sub, force === 'true');
   }
 
   @Post(':id/members')

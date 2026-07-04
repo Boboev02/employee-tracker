@@ -34,12 +34,14 @@ export default function TasksPage() {
   const [loading, setLoading]     = useState(true);
   const [showForm, setShowForm]   = useState(false);
   const [employees, setEmployees] = useState<any[]>([]);
-  const [newTask, setNewTask]     = useState({ title:'', priority:'MEDIUM', description:'', assigneeId:'', dueDate:'', departmentId:'', productId:'' });
+  const [newTask, setNewTask]     = useState({ title:'', priority:'MEDIUM', description:'', assigneeId:'', dueDate:'', departmentId:'', productId:'', projectId:'' });
+  const [formError, setFormError] = useState('');
   const [showProductPicker, setShowProductPicker] = useState(false);
   const [productSearch, setProductSearch] = useState('');
   const [products, setProducts] = useState<any[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [projects, setProjects] = useState<any[]>([]);
 
   const loadProducts = async (search = '') => {
     if (!token) return;
@@ -85,6 +87,8 @@ export default function TasksPage() {
       .then(r=>r.json()).then(d=>setEmployees(Array.isArray(d)?d:[])).catch(()=>{});
     fetch('https://employee-tracker.ru/api/v1/dictionaries/departments', { headers:{ Authorization:'Bearer '+t } })
       .then(r=>r.json()).then(d=>setDepartments(Array.isArray(d)?d:[])).catch(()=>{});
+    fetch('https://employee-tracker.ru/api/v1/projects?limit=50', { headers:{ Authorization:'Bearer '+t } })
+      .then(r=>r.json()).then(d=>setProjects(Array.isArray(d)?d:(d.data??[]))).catch(()=>{});
   }, []);
 
   const loadList = async (t: string) => {
@@ -139,7 +143,12 @@ export default function TasksPage() {
 
   const createTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    await fetch('https://employee-tracker.ru/api/v1/tasks', {
+    if (!newTask.projectId)    { setFormError('Поле "Проект" обязательно'); return; }
+    if (!newTask.departmentId) { setFormError('Поле "Отдел" обязательно'); return; }
+    if (!newTask.assigneeId)   { setFormError('Поле "Исполнитель" обязательно'); return; }
+    setFormError('');
+
+    const res = await fetch('https://employee-tracker.ru/api/v1/tasks', {
       method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token },
       body: JSON.stringify({
         ...newTask,
@@ -147,10 +156,16 @@ export default function TasksPage() {
         dueDate: newTask.dueDate || undefined,
         departmentId: newTask.departmentId || undefined,
         productId: newTask.productId || undefined,
+        projectId: newTask.projectId || undefined,
         customFields: Object.keys(customFieldValues).length > 0 ? customFieldValues : undefined,
       }),
     });
-    setNewTask({ title:'', priority:'MEDIUM', description:'', assigneeId:'', dueDate:'', departmentId:'', productId:'' });
+    if (!res.ok) {
+      const err = await res.json().catch(()=>({}));
+      setFormError(err.message ?? 'Ошибка создания задачи');
+      return;
+    }
+    setNewTask({ title:'', priority:'MEDIUM', description:'', assigneeId:'', dueDate:'', departmentId:'', productId:'', projectId:'' });
     setCustomFieldValues({});
     setSelectedProduct(null);
     setProductSearch('');
@@ -643,22 +658,38 @@ export default function TasksPage() {
               </div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
                 <div>
-                  <label style={{ fontSize:'10px', color:'#9B97CC', display:'block', marginBottom:'5px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.4px' }}>Исполнитель</label>
-                  <select value={newTask.assigneeId} onChange={e=>setNewTask({...newTask,assigneeId:e.target.value})} style={inp}>
-                    <option value="">Не назначен</option>
-                    {employees.map(emp=><option key={emp.id} value={emp.id}>{emp.name}</option>)}
-                  </select>
-                </div>
-                <div>
                   <label style={{ fontSize:'10px', color:'#9B97CC', display:'block', marginBottom:'5px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.4px' }}>
-                    Отдел {aiDept && newTask.departmentId !== aiDept.id && <span style={{ color:'#D97706' }}>✨</span>}
+                    Отдел * {aiDept && newTask.departmentId !== aiDept.id && <span style={{ color:'#D97706' }}>✨</span>}
                   </label>
-                  <select value={newTask.departmentId} onChange={e=>setNewTask({...newTask,departmentId:e.target.value})} style={inp}>
-                    <option value="">Не выбран</option>
+                  <select value={newTask.departmentId} onChange={e=>setNewTask({...newTask,departmentId:e.target.value,projectId:''})} style={inp} required>
+                    <option value="">— выбрать отдел —</option>
                     {departments.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
                   </select>
                 </div>
+                <div>
+                  <label style={{ fontSize:'10px', color:'#9B97CC', display:'block', marginBottom:'5px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.4px' }}>Исполнитель *</label>
+                  <select value={newTask.assigneeId} onChange={e=>setNewTask({...newTask,assigneeId:e.target.value})} style={inp} required>
+                    <option value="">— выбрать —</option>
+                    {employees.map(emp=><option key={emp.id} value={emp.id}>{emp.name}</option>)}
+                  </select>
+                </div>
               </div>
+
+              {/* Project picker — cascades from selected department */}
+              <div style={{ marginBottom:'10px' }}>
+                <label style={{ fontSize:'10px', color:'#9B97CC', display:'block', marginBottom:'5px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.4px' }}>
+                  Проект *
+                </label>
+                <select value={newTask.projectId} onChange={e=>setNewTask({...newTask,projectId:e.target.value})} style={inp} required disabled={!newTask.departmentId}>
+                  <option value="">{newTask.departmentId ? '— выбрать проект —' : 'Сначала выберите отдел'}</option>
+                  {projects.filter((p:any)=>p.departmentId===newTask.departmentId || p.department?.id===newTask.departmentId).map((p:any)=><option key={p.id} value={p.id}>📁 {p.name}</option>)}
+                </select>
+                {newTask.departmentId && projects.filter((p:any)=>p.departmentId===newTask.departmentId || p.department?.id===newTask.departmentId).length === 0 && (
+                  <p style={{ fontSize:11, color:'#D97706', margin:'4px 0 0' }}>В этом отделе нет проектов. Сначала создайте проект.</p>
+                )}
+              </div>
+
+              {formError && <div style={{ background:'#FEF2F2', color:'#DC2626', padding:'8px 12px', borderRadius:8, fontSize:12, marginBottom:8 }}>{formError}</div>}
 
               {/* Product picker */}
               <div style={{ marginBottom:'10px' }}>
