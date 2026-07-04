@@ -7,121 +7,132 @@ const API = 'https://employee-tracker.ru';
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface GNode {
   id: string;
-  type: string;
+  type: 'ORG' | 'DEPARTMENT' | 'PROJECT' | 'TASK' | 'SUBTASK' | 'EMPLOYEE' | 'ATTACHMENT' | 'ORPHAN';
   label: string;
   sublabel?: string;
-  parentId?: string | null;
+  parentId: string | null;
   children: string[];
-  x: number; y: number;
   depth: number;
+  x: number;
+  y: number;
   meta?: any;
+  isOrphan?: boolean;
 }
 
 interface GEdge {
   id: string;
   source: string;
   target: string;
-  kind: 'hierarchy' | 'relation' | 'work' | 'document';
-  label?: string;
+  kind: 'parent' | 'assignee' | 'member' | 'subtask' | 'attachment';
 }
 
-// ─── Visual config ────────────────────────────────────────────────────────────
-const NODE_COLOR: Record<string, string> = {
+// ─── Visual ───────────────────────────────────────────────────────────────────
+const COLOR: Record<string, string> = {
   ORG:        '#6b5ce7',
-  DEPARTMENT: '#e8a020',
+  DEPARTMENT: '#d4a017',
   PROJECT:    '#9b59b6',
-  PRODUCT:    '#27ae60',
   TASK:       '#3498db',
   SUBTASK:    '#2980b9',
   EMPLOYEE:   '#27ae60',
-  DOCUMENT:   '#e67e22',
-  SUPPLIER:   '#16a085',
-  DEAL:       '#e74c3c',
-  MARKETPLACE:'#2c3e50',
-  FILE:       '#95a5a6',
+  ATTACHMENT: '#95a5a6',
+  ORPHAN:     '#444',
+};
+const ICON: Record<string, string> = {
+  ORG:'🏛️', DEPARTMENT:'🏢', PROJECT:'📁', TASK:'✅',
+  SUBTASK:'☑️', EMPLOYEE:'👤', ATTACHMENT:'📎', ORPHAN:'❓',
+};
+const EDGE_COLOR: Record<string, string> = {
+  parent:     '#555',
+  assignee:   '#27ae60',
+  member:     '#16a085',
+  subtask:    '#3498db',
+  attachment: '#95a5a6',
+};
+const EDGE_DASH: Record<string, string | undefined> = {
+  parent:     undefined,
+  assignee:   '4,3',
+  member:     '4,3',
+  subtask:    undefined,
+  attachment: '2,3',
 };
 
-const NODE_ICONS: Record<string, string> = {
-  ORG:'🏛️', DEPARTMENT:'🏢', PROJECT:'📁', PRODUCT:'📦',
-  TASK:'✅', SUBTASK:'☑️', EMPLOYEE:'👤', DOCUMENT:'📄',
-  SUPPLIER:'🚚', DEAL:'💼', MARKETPLACE:'🛒', FILE:'📎',
-};
+const NODE_W = 150;
+const NODE_H = 54;
+const H_GAP  = 24;
+const V_GAP  = 80;
 
-const NODE_W = 140;
-const NODE_H = 52;
-const H_GAP  = 30;
-const V_GAP  = 90;
-
-const VIEWS = [
-  { id:'hierarchy',  label:'Иерархия',  icon:'🏛️' },
-  { id:'relation',   label:'Связи',     icon:'🔗' },
-  { id:'projects',   label:'Проекты',   icon:'📁' },
-  { id:'employees',  label:'Сотрудники',icon:'👥' },
-  { id:'products',   label:'Товары',    icon:'📦' },
-  { id:'timeline',   label:'Timeline',  icon:'📅' },
-];
-
-const EDGE_STYLE: Record<string, { stroke: string; dash?: string; width: number }> = {
-  hierarchy: { stroke: '#555', width: 1.5 },
-  relation:  { stroke: '#6b5ce7', dash: '4,3', width: 1 },
-  work:      { stroke: '#27ae60', dash: '2,2', width: 1 },
-  document:  { stroke: '#e67e22', dash: '5,3', width: 1 },
-};
-
-// ─── Tree layout (top-down Reingold–Tilford simplified) ───────────────────────
-function layoutTree(nodes: GNode[]): GNode[] {
+// ─── Tree layout ──────────────────────────────────────────────────────────────
+function treeLayout(nodes: GNode[]): GNode[] {
   const map = new Map(nodes.map(n => [n.id, n]));
-  const roots = nodes.filter(n => !n.parentId || !map.has(n.parentId));
 
-  // Assign depths
-  const assignDepth = (id: string, depth: number) => {
+  // Compute subtree widths bottom-up
+  const subtreeWidth = (id: string): number => {
+    const n = map.get(id);
+    if (!n || !n.children.length) return NODE_W + H_GAP;
+    return Math.max(NODE_W + H_GAP, n.children.reduce((s, c) => s + subtreeWidth(c), 0));
+  };
+
+  // Place nodes recursively
+  const place = (id: string, x: number, depth: number) => {
     const n = map.get(id);
     if (!n) return;
     n.depth = depth;
-    n.children.forEach(cid => assignDepth(cid, depth + 1));
+    n.y = depth * (NODE_H + V_GAP) + NODE_H / 2;
+
+    if (!n.children.length) {
+      n.x = x;
+      return;
+    }
+    const totalW = n.children.reduce((s, c) => s + subtreeWidth(c), 0);
+    let cx = x - totalW / 2;
+    for (const cid of n.children) {
+      const w = subtreeWidth(cid);
+      place(cid, cx + w / 2, depth + 1);
+      cx += w;
+    }
+    n.x = n.children.reduce((s, c) => s + (map.get(c)?.x ?? 0), 0) / n.children.length;
   };
-  roots.forEach(r => assignDepth(r.id, 0));
 
-  // Group by depth
-  const byDepth: Map<number, GNode[]> = new Map();
-  nodes.forEach(n => {
-    if (!byDepth.has(n.depth)) byDepth.set(n.depth, []);
-    byDepth.get(n.depth)!.push(n);
-  });
-
-  // Assign x positions per depth row - spread evenly
-  byDepth.forEach((row, depth) => {
-    const totalW = row.length * (NODE_W + H_GAP) - H_GAP;
-    const startX = -totalW / 2 + NODE_W / 2;
-    row.forEach((n, i) => {
-      n.x = startX + i * (NODE_W + H_GAP);
-      n.y = depth * (NODE_H + V_GAP) + NODE_H / 2;
-    });
-  });
-
+  const roots = nodes.filter(n => !n.parentId || !map.has(n.parentId));
+  let totalW = roots.reduce((s, r) => s + subtreeWidth(r.id), 0);
+  let cx = -totalW / 2;
+  for (const r of roots) {
+    const w = subtreeWidth(r.id);
+    place(r.id, cx + w / 2, 0);
+    cx += w;
+  }
   return nodes;
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Main ─────────────────────────────────────────────────────────────────────
 export default function CommandCenterPage() {
   const router = useRouter();
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [token, setToken] = useState('');
-  const [view, setView] = useState('hierarchy');
-  const [displayMode, setDisplayMode] = useState<'hierarchy'|'relation'>('hierarchy');
   const [nodes, setNodes] = useState<GNode[]>([]);
   const [edges, setEdges] = useState<GEdge[]>([]);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<GNode | null>(null);
   const [search, setSearch] = useState('');
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(0.85);
+  const [zoom, setZoom] = useState(0.75);
   const [size, setSize] = useState({ w: 1200, h: 700 });
   const [isPanning, setIsPanning] = useState(false);
   const panStart = useRef({ x: 0, y: 0, px: 0, py: 0 });
-  const [activityLog, setActivityLog] = useState<any[]>([]);
-  const [dragging, setDragging] = useState<{id:string;ox:number;oy:number}|null>(null);
+  const [dragging, setDragging] = useState<{ id: string; ox: number; oy: number } | null>(null);
+  const [showOrphans, setShowOrphans] = useState(true);
+  const [filterType, setFilterType] = useState<string>('ALL');
+
+  const h = useCallback(() => ({ Authorization: `Bearer ${token}` }), [token]);
+
+  const apiFetch = useCallback(async (url: string): Promise<any> => {
+    try {
+      const r = await fetch(url, { headers: h() });
+      if (!r.ok) return {};
+      return r.json();
+    } catch { return {}; }
+  }, [h]);
 
   useEffect(() => {
     const t = localStorage.getItem('access_token');
@@ -129,37 +140,13 @@ export default function CommandCenterPage() {
     setToken(t);
   }, []);
 
-  useEffect(() => {
-    const ro = new ResizeObserver(e => {
-      for (const en of e) setSize({ w: en.contentRect.width, h: en.contentRect.height });
-    });
-    if (containerRef.current) ro.observe(containerRef.current);
-    return () => ro.disconnect();
-  }, []);
+  useEffect(() => { if (token) build(); }, [token]);
 
-  const h = useCallback(() => ({ Authorization: `Bearer ${token}` }), [token]);
-
-  const apiFetch = useCallback(async (url: string): Promise<any> => {
-    for (let i = 0; i < 3; i++) {
-      try {
-        const r = await fetch(url, { headers: h() });
-        if (r.status === 429) { await new Promise(res => setTimeout(res, 600*(i+1))); continue; }
-        if (!r.ok) return {};
-        return r.json();
-      } catch { return {}; }
-    }
-    return {};
-  }, [h]);
-
-  useEffect(() => { if (token) load(view); }, [token, view]);
-
-  // ── Wheel zoom (passive:false) ─────────────────────────────────────────────
+  // ── Wheel zoom ───────────────────────────────────────────────────────────────
   const onWheel = useCallback((e: WheelEvent) => {
     e.preventDefault();
-    const f = e.deltaY > 0 ? 0.93 : 1.08;
-    setZoom(z => Math.max(0.1, Math.min(4, z * f)));
+    setZoom(z => Math.max(0.1, Math.min(4, z * (e.deltaY > 0 ? 0.93 : 1.08))));
   }, []);
-
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -167,604 +154,546 @@ export default function CommandCenterPage() {
     return () => el.removeEventListener('wheel', onWheel);
   }, [onWheel]);
 
-  // ── Fit to screen ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    const ro = new ResizeObserver(entries => {
+      for (const e of entries) setSize({ w: e.contentRect.width, h: e.contentRect.height });
+    });
+    if (containerRef.current) ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
   const fitScreen = useCallback((ns: GNode[]) => {
     if (!ns.length) return;
     const xs = ns.map(n => n.x), ys = ns.map(n => n.y);
-    const minX = Math.min(...xs) - NODE_W/2 - 40;
-    const maxX = Math.max(...xs) + NODE_W/2 + 40;
-    const minY = Math.min(...ys) - NODE_H/2 - 40;
-    const maxY = Math.max(...ys) + NODE_H/2 + 40;
-    const cw = size.w, ch = size.h;
-    const scaleX = cw / (maxX - minX);
-    const scaleY = ch / (maxY - minY);
-    const newZoom = Math.min(scaleX, scaleY, 1.2);
-    const cx = (minX + maxX) / 2;
-    const cy = (minY + maxY) / 2;
-    setZoom(newZoom);
-    setPan({ x: cw/2 - cx*newZoom, y: ch/2 - cy*newZoom });
+    const minX = Math.min(...xs) - NODE_W / 2 - 60;
+    const maxX = Math.max(...xs) + NODE_W / 2 + 60;
+    const minY = Math.min(...ys) - NODE_H / 2 - 40;
+    const maxY = Math.max(...ys) + NODE_H / 2 + 40;
+    const z = Math.min(size.w / (maxX - minX), size.h / (maxY - minY), 1.2);
+    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+    setZoom(z);
+    setPan({ x: size.w / 2 - cx * z, y: size.h / 2 - cy * z });
   }, [size]);
 
-  // ── Load views ─────────────────────────────────────────────────────────────
-  const load = async (v: string) => {
-    setLoading(true); setSelected(null);
+  // ── Build graph from real data ────────────────────────────────────────────────
+  const build = async () => {
+    setLoading(true);
     try {
-      if (v === 'hierarchy')  { const r = await buildHierarchy(); fitScreen(r); }
-      else if (v === 'projects')  { const r = await buildProjects();  fitScreen(r); }
-      else if (v === 'employees') { const r = await buildEmployees(); fitScreen(r); }
-      else if (v === 'products')  { const r = await buildProducts();  fitScreen(r); }
-      else if (v === 'relation')  { const r = await buildHierarchy(true); fitScreen(r); }
-      else if (v === 'timeline')  { await loadTimeline(); }
-    } catch(e) { console.error(e); }
+      // Fetch all data
+      const [deptD, projD, empD, taskD] = await Promise.all([
+        apiFetch(`${API}/api/v1/dictionaries/departments`),
+        apiFetch(`${API}/api/v1/projects?limit=50`),
+        apiFetch(`${API}/api/v1/employees?limit=100`),
+        apiFetch(`${API}/api/v1/tasks?limit=100&parentId=null`),
+      ]);
+
+      const depts = Array.isArray(deptD) ? deptD : [];
+      const projs = Array.isArray(projD) ? projD : (projD.data ?? []);
+      const emps  = empD.employees ?? (Array.isArray(empD) ? empD : []);
+      const tasks = Array.isArray(taskD) ? taskD : (taskD.data ?? []);
+
+      const ns: GNode[] = [];
+      const es: GEdge[] = [];
+      const added = new Set<string>();
+
+      const addNode = (n: GNode) => { if (!added.has(n.id)) { ns.push(n); added.add(n.id); } };
+      const addEdge = (e: GEdge) => { if (!es.find(x => x.id === e.id)) es.push(e); };
+
+      // ── Org root ──────────────────────────────────────────────────────────────
+      addNode({ id: 'org', type: 'ORG', label: 'Компания', parentId: null, children: [], depth: 0, x: 0, y: 0 });
+
+      // ── Departments ───────────────────────────────────────────────────────────
+      depts.forEach((d: any) => {
+        const did = `dept_${d.id}`;
+        addNode({ id: did, type: 'DEPARTMENT', label: d.name, sublabel: '', parentId: 'org', children: [], depth: 1, x: 0, y: 0, meta: d });
+        ns.find(n => n.id === 'org')!.children.push(did);
+        addEdge({ id: `org_${did}`, source: 'org', target: did, kind: 'parent' });
+      });
+
+      // ── Employees → Departments ───────────────────────────────────────────────
+      const empAdded = new Set<string>();
+      emps.forEach((e: any) => {
+        const eid = `emp_${e.id}`;
+        const parentDept = depts.find((d: any) => d.id === e.departmentId);
+        if (parentDept) {
+          const did = `dept_${parentDept.id}`;
+          const sublabel = e.role ?? e.position ?? '';
+          addNode({ id: eid, type: 'EMPLOYEE', label: e.name, sublabel, parentId: did, children: [], depth: 2, x: 0, y: 0, meta: e });
+          const dept = ns.find(n => n.id === did);
+          if (dept) dept.children.push(eid);
+          addEdge({ id: `${did}_${eid}`, source: did, target: eid, kind: 'member' });
+          empAdded.add(e.id);
+        }
+      });
+
+      // ── Projects → Departments ────────────────────────────────────────────────
+      for (const p of projs) {
+        const pid = `proj_${p.id}`;
+        // Try to find dept from project members
+        let parentId = 'org';
+        // Load project details to get members
+        try {
+          const pd = await apiFetch(`${API}/api/v1/projects/${p.id}`);
+          const members = pd.members ?? [];
+          // Find dept from first member
+          if (members.length > 0) {
+            const firstMember = emps.find((e: any) => e.id === (members[0].userId ?? members[0].id));
+            if (firstMember?.departmentId) {
+              parentId = `dept_${firstMember.departmentId}`;
+            }
+          }
+
+          addNode({ id: pid, type: 'PROJECT', label: p.name.slice(0, 22), sublabel: p.status, parentId, children: [], depth: 0, x: 0, y: 0, meta: p });
+          const parentNode = ns.find(n => n.id === parentId);
+          if (parentNode) parentNode.children.push(pid);
+          addEdge({ id: `${parentId}_${pid}`, source: parentId, target: pid, kind: 'parent' });
+
+          // Project members → edges to project (not new nodes if already added)
+          members.slice(0, 5).forEach((m: any) => {
+            const mId = m.userId ?? m.id;
+            const eid = `emp_${mId}`;
+            if (added.has(eid)) {
+              addEdge({ id: `${pid}_mem_${mId}`, source: eid, target: pid, kind: 'member' });
+            } else {
+              const emp = emps.find((e: any) => e.id === mId);
+              if (emp) {
+                addNode({ id: eid, type: 'EMPLOYEE', label: emp.name, sublabel: emp.role ?? '', parentId: pid, children: [], depth: 0, x: 0, y: 0, meta: emp });
+                ns.find(n => n.id === pid)!.children.push(eid);
+                addEdge({ id: `${pid}_${eid}`, source: pid, target: eid, kind: 'member' });
+                empAdded.add(mId);
+              }
+            }
+          });
+        } catch {}
+      }
+
+      // ── Tasks → Projects ──────────────────────────────────────────────────────
+      for (const t of tasks) {
+        const tid = `task_${t.id}`;
+        const parentProj = t.projectId ? `proj_${t.projectId}` : null;
+        const parentId = parentProj && added.has(parentProj) ? parentProj : null;
+
+        addNode({
+          id: tid, type: 'TASK',
+          label: t.title.slice(0, 22),
+          sublabel: t.status,
+          parentId,
+          children: [], depth: 0, x: 0, y: 0, meta: t,
+          isOrphan: !parentId,
+        });
+
+        if (parentId) {
+          const parent = ns.find(n => n.id === parentId);
+          if (parent) parent.children.push(tid);
+          addEdge({ id: `${parentId}_${tid}`, source: parentId, target: tid, kind: 'parent' });
+        }
+
+        // Assignee → task
+        if (t.assigneeId) {
+          const eid = `emp_${t.assigneeId}`;
+          if (added.has(eid)) {
+            addEdge({ id: `${eid}_${tid}_assignee`, source: eid, target: tid, kind: 'assignee' });
+          } else {
+            const emp = emps.find((e: any) => e.id === t.assigneeId);
+            if (emp) {
+              addNode({ id: eid, type: 'EMPLOYEE', label: emp.name, sublabel: 'Исполнитель', parentId: tid, children: [], depth: 0, x: 0, y: 0, meta: emp });
+              ns.find(n => n.id === tid)!.children.push(eid);
+              addEdge({ id: `${tid}_${eid}`, source: tid, target: eid, kind: 'assignee' });
+              empAdded.add(t.assigneeId);
+            }
+          }
+        }
+
+        // Participants (multiple assignees)
+        if (t.participants && Array.isArray(t.participants)) {
+          t.participants.slice(0, 3).forEach((p: any) => {
+            const pid2 = p.userId ?? p.id;
+            const eid = `emp_${pid2}`;
+            if (pid2 !== t.assigneeId) {
+              if (added.has(eid)) {
+                addEdge({ id: `${eid}_${tid}_part`, source: eid, target: tid, kind: 'assignee' });
+              } else {
+                const emp = emps.find((e: any) => e.id === pid2);
+                if (emp) {
+                  addNode({ id: eid, type: 'EMPLOYEE', label: emp.name, sublabel: 'Участник', parentId: tid, children: [], depth: 0, x: 0, y: 0, meta: emp });
+                  ns.find(n => n.id === tid)!.children.push(eid);
+                  addEdge({ id: `${tid}_${eid}_part`, source: tid, target: eid, kind: 'assignee' });
+                }
+              }
+            }
+          });
+        }
+
+        // Load subtasks + attachments
+        try {
+          const subtasksD = await apiFetch(`${API}/api/v1/tasks?parentId=${t.id}&limit=10`);
+          const subtasks = Array.isArray(subtasksD) ? subtasksD : (subtasksD.data ?? []);
+          subtasks.forEach((st: any) => {
+            const stid = `task_${st.id}`;
+            addNode({ id: stid, type: 'SUBTASK', label: st.title.slice(0, 20), sublabel: st.status, parentId: tid, children: [], depth: 0, x: 0, y: 0, meta: st });
+            ns.find(n => n.id === tid)!.children.push(stid);
+            addEdge({ id: `${tid}_${stid}`, source: tid, target: stid, kind: 'subtask' });
+
+            // Subtask assignee
+            if (st.assigneeId) {
+              const seid = `emp_${st.assigneeId}`;
+              if (added.has(seid)) {
+                addEdge({ id: `${seid}_${stid}_a`, source: seid, target: stid, kind: 'assignee' });
+              }
+            }
+          });
+
+          // Attachments
+          const attD = await apiFetch(`${API}/api/v1/tasks/${t.id}/attachments`);
+          const atts = Array.isArray(attD) ? attD : [];
+          atts.slice(0, 3).forEach((a: any) => {
+            const aid = `att_${a.id}`;
+            addNode({ id: aid, type: 'ATTACHMENT', label: a.fileName.slice(0, 18), sublabel: a.mimeType?.split('/')[1], parentId: tid, children: [], depth: 0, x: 0, y: 0, meta: a });
+            ns.find(n => n.id === tid)!.children.push(aid);
+            addEdge({ id: `${tid}_${aid}`, source: tid, target: aid, kind: 'attachment' });
+          });
+        } catch {}
+      }
+
+      // ── Orphan employees (no dept, no project) ────────────────────────────────
+      emps.filter((e: any) => !empAdded.has(e.id)).forEach((e: any) => {
+        const eid = `emp_${e.id}`;
+        addNode({ id: eid, type: 'EMPLOYEE', label: e.name, sublabel: 'Без отдела', parentId: null, children: [], depth: 0, x: 0, y: 0, meta: e, isOrphan: true });
+      });
+
+      // Update sublabel for depts with employee count
+      depts.forEach((d: any) => {
+        const did = `dept_${d.id}`;
+        const node = ns.find(n => n.id === did);
+        if (node) {
+          const cnt = emps.filter((e: any) => e.departmentId === d.id).length;
+          node.sublabel = `${cnt} сотр.`;
+        }
+      });
+
+      // Layout
+      const laid = treeLayout(ns);
+      setNodes(laid);
+      setEdges(es);
+      setTimeout(() => fitScreen(laid), 100);
+    } catch (e) { console.error(e); }
     setLoading(false);
   };
 
-  // ── Hierarchy builder ──────────────────────────────────────────────────────
-  const buildHierarchy = async (withRelations = false) => {
-    const [empD, projD, prodD, deptD, taskD] = await Promise.all([
-      apiFetch(`${API}/api/v1/employees?limit=50`),
-      apiFetch(`${API}/api/v1/projects?limit=30`),
-      apiFetch(`${API}/api/v1/products?limit=30`),
-      apiFetch(`${API}/api/v1/dictionaries/departments`),
-      apiFetch(`${API}/api/v1/tasks?limit=30`),
-    ]);
-
-    const emps  = empD.employees  ?? (Array.isArray(empD)  ? empD  : []);
-    const projs = Array.isArray(projD) ? projD : (projD.data ?? []);
-    const prods = Array.isArray(prodD) ? prodD : (prodD.products ?? []);
-    const depts = Array.isArray(deptD) ? deptD : [];
-    const tasks = Array.isArray(taskD) ? taskD : (taskD.data ?? []);
-
-    const ns: GNode[] = [];
-    const es: GEdge[] = [];
-
-    // ORG root
-    ns.push({ id:'org', type:'ORG', label:'Компания', sublabel:'К-Трейд', parentId:null, children:[], x:0, y:0, depth:0 });
-
-    // Departments → children of ORG
-    depts.slice(0,6).forEach((d: any) => {
-      const nid = `dept_${d.id}`;
-      ns.push({ id:nid, type:'DEPARTMENT', label:d.name, sublabel:`${emps.filter((e:any)=>e.departmentId===d.id).length} сотр.`, parentId:'org', children:[], x:0, y:0, depth:1, meta:d });
-      ns.find(n=>n.id==='org')!.children.push(nid);
-      es.push({ id:`e_org_${nid}`, source:'org', target:nid, kind:'hierarchy' });
-    });
-
-    // If no departments, create virtual ones by project
-    const deptIds = new Set(depts.slice(0,6).map((d:any) => `dept_${d.id}`));
-
-    // Projects → children of departments or org
-    projs.slice(0,12).forEach((p: any) => {
-      const pid = `proj_${p.id}`;
-      // Try to find a dept for this project
-      const deptNode = deptIds.size > 0 ? [...deptIds][Math.floor(Math.random() * Math.min(deptIds.size, 3))] : 'org';
-      const parent = ns.find(n=>n.id===deptNode) || ns.find(n=>n.id==='org')!;
-      ns.push({ id:pid, type:'PROJECT', label:p.name.slice(0,20), sublabel:p.status, parentId:parent.id, children:[], x:0, y:0, depth:parent.depth+1, meta:p });
-      parent.children.push(pid);
-      es.push({ id:`e_${parent.id}_${pid}`, source:parent.id, target:pid, kind:'hierarchy' });
-    });
-
-    // Products → children of projects
-    prods.slice(0,12).forEach((p: any, i: number) => {
-      const prodId = `prod_${p.id}`;
-      const projNodes = ns.filter(n=>n.type==='PROJECT');
-      const parent = projNodes.length > 0 ? projNodes[i % projNodes.length] : ns.find(n=>n.id==='org')!;
-      ns.push({ id:prodId, type:'PRODUCT', label:p.name.slice(0,18), sublabel:p.marketplace, parentId:parent.id, children:[], x:0, y:0, depth:parent.depth+1, meta:p });
-      parent.children.push(prodId);
-      es.push({ id:`e_${parent.id}_${prodId}`, source:parent.id, target:prodId, kind:'hierarchy' });
-    });
-
-    // Tasks → children of projects
-    tasks.filter((t:any)=>!t.parentId).slice(0,16).forEach((t: any) => {
-      const tid = `task_${t.id}`;
-      const projNodes = ns.filter(n=>n.type==='PROJECT');
-      if (projNodes.length === 0) return;
-      const parent = t.projectId ? (ns.find(n=>n.id===`proj_${t.projectId}`) ?? projNodes[0]) : projNodes[Math.floor(Math.random()*projNodes.length)];
-      ns.push({ id:tid, type:'TASK', label:t.title.slice(0,20), sublabel:t.status, parentId:parent.id, children:[], x:0, y:0, depth:parent.depth+1, meta:t });
-      parent.children.push(tid);
-      es.push({ id:`e_${parent.id}_${tid}`, source:parent.id, target:tid, kind:'hierarchy' });
-    });
-
-    // Relation mode: add employees as associated nodes
-    if (withRelations) {
-      emps.slice(0,10).forEach((e: any) => {
-        const eid = `emp_${e.id}`;
-        const deptNode = e.departmentId ? ns.find(n=>n.id===`dept_${e.departmentId}`) : null;
-        const parent = deptNode || ns.find(n=>n.id==='org')!;
-        if (!ns.find(n=>n.id===eid)) {
-          ns.push({ id:eid, type:'EMPLOYEE', label:e.name, sublabel:e.role, parentId:parent.id, children:[], x:0, y:0, depth:parent.depth+1 });
-          parent.children.push(eid);
-          es.push({ id:`e_${parent.id}_${eid}`, source:parent.id, target:eid, kind:'work' });
-        }
-      });
-    }
-
-    const laid = layoutTree(ns);
-    setNodes(laid);
-    setEdges(es);
-    return laid;
-  };
-
-  // ── Projects view ──────────────────────────────────────────────────────────
-  const buildProjects = async () => {
-    const projD = await apiFetch(`${API}/api/v1/projects?limit=20`);
-    const projs = Array.isArray(projD) ? projD : (projD.data ?? []);
-
-    const ns: GNode[] = [];
-    const es: GEdge[] = [];
-
-    ns.push({ id:'root', type:'ORG', label:'Проекты', parentId:null, children:[], x:0, y:0, depth:0 });
-
-    for (const p of projs) {
-      const pid = `proj_${p.id}`;
-      ns.push({ id:pid, type:'PROJECT', label:p.name.slice(0,22), sublabel:p.status, parentId:'root', children:[], x:0, y:0, depth:1, meta:p });
-      ns.find(n=>n.id==='root')!.children.push(pid);
-      es.push({ id:`e_root_${pid}`, source:'root', target:pid, kind:'hierarchy' });
-
-      // Load project members
-      try {
-        const pd = await apiFetch(`${API}/api/v1/projects/${p.id}`);
-        (pd.members ?? []).slice(0,3).forEach((m: any) => {
-          const mid = `emp_${m.userId ?? m.id}_${p.id}`;
-          ns.push({ id:mid, type:'EMPLOYEE', label:(m.name??m.user?.name??'Сотрудник').slice(0,16), parentId:pid, children:[], x:0, y:0, depth:2 });
-          ns.find(n=>n.id===pid)!.children.push(mid);
-          es.push({ id:`e_${pid}_${mid}`, source:pid, target:mid, kind:'work' });
-        });
-      } catch {}
-    }
-
-    const laid = layoutTree(ns);
-    setNodes(laid); setEdges(es);
-    return laid;
-  };
-
-  // ── Employees view ─────────────────────────────────────────────────────────
-  const buildEmployees = async () => {
-    const [empD, deptD] = await Promise.all([
-      apiFetch(`${API}/api/v1/employees?limit=50`),
-      apiFetch(`${API}/api/v1/dictionaries/departments`),
-    ]);
-    const emps  = empD.employees ?? (Array.isArray(empD) ? empD : []);
-    const depts = Array.isArray(deptD) ? deptD : [];
-
-    const ns: GNode[] = [];
-    const es: GEdge[] = [];
-
-    ns.push({ id:'org', type:'ORG', label:'Организация', parentId:null, children:[], x:0, y:0, depth:0 });
-
-    depts.slice(0,8).forEach((d: any) => {
-      const did = `dept_${d.id}`;
-      const deptEmps = emps.filter((e:any)=>e.departmentId===d.id);
-      ns.push({ id:did, type:'DEPARTMENT', label:d.name, sublabel:`${deptEmps.length} сотр.`, parentId:'org', children:[], x:0, y:0, depth:1, meta:d });
-      ns.find(n=>n.id==='org')!.children.push(did);
-      es.push({ id:`e_org_${did}`, source:'org', target:did, kind:'hierarchy' });
-
-      deptEmps.slice(0,5).forEach((e: any) => {
-        const eid = `emp_${e.id}`;
-        ns.push({ id:eid, type:'EMPLOYEE', label:e.name, sublabel:e.role ?? e.position, parentId:did, children:[], x:0, y:0, depth:2, meta:e });
-        ns.find(n=>n.id===did)!.children.push(eid);
-        es.push({ id:`e_${did}_${eid}`, source:did, target:eid, kind:'work' });
-      });
-    });
-
-    // Employees without department
-    const noDept = emps.filter((e:any) => !e.departmentId || !depts.find((d:any)=>d.id===e.departmentId)).slice(0,5);
-    if (noDept.length) {
-      const oid = 'dept_other';
-      ns.push({ id:oid, type:'DEPARTMENT', label:'Без отдела', sublabel:`${noDept.length} сотр.`, parentId:'org', children:[], x:0, y:0, depth:1 });
-      ns.find(n=>n.id==='org')!.children.push(oid);
-      es.push({ id:`e_org_${oid}`, source:'org', target:oid, kind:'hierarchy' });
-      noDept.forEach((e: any) => {
-        const eid = `emp_${e.id}`;
-        ns.push({ id:eid, type:'EMPLOYEE', label:e.name, sublabel:e.role, parentId:oid, children:[], x:0, y:0, depth:2, meta:e });
-        ns.find(n=>n.id===oid)!.children.push(eid);
-        es.push({ id:`e_${oid}_${eid}`, source:oid, target:eid, kind:'work' });
-      });
-    }
-
-    const laid = layoutTree(ns);
-    setNodes(laid); setEdges(es);
-    return laid;
-  };
-
-  // ── Products view ──────────────────────────────────────────────────────────
-  const buildProducts = async () => {
-    const prodD = await apiFetch(`${API}/api/v1/products?limit=40`);
-    const prods = Array.isArray(prodD) ? prodD : (prodD.products ?? []);
-
-    const ns: GNode[] = [];
-    const es: GEdge[] = [];
-
-    ns.push({ id:'root', type:'ORG', label:'Товары', parentId:null, children:[], x:0, y:0, depth:0 });
-
-    // Group by marketplace
-    const byMp: Record<string, any[]> = {};
-    prods.forEach((p: any) => {
-      const k = p.marketplace ?? 'Другое';
-      if (!byMp[k]) byMp[k] = [];
-      byMp[k].push(p);
-    });
-
-    Object.entries(byMp).forEach(([mp, items]) => {
-      const mid = `mp_${mp}`;
-      ns.push({ id:mid, type:'MARKETPLACE', label:mp, sublabel:`${items.length} товаров`, parentId:'root', children:[], x:0, y:0, depth:1 });
-      ns.find(n=>n.id==='root')!.children.push(mid);
-      es.push({ id:`e_root_${mid}`, source:'root', target:mid, kind:'hierarchy' });
-
-      items.slice(0,8).forEach((p: any) => {
-        const pid = `prod_${p.id}`;
-        ns.push({ id:pid, type:'PRODUCT', label:p.name.slice(0,18), sublabel:p.price?`₽${Number(p.price).toLocaleString('ru')}`:undefined, parentId:mid, children:[], x:0, y:0, depth:2, meta:p });
-        ns.find(n=>n.id===mid)!.children.push(pid);
-        es.push({ id:`e_${mid}_${pid}`, source:mid, target:pid, kind:'hierarchy' });
-      });
-    });
-
-    const laid = layoutTree(ns);
-    setNodes(laid); setEdges(es);
-    return laid;
-  };
-
-  // ── Timeline ───────────────────────────────────────────────────────────────
-  const loadTimeline = async () => {
-    setNodes([]); setEdges([]);
-    const d = await apiFetch(`${API}/api/v1/relations/activity/TASK/org?limit=50`);
-    setActivityLog(d.logs ?? []);
-  };
-
-  // ── SVG interactions ───────────────────────────────────────────────────────
+  // ── SVG interactions ──────────────────────────────────────────────────────────
   const svgToWorld = (ex: number, ey: number) => {
     const rect = svgRef.current!.getBoundingClientRect();
     return { x: (ex - rect.left - pan.x) / zoom, y: (ey - rect.top - pan.y) / zoom };
   };
 
-  const onBgMouseDown = (e: React.MouseEvent) => {
-    if ((e.target as SVGElement).closest('g[data-node]')) return;
+  const onBgDown = (e: React.MouseEvent) => {
+    if ((e.target as Element).closest('[data-node]')) return;
     setIsPanning(true);
     panStart.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y };
   };
 
   const onMouseMove = (e: React.MouseEvent) => {
-    if (isPanning) {
-      setPan({ x: panStart.current.px + e.clientX - panStart.current.x, y: panStart.current.py + e.clientY - panStart.current.y });
-    }
+    if (isPanning) setPan({ x: panStart.current.px + e.clientX - panStart.current.x, y: panStart.current.py + e.clientY - panStart.current.y });
     if (dragging) {
       const wp = svgToWorld(e.clientX, e.clientY);
       setNodes(prev => prev.map(n => n.id === dragging.id ? { ...n, x: wp.x - dragging.ox, y: wp.y - dragging.oy } : n));
     }
   };
-
   const onMouseUp = () => { setIsPanning(false); setDragging(null); };
 
-  const onNodeMouseDown = (e: React.MouseEvent, node: GNode) => {
+  const onNodeDown = (e: React.MouseEvent, node: GNode) => {
     e.stopPropagation();
     const wp = svgToWorld(e.clientX, e.clientY);
     setDragging({ id: node.id, ox: wp.x - node.x, oy: wp.y - node.y });
   };
 
   const onNodeClick = (e: React.MouseEvent, node: GNode) => {
-    if (dragging) return;
     e.stopPropagation();
     setSelected(s => s?.id === node.id ? null : node);
   };
 
   const onNodeDblClick = (node: GNode) => {
     const id = node.id.split('_').slice(1).join('_');
-    const routes: Record<string,string> = {
+    const routes: Record<string, string> = {
       PROJECT: `/dashboard/projects/${id}`,
-      PRODUCT: `/dashboard/products/${id}`,
       TASK:    `/dashboard/tasks/${id}`,
+      SUBTASK: `/dashboard/tasks/${id}`,
       EMPLOYEE:`/dashboard/employees/${id}`,
-      DEAL:    `/dashboard/crm/deals/${id}`,
     };
     if (routes[node.type]) router.push(routes[node.type]);
   };
 
-  // Filter by search
-  const visibleNodes = search
-    ? nodes.filter(n => n.label.toLowerCase().includes(search.toLowerCase()))
-    : nodes;
-  const visibleIds = new Set(visibleNodes.map(n => n.id));
-  const visibleEdges = edges.filter(e => visibleIds.has(e.source) && visibleIds.has(e.target));
+  // ── Filter ─────────────────────────────────────────────────────────────────
+  const visible = nodes.filter(n => {
+    if (!showOrphans && n.isOrphan) return false;
+    if (filterType !== 'ALL' && n.type !== filterType && n.type !== 'ORG') return false;
+    if (search && !n.label.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+  const visIds = new Set(visible.map(n => n.id));
+  const visEdges = edges.filter(e => visIds.has(e.source) && visIds.has(e.target));
 
-  // ─── Edge path: straight lines with elbow joints for hierarchy ──────────────
+  // ── Edge path ──────────────────────────────────────────────────────────────
   const edgePath = (e: GEdge): string => {
-    const s = nodes.find(n=>n.id===e.source);
-    const t = nodes.find(n=>n.id===e.target);
+    const s = nodes.find(n => n.id === e.source);
+    const t = nodes.find(n => n.id === e.target);
     if (!s || !t) return '';
-    const sx = s.x, sy = s.y + NODE_H/2;
-    const tx = t.x, ty = t.y - NODE_H/2;
-    const my = (sy + ty) / 2;
-    if (e.kind === 'hierarchy') {
-      return `M ${sx} ${sy} L ${sx} ${my} L ${tx} ${my} L ${tx} ${ty}`;
+    if (e.kind === 'parent' || e.kind === 'subtask') {
+      const sx = s.x, sy = s.y + NODE_H / 2;
+      const tx = t.x, ty = t.y - NODE_H / 2;
+      const my = (sy + ty) / 2;
+      return `M${sx},${sy} L${sx},${my} L${tx},${my} L${tx},${ty}`;
     }
-    return `M ${sx} ${sy} C ${sx} ${sy+40} ${tx} ${ty-40} ${tx} ${ty}`;
+    // Curved for relations
+    const sx = s.x + NODE_W / 2, sy = s.y;
+    const tx = t.x - NODE_W / 2, ty = t.y;
+    return `M${sx},${sy} C${sx + 40},${sy} ${tx - 40},${ty} ${tx},${ty}`;
   };
 
-  const maxDepth = nodes.length ? Math.max(...nodes.map(n=>n.depth)) : 0;
+  const maxDepth = visible.length ? Math.max(...visible.map(n => n.depth)) : 0;
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100vh', background:'#0f1117', color:'#e8eaf0', overflow:'hidden', fontFamily:'Inter,sans-serif' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100vh', background:'#0d0f14', color:'#e8eaf0', fontFamily:'Inter,sans-serif', overflow:'hidden' }}>
 
       {/* ── Top bar ── */}
-      <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 16px', background:'#151820', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 16px', background:'#151820', borderBottom:'1px solid rgba(255,255,255,0.07)', flexShrink:0, flexWrap:'wrap' }}>
         <div>
-          <div style={{ fontSize:15, fontWeight:700, color:'#e8eaf0', letterSpacing:'-0.3px' }}>⚡ Command Center</div>
-          <div style={{ fontSize:10, color:'#4a5168' }}>Цифровая карта компании</div>
+          <div style={{ fontSize:15, fontWeight:700, letterSpacing:'-0.3px' }}>⚡ Command Center</div>
+          <div style={{ fontSize:10, color:'#4a5168' }}>Карта связей компании</div>
         </div>
 
-        {/* View tabs */}
-        <div style={{ display:'flex', gap:2, marginLeft:16, background:'#0f1117', borderRadius:8, padding:3, border:'1px solid rgba(255,255,255,0.07)' }}>
-          {VIEWS.map(v => (
-            <button key={v.id} onClick={() => setView(v.id)}
-              style={{ display:'flex', alignItems:'center', gap:4, padding:'5px 12px', borderRadius:6, border:'none', cursor:'pointer', fontSize:12, fontWeight:500, transition:'all 0.15s',
-                background: view===v.id ? '#6b5ce7' : 'transparent',
-                color: view===v.id ? 'white' : '#5a6480' }}>
-              {v.icon} {v.label}
+        {/* Filters */}
+        <div style={{ display:'flex', gap:2, background:'#0d0f14', borderRadius:8, padding:3, border:'1px solid rgba(255,255,255,0.07)' }}>
+          {['ALL','DEPARTMENT','PROJECT','TASK','EMPLOYEE'].map(t => (
+            <button key={t} onClick={() => setFilterType(t)}
+              style={{ padding:'4px 10px', borderRadius:5, border:'none', cursor:'pointer', fontSize:11, fontWeight:500, transition:'all 0.15s',
+                background: filterType===t ? '#6b5ce7' : 'transparent',
+                color: filterType===t ? 'white' : '#4a5168' }}>
+              {ICON[t] ?? ''} {t === 'ALL' ? 'Все' : t}
             </button>
           ))}
         </div>
 
-        {/* Display mode toggle (for hierarchy view) */}
-        {view === 'hierarchy' && (
-          <div style={{ display:'flex', gap:2, background:'#0f1117', borderRadius:8, padding:3, border:'1px solid rgba(255,255,255,0.07)' }}>
-            {(['hierarchy','relation'] as const).map(m => (
-              <button key={m} onClick={() => { setDisplayMode(m); load(m==='relation'?'relation':'hierarchy'); }}
-                style={{ padding:'4px 10px', borderRadius:5, border:'none', cursor:'pointer', fontSize:11, fontWeight:500,
-                  background: displayMode===m ? 'rgba(107,92,231,0.3)' : 'transparent',
-                  color: displayMode===m ? '#a89bf8' : '#4a5168' }}>
-                {m==='hierarchy' ? '🏛️ Иерархия' : '🔗 Связи'}
-              </button>
-            ))}
-          </div>
-        )}
-
         {/* Search */}
-        <div style={{ display:'flex', alignItems:'center', gap:6, background:'#0f1117', border:'1px solid rgba(255,255,255,0.1)', borderRadius:8, padding:'5px 10px', marginLeft:'auto', minWidth:200 }}>
-          <span style={{ fontSize:12, color:'#4a5168' }}>🔍</span>
+        <div style={{ display:'flex', alignItems:'center', gap:6, background:'#0d0f14', border:'1px solid rgba(255,255,255,0.1)', borderRadius:8, padding:'5px 10px', minWidth:180 }}>
+          <span style={{ color:'#4a5168' }}>🔍</span>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Поиск..."
             style={{ background:'none', border:'none', outline:'none', fontSize:12, color:'#e8eaf0', width:'100%' }} />
         </div>
 
-        {/* Zoom controls */}
-        <div style={{ display:'flex', gap:4, alignItems:'center' }}>
-          <button onClick={() => setZoom(z=>Math.min(4,z*1.15))}
-            style={{ width:28, height:28, borderRadius:6, border:'1px solid rgba(255,255,255,0.1)', background:'#1a1e2a', cursor:'pointer', fontSize:16, color:'#8892aa' }}>+</button>
-          <span style={{ fontSize:11, color:'#4a5168', minWidth:38, textAlign:'center' }}>{Math.round(zoom*100)}%</span>
-          <button onClick={() => setZoom(z=>Math.max(0.1,z/1.15))}
-            style={{ width:28, height:28, borderRadius:6, border:'1px solid rgba(255,255,255,0.1)', background:'#1a1e2a', cursor:'pointer', fontSize:16, color:'#8892aa' }}>−</button>
-          <button onClick={() => fitScreen(nodes)}
-            style={{ height:28, padding:'0 8px', borderRadius:6, border:'1px solid rgba(255,255,255,0.1)', background:'#1a1e2a', cursor:'pointer', fontSize:11, color:'#8892aa' }}>⊡ Fit</button>
+        {/* Orphans toggle */}
+        <label style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:12, color:'#5a6480' }}>
+          <input type="checkbox" checked={showOrphans} onChange={e=>setShowOrphans(e.target.checked)} style={{ accentColor:'#6b5ce7' }} />
+          Без связей
+        </label>
+
+        {/* Zoom */}
+        <div style={{ display:'flex', gap:4, alignItems:'center', marginLeft:'auto' }}>
+          <button onClick={() => setZoom(z=>Math.min(4,z*1.15))} style={zBtn}>+</button>
+          <span style={{ fontSize:11, color:'#4a5168', minWidth:36, textAlign:'center' }}>{Math.round(zoom*100)}%</span>
+          <button onClick={() => setZoom(z=>Math.max(0.1,z/1.15))} style={zBtn}>−</button>
+          <button onClick={() => fitScreen(nodes)} style={{ ...zBtn, width:'auto', padding:'0 8px', fontSize:10 }}>⊡ Fit</button>
+          <button onClick={build} style={{ ...zBtn, width:'auto', padding:'0 8px', fontSize:10 }}>↺ Обновить</button>
         </div>
 
-        {/* Stats */}
         <div style={{ fontSize:11, color:'#4a5168', borderLeft:'1px solid rgba(255,255,255,0.07)', paddingLeft:10 }}>
-          {nodes.length} узлов · {edges.length} связей
+          {visible.length} узлов · {visEdges.length} связей
         </div>
       </div>
 
       {/* ── Main ── */}
       <div style={{ flex:1, display:'flex', overflow:'hidden' }}>
 
-        {/* Left legend panel */}
-        <div style={{ width:160, background:'#151820', borderRight:'1px solid rgba(255,255,255,0.07)', padding:'12px 10px', flexShrink:0, overflowY:'auto' }}>
-          <div style={{ fontSize:10, fontWeight:700, color:'#4a5168', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:8 }}>Легенда</div>
-          {Object.entries(NODE_ICONS).map(([type, icon]) => (
+        {/* Legend */}
+        <div style={{ width:150, background:'#151820', borderRight:'1px solid rgba(255,255,255,0.07)', padding:'12px 10px', flexShrink:0, overflowY:'auto' }}>
+          <div style={sectionLabel}>Объекты</div>
+          {Object.entries(ICON).map(([type, icon]) => (
             <div key={type} style={{ display:'flex', alignItems:'center', gap:6, marginBottom:5 }}>
-              <div style={{ width:10, height:10, borderRadius:'50%', background:NODE_COLOR[type]??'#666', flexShrink:0 }} />
+              <div style={{ width:8, height:8, borderRadius:'50%', background:COLOR[type]??'#666', flexShrink:0 }} />
               <span style={{ fontSize:11, color:'#5a6480' }}>{icon} {type}</span>
             </div>
           ))}
-
           <div style={{ height:1, background:'rgba(255,255,255,0.07)', margin:'10px 0' }} />
-          <div style={{ fontSize:10, fontWeight:700, color:'#4a5168', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:8 }}>Связи</div>
-          {Object.entries(EDGE_STYLE).map(([kind, s]) => (
-            <div key={kind} style={{ display:'flex', alignItems:'center', gap:6, marginBottom:5 }}>
-              <svg width={30} height={10}>
-                <line x1={0} y1={5} x2={30} y2={5} stroke={s.stroke} strokeWidth={s.width} strokeDasharray={s.dash} />
-              </svg>
-              <span style={{ fontSize:11, color:'#5a6480' }}>{
-                kind==='hierarchy'?'Иерархия':kind==='relation'?'Связь':kind==='work'?'Рабочая':'Документ'
-              }</span>
+          <div style={sectionLabel}>Связи</div>
+          {(['parent','member','assignee','subtask','attachment'] as const).map(k => (
+            <div key={k} style={{ display:'flex', alignItems:'center', gap:6, marginBottom:5 }}>
+              <svg width={28} height={8}><line x1={0} y1={4} x2={28} y2={4} stroke={EDGE_COLOR[k]} strokeWidth={1.5} strokeDasharray={EDGE_DASH[k]} /></svg>
+              <span style={{ fontSize:10, color:'#4a5168' }}>{{parent:'Иерархия',member:'Участие',assignee:'Исполнитель',subtask:'Подзадача',attachment:'Вложение'}[k]}</span>
             </div>
           ))}
-
           <div style={{ height:1, background:'rgba(255,255,255,0.07)', margin:'10px 0' }} />
-          <div style={{ fontSize:10, color:'#4a5168', lineHeight:1.5 }}>
-            Клик — детали<br/>
-            Двойной клик — открыть<br/>
-            Перетащи — переместить<br/>
-            Скролл — зум
+          <div style={{ fontSize:10, color:'#2e3348', lineHeight:1.6 }}>
+            Клик — детали<br/>Двойной — открыть<br/>Тащи — перемест.<br/>Скролл — зум
           </div>
         </div>
 
-        {/* Graph area */}
+        {/* Graph */}
         <div ref={containerRef} style={{ flex:1, position:'relative', overflow:'hidden' }}>
           {loading && (
-            <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', zIndex:5, background:'rgba(15,17,23,0.8)', backdropFilter:'blur(8px)' }}>
+            <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', zIndex:10, background:'rgba(13,15,20,0.85)', backdropFilter:'blur(8px)' }}>
               <div style={{ textAlign:'center' }}>
-                <div style={{ fontSize:36, marginBottom:8 }}>⚡</div>
-                <div style={{ fontSize:14, color:'#8892aa', fontWeight:500 }}>Строим карту...</div>
+                <div style={{ fontSize:36, marginBottom:10 }}>⚡</div>
+                <div style={{ fontSize:14, color:'#8892aa', fontWeight:500 }}>Загружаем данные из базы...</div>
+                <div style={{ fontSize:11, color:'#4a5168', marginTop:4 }}>Компания → Отделы → Проекты → Задачи</div>
               </div>
             </div>
           )}
 
-          {view === 'timeline' ? (
-            <TimelineView logs={activityLog} />
-          ) : (
-            <svg ref={svgRef} width="100%" height="100%"
-              onMouseDown={onBgMouseDown}
-              onMouseMove={onMouseMove}
-              onMouseUp={onMouseUp}
-              onMouseLeave={onMouseUp}
-              style={{ cursor: isPanning ? 'grabbing' : dragging ? 'grabbing' : 'grab' }}>
+          <svg ref={svgRef} width="100%" height="100%"
+            onMouseDown={onBgDown} onMouseMove={onMouseMove}
+            onMouseUp={onMouseUp} onMouseLeave={onMouseUp}
+            style={{ cursor: isPanning ? 'grabbing' : dragging ? 'grabbing' : 'grab' }}>
 
-              {/* Background */}
-              <rect width="100%" height="100%" fill="#0f1117" />
+            <rect width="100%" height="100%" fill="#0d0f14" />
+            <pattern id="dots" x={pan.x%(20*zoom)} y={pan.y%(20*zoom)} width={20*zoom} height={20*zoom} patternUnits="userSpaceOnUse">
+              <circle cx={1} cy={1} r={0.6} fill="rgba(255,255,255,0.05)" />
+            </pattern>
+            <rect width="100%" height="100%" fill="url(#dots)" />
 
-              {/* Dot grid */}
-              <pattern id="dots" x={(pan.x % (24*zoom))} y={(pan.y % (24*zoom))} width={24*zoom} height={24*zoom} patternUnits="userSpaceOnUse">
-                <circle cx={1} cy={1} r={0.7} fill="rgba(255,255,255,0.06)" />
-              </pattern>
-              <rect width="100%" height="100%" fill="url(#dots)" />
+            <defs>
+              <marker id="arr" viewBox="0 0 8 8" refX={7} refY={4} markerWidth={5} markerHeight={5} orient="auto">
+                <path d="M1 1L7 4L1 7" fill="none" stroke="#555" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+              </marker>
+            </defs>
 
+            <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
               {/* Depth bands */}
-              <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
-                {Array.from({length:maxDepth+1},(_,d)=>{
-                  const bandNodes = nodes.filter(n=>n.depth===d);
-                  if (!bandNodes.length) return null;
-                  const minY = Math.min(...bandNodes.map(n=>n.y)) - NODE_H/2 - 12;
-                  const maxY = Math.max(...bandNodes.map(n=>n.y)) + NODE_H/2 + 12;
-                  return (
-                    <rect key={d} x={-3000} y={minY} width={6000} height={maxY-minY}
-                      fill={d%2===0?'rgba(255,255,255,0.01)':'rgba(255,255,255,0.015)'} />
-                  );
-                })}
+              {Array.from({length:maxDepth+1},(_,d)=>{
+                const band = visible.filter(n=>n.depth===d);
+                if (!band.length) return null;
+                const minY = Math.min(...band.map(n=>n.y))-NODE_H/2-10;
+                const maxY = Math.max(...band.map(n=>n.y))+NODE_H/2+10;
+                return <rect key={d} x={-9999} y={minY} width={19998} height={maxY-minY} fill={d%2===0?'rgba(255,255,255,0.008)':'rgba(255,255,255,0.014)'} />;
+              })}
 
-                {/* Edges */}
-                <g>
-                  {visibleEdges.map(e => {
-                    const st = EDGE_STYLE[e.kind] ?? EDGE_STYLE.hierarchy;
-                    const d = edgePath(e);
-                    if (!d) return null;
-                    const isHighlighted = selected && (selected.id===e.source||selected.id===e.target);
-                    return (
-                      <path key={e.id} d={d} fill="none"
-                        stroke={isHighlighted ? '#a89bf8' : st.stroke}
-                        strokeWidth={isHighlighted ? 2 : st.width}
-                        strokeDasharray={st.dash}
-                        strokeOpacity={isHighlighted ? 0.9 : 0.5}
-                        markerEnd={e.kind==='hierarchy'?'url(#arrow)':undefined} />
-                    );
-                  })}
-                </g>
+              {/* Edges */}
+              {visEdges.map(e => {
+                const d = edgePath(e);
+                if (!d) return null;
+                const hl = selected && (selected.id===e.source||selected.id===e.target);
+                return (
+                  <path key={e.id} d={d} fill="none"
+                    stroke={hl ? '#a89bf8' : EDGE_COLOR[e.kind]}
+                    strokeWidth={hl ? 2 : 1}
+                    strokeDasharray={EDGE_DASH[e.kind]}
+                    strokeOpacity={hl ? 1 : 0.45}
+                    markerEnd={e.kind==='parent'||e.kind==='subtask'?'url(#arr)':undefined} />
+                );
+              })}
 
-                {/* Arrow marker */}
-                <defs>
-                  <marker id="arrow" viewBox="0 0 8 8" refX={7} refY={4} markerWidth={6} markerHeight={6} orient="auto">
-                    <path d="M1 1L7 4L1 7" fill="none" stroke="#555" strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" />
-                  </marker>
-                </defs>
+              {/* Nodes */}
+              {visible.map(node => {
+                const color = COLOR[node.type] ?? '#666';
+                const isSel = selected?.id === node.id;
+                const isConn = selected && visEdges.some(e=>(e.source===selected.id&&e.target===node.id)||(e.target===selected.id&&e.source===node.id));
+                const dim = selected && !isSel && !isConn;
 
-                {/* Nodes */}
-                {visibleNodes.map(node => {
-                  const color = NODE_COLOR[node.type] ?? '#6b7280';
-                  const isSelected = selected?.id === node.id;
-                  const isConnected = selected && edges.some(e=>(e.source===selected.id&&e.target===node.id)||(e.target===selected.id&&e.source===node.id));
-                  const dimmed = selected && !isSelected && !isConnected;
+                return (
+                  <g key={node.id} data-node="true"
+                    transform={`translate(${node.x-NODE_W/2},${node.y-NODE_H/2})`}
+                    style={{ cursor:'pointer', opacity: dim?0.18:1, transition:'opacity 0.2s' }}
+                    onClick={e=>onNodeClick(e,node)}
+                    onDoubleClick={()=>onNodeDblClick(node)}
+                    onMouseDown={e=>onNodeDown(e,node)}>
 
-                  return (
-                    <g key={node.id} data-node="true"
-                      transform={`translate(${node.x - NODE_W/2},${node.y - NODE_H/2})`}
-                      onClick={e => onNodeClick(e, node)}
-                      onDoubleClick={() => onNodeDblClick(node)}
-                      onMouseDown={e => onNodeMouseDown(e, node)}
-                      style={{ cursor:'pointer', userSelect:'none', opacity: dimmed ? 0.25 : 1, transition:'opacity 0.2s' }}>
+                    {isSel && <rect x={-4} y={-4} width={NODE_W+8} height={NODE_H+8} rx={11} fill={color} fillOpacity={0.18} />}
 
-                      {/* Card shadow */}
-                      {isSelected && <rect x={-3} y={-3} width={NODE_W+6} height={NODE_H+6} rx={10} fill={color} fillOpacity={0.2} />}
+                    {/* Card */}
+                    <rect width={NODE_W} height={NODE_H} rx={8} fill="#1a1e2a"
+                      stroke={isSel ? color : isConn ? color+'90' : node.isOrphan ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.1)'}
+                      strokeWidth={isSel?2:isConn?1.5:1}
+                      strokeDasharray={node.isOrphan?'4,3':undefined} />
 
-                      {/* Card background */}
-                      <rect width={NODE_W} height={NODE_H} rx={8}
-                        fill={'#1a1e2a'}
-                        stroke={isSelected ? color : isConnected ? color+'80' : 'rgba(255,255,255,0.1)'}
-                        strokeWidth={isSelected ? 2 : isConnected ? 1.5 : 1} />
+                    {/* Left bar */}
+                    <rect x={0} y={0} width={4} height={NODE_H} rx={2} fill={color} />
 
-                      {/* Left accent bar */}
-                      <rect x={0} y={0} width={4} height={NODE_H} rx={4} fill={color} />
-                      <rect x={0} y={0} width={4} height={NODE_H} rx={0} fill={color} />
-                      <rect x={0} y={0} width={4} height={NODE_H} rx={4} ry={4} fill={color}
-                        style={{ borderRadius:'4px 0 0 4px' }} />
+                    {/* Icon */}
+                    <text x={18} y={NODE_H/2} textAnchor="middle" dominantBaseline="central" fontSize={15}>{ICON[node.type]??'•'}</text>
 
-                      {/* Icon */}
-                      <text x={18} y={NODE_H/2} textAnchor="middle" dominantBaseline="central" fontSize={14}>
-                        {NODE_ICONS[node.type] ?? '•'}
+                    {/* Type */}
+                    <text x={28} y={13} fontSize={8} fontWeight={700} fill={color} letterSpacing={0.3}>{node.type}</text>
+
+                    {/* Label */}
+                    <text x={28} y={29} fontSize={11} fontWeight={600} fill="#e8eaf0">
+                      {node.label.length>14?node.label.slice(0,13)+'…':node.label}
+                    </text>
+
+                    {/* Sublabel */}
+                    {node.sublabel && (
+                      <text x={28} y={44} fontSize={9} fill="#4a5168">
+                        {node.sublabel.length>18?node.sublabel.slice(0,17)+'…':node.sublabel}
                       </text>
+                    )}
 
-                      {/* Type label */}
-                      <text x={28} y={14} fontSize={8} fontWeight={700} fill={color} letterSpacing={0.3}>
-                        {node.type}
-                      </text>
+                    {/* Children badge */}
+                    {node.children.length > 0 && (
+                      <g transform={`translate(${NODE_W-14},${NODE_H/2-7})`}>
+                        <rect width={14} height={14} rx={7} fill={color} fillOpacity={0.25} />
+                        <text x={7} y={7} textAnchor="middle" dominantBaseline="central" fontSize={8} fontWeight={700} fill={color}>{node.children.length}</text>
+                      </g>
+                    )}
 
-                      {/* Main label */}
-                      <text x={28} y={30} fontSize={11} fontWeight={600} fill="#e8eaf0">
-                        {node.label.length > 14 ? node.label.slice(0,13)+'…' : node.label}
-                      </text>
-
-                      {/* Sublabel */}
-                      {node.sublabel && (
-                        <text x={28} y={43} fontSize={9} fill="#4a5168">
-                          {node.sublabel.length > 18 ? node.sublabel.slice(0,17)+'…' : node.sublabel}
-                        </text>
-                      )}
-
-                      {/* Children count badge */}
-                      {node.children.length > 0 && (
-                        <g transform={`translate(${NODE_W-14}, ${NODE_H/2-7})`}>
-                          <rect width={14} height={14} rx={7} fill={color} fillOpacity={0.3} />
-                          <text x={7} y={7} textAnchor="middle" dominantBaseline="central" fontSize={8} fontWeight={700} fill={color}>
-                            {node.children.length}
-                          </text>
-                        </g>
-                      )}
-                    </g>
-                  );
-                })}
-              </g>
-            </svg>
-          )}
+                    {/* Orphan indicator */}
+                    {node.isOrphan && (
+                      <text x={NODE_W-8} y={10} fontSize={9} fill="#4a5168" textAnchor="middle">?</text>
+                    )}
+                  </g>
+                );
+              })}
+            </g>
+          </svg>
         </div>
 
-        {/* Right detail panel */}
+        {/* Detail panel */}
         {selected && (
-          <div style={{ width:260, background:'#151820', borderLeft:'1px solid rgba(255,255,255,0.07)', overflowY:'auto', flexShrink:0 }}>
-            <div style={{ padding:'14px 14px 10px', borderBottom:'1px solid rgba(255,255,255,0.07)' }}>
-              <div style={{ display:'flex', alignItems:'flex-start', gap:8, marginBottom:8 }}>
-                <span style={{ fontSize:22 }}>{NODE_ICONS[selected.type]}</span>
+          <div style={{ width:250, background:'#151820', borderLeft:'1px solid rgba(255,255,255,0.07)', overflowY:'auto', flexShrink:0 }}>
+            <div style={{ padding:'14px', borderBottom:'1px solid rgba(255,255,255,0.07)' }}>
+              <div style={{ display:'flex', alignItems:'flex-start', gap:8 }}>
+                <span style={{ fontSize:22 }}>{ICON[selected.type]}</span>
                 <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:12, fontWeight:700, color:NODE_COLOR[selected.type], marginBottom:1 }}>{selected.type}</div>
+                  <div style={{ fontSize:11, fontWeight:700, color:COLOR[selected.type], marginBottom:1 }}>{selected.type}</div>
                   <div style={{ fontSize:13, fontWeight:600, color:'#e8eaf0', lineHeight:1.3 }}>{selected.label}</div>
                   {selected.sublabel && <div style={{ fontSize:11, color:'#4a5168', marginTop:2 }}>{selected.sublabel}</div>}
+                  {selected.isOrphan && <div style={{ fontSize:10, color:'#e67e22', marginTop:4 }}>⚠ Нет связей</div>}
                 </div>
-                <button onClick={()=>setSelected(null)} style={{ background:'none', border:'none', cursor:'pointer', color:'#4a5168', fontSize:16, flexShrink:0 }}>✕</button>
+                <button onClick={()=>setSelected(null)} style={{ background:'none', border:'none', cursor:'pointer', color:'#4a5168', fontSize:16 }}>✕</button>
               </div>
 
-              {/* Meta fields */}
               {selected.meta && (
-                <div style={{ display:'flex', flexDirection:'column', gap:4, marginBottom:10 }}>
+                <div style={{ marginTop:10, display:'flex', flexDirection:'column', gap:3 }}>
                   {Object.entries(selected.meta)
-                    .filter(([k]) => ['status','priority','marketplace','articleId','price','email','role','position'].includes(k))
+                    .filter(([k]) => ['status','priority','marketplace','email','role','position','price'].includes(k))
                     .map(([k,v]) => (
-                    <div key={k} style={{ display:'flex', justifyContent:'space-between', fontSize:11, gap:8 }}>
-                      <span style={{ color:'#4a5168' }}>{k}</span>
-                      <span style={{ color:'#8892aa', fontWeight:500, textAlign:'right', overflow:'hidden', textOverflow:'ellipsis' }}>{String(v)}</span>
-                    </div>
+                      <div key={k} style={{ display:'flex', justifyContent:'space-between', fontSize:11 }}>
+                        <span style={{ color:'#4a5168' }}>{k}</span>
+                        <span style={{ color:'#8892aa' }}>{String(v)}</span>
+                      </div>
                   ))}
                 </div>
               )}
 
-              <button onClick={()=>onNodeDblClick(selected)}
-                style={{ width:'100%', padding:'8px', background:'#6b5ce7', color:'white', border:'none', borderRadius:7, fontSize:12, fontWeight:600, cursor:'pointer' }}>
-                Открыть карточку →
-              </button>
+              {['PROJECT','TASK','SUBTASK','EMPLOYEE'].includes(selected.type) && (
+                <button onClick={()=>onNodeDblClick(selected)}
+                  style={{ width:'100%', marginTop:10, padding:'7px', background:'#6b5ce7', color:'white', border:'none', borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                  Открыть →
+                </button>
+              )}
             </div>
 
-            {/* Connected nodes */}
             <div style={{ padding:'10px 14px' }}>
-              <div style={{ fontSize:10, fontWeight:700, color:'#4a5168', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:8 }}>
-                Связанные ({edges.filter(e=>e.source===selected.id||e.target===selected.id).length})
-              </div>
-              {edges.filter(e=>e.source===selected.id||e.target===selected.id).map(e => {
-                const otherId = e.source===selected.id ? e.target : e.source;
-                const other = nodes.find(n=>n.id===otherId);
+              <div style={sectionLabel}>Связанные ({visEdges.filter(e=>e.source===selected.id||e.target===selected.id).length})</div>
+              {visEdges.filter(e=>e.source===selected.id||e.target===selected.id).map(e => {
+                const oid = e.source===selected.id?e.target:e.source;
+                const other = nodes.find(n=>n.id===oid);
                 if (!other) return null;
-                const st = EDGE_STYLE[e.kind];
                 return (
-                  <div key={e.id} onClick={() => setSelected(other)}
-                    style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 8px', borderRadius:6, cursor:'pointer', marginBottom:2 }}
+                  <div key={e.id} onClick={()=>setSelected(other)}
+                    style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 6px', borderRadius:5, cursor:'pointer' }}
                     onMouseEnter={el=>(el.currentTarget as HTMLElement).style.background='rgba(255,255,255,0.05)'}
                     onMouseLeave={el=>(el.currentTarget as HTMLElement).style.background='transparent'}>
-                    <div style={{ width:8, height:8, borderRadius:'50%', background:NODE_COLOR[other.type]??'#666', flexShrink:0 }} />
-                    <span style={{ fontSize:12, color:'#8892aa', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{other.label}</span>
-                    <svg width={20} height={8}><line x1={0} y1={4} x2={20} y2={4} stroke={st.stroke} strokeWidth={st.width} strokeDasharray={st.dash} /></svg>
+                    <div style={{ width:7, height:7, borderRadius:'50%', background:COLOR[other.type]??'#666', flexShrink:0 }} />
+                    <span style={{ fontSize:11, color:'#8892aa', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{other.label}</span>
+                    <svg width={18} height={6}><line x1={0} y1={3} x2={18} y2={3} stroke={EDGE_COLOR[e.kind]} strokeWidth={1.2} strokeDasharray={EDGE_DASH[e.kind]} /></svg>
                   </div>
                 );
               })}
@@ -776,39 +705,5 @@ export default function CommandCenterPage() {
   );
 }
 
-// ─── Timeline View ────────────────────────────────────────────────────────────
-function TimelineView({ logs }: { logs: any[] }) {
-  const ICONS: Record<string,string> = { CREATED:'✨', UPDATED:'✏️', STATUS_CHANGED:'🔄', ASSIGNED:'👤', LINKED:'🔗', COMMENTED:'💬', DELETED:'🗑️' };
-  const LABELS: Record<string,string> = { CREATED:'Создано', UPDATED:'Обновлено', STATUS_CHANGED:'Статус', ASSIGNED:'Назначен', LINKED:'Связь', COMMENTED:'Комментарий', DELETED:'Удалено' };
-
-  if (!logs.length) return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', flexDirection:'column', gap:8, background:'#0f1117' }}>
-      <div style={{ fontSize:40 }}>📅</div>
-      <p style={{ fontSize:14, color:'#4a5168' }}>История будет накапливаться по мере работы</p>
-    </div>
-  );
-
-  return (
-    <div style={{ overflowY:'auto', height:'100%', background:'#0f1117', padding:'24px 32px' }}>
-      <div style={{ maxWidth:600, margin:'0 auto' }}>
-        <h2 style={{ fontSize:16, fontWeight:700, color:'#e8eaf0', marginBottom:20 }}>📅 Timeline компании</h2>
-        {logs.map((log, i) => (
-          <div key={log.id} style={{ display:'flex', gap:12, paddingBottom:14, position:'relative' }}>
-            {i < logs.length-1 && <div style={{ position:'absolute', left:14, top:28, bottom:0, width:1, background:'rgba(255,255,255,0.07)' }} />}
-            <div style={{ width:28, height:28, borderRadius:'50%', background:'rgba(107,92,231,0.2)', border:'1px solid rgba(107,92,231,0.4)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, flexShrink:0, zIndex:1 }}>
-              {ICONS[log.action]??'•'}
-            </div>
-            <div style={{ flex:1, paddingTop:3 }}>
-              <div style={{ display:'flex', alignItems:'baseline', gap:8, flexWrap:'wrap' }}>
-                <span style={{ fontSize:13, fontWeight:600, color:'#a89bf8' }}>{LABELS[log.action]??log.action}</span>
-                {log.actorName && <span style={{ fontSize:11, color:'#4a5168' }}>· {log.actorName}</span>}
-                <span style={{ fontSize:10, color:'#2e3348', marginLeft:'auto' }}>{new Date(log.createdAt).toLocaleString('ru')}</span>
-              </div>
-              {log.newValue && <p style={{ fontSize:12, color:'#5a6480', margin:'2px 0 0' }}>{log.newValue}</p>}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+const zBtn: React.CSSProperties = { width:28, height:28, borderRadius:6, border:'1px solid rgba(255,255,255,0.1)', background:'#1a1e2a', cursor:'pointer', fontSize:15, color:'#8892aa', display:'flex', alignItems:'center', justifyContent:'center' };
+const sectionLabel: React.CSSProperties = { fontSize:9, fontWeight:700, color:'#4a5168', textTransform:'uppercase', letterSpacing:'0.6px', marginBottom:7 };
