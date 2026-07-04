@@ -3,6 +3,7 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { WorkSessionWidget } from '@/components/WorkSessionWidget';
+import { useCountUp } from '@/hooks/useCountUp';
 
 const SECTION_LABELS: Record<string,string> = {
   orders:'Заказы', feedbacks:'Отзывы', reviews:'Отзывы', questions:'Вопросы',
@@ -52,6 +53,11 @@ function SectionHeader({ title, open, onToggle }: { title: string; open: boolean
       </div>
     </div>
   );
+}
+
+function AnimatedNumber({ value, suffix = '' }: { value: number; suffix?: string }) {
+  const display = useCountUp(value, 900, 250);
+  return <>{display.toLocaleString('ru-RU')}{suffix}</>;
 }
 
 export default function DashboardPage() {
@@ -217,19 +223,21 @@ export default function DashboardPage() {
             <div style={{ display:'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap:'12px', marginTop:'16px' }}>
               {[
                 { label:'Сотрудников', value:employees.length||0, sub:onlineCount+' онлайн', subColor:'#16A34A', icon:'ti-users', accent:'#7F77DD', accBg:'#EDE9FE', badge:'+'+onlineCount, badgeColor:'#16A34A', badgeBg:'#DCFCE7' },
-                { label:'Кликов / 7 дней', value:totalClicks>0?totalClicks.toLocaleString('ru'):0, sub:'WB + Ozon', subColor:'#9B97CC', icon:'ti-mouse', accent:'#2563EB', accBg:'#DBEAFE', badge:'+12%', badgeColor:'#16A34A', badgeBg:'#DCFCE7' },
+                { label:'Кликов / 7 дней', value:totalClicks||0, sub:'WB + Ozon', subColor:'#9B97CC', icon:'ti-mouse', accent:'#2563EB', accBg:'#DBEAFE', badge:'+12%', badgeColor:'#16A34A', badgeBg:'#DCFCE7' },
                 { label:'Задач всего', value:stats?.totalTasks??0, sub:overdueTasks.length>0?overdueTasks.length+' просрочено':'все в срок', subColor:overdueTasks.length>0?'#DC2626':'#16A34A', icon:'ti-checkbox', accent:'#16A34A', accBg:'#DCFCE7', badge:overdueTasks.length>0?'-'+overdueTasks.length:'✓', badgeColor:overdueTasks.length>0?'#DC2626':'#16A34A', badgeBg:overdueTasks.length>0?'#FEE2E2':'#DCFCE7' },
-                { label:'Выполнено', value:stats?.completionRate!=null?stats.completionRate+'%':'0%', sub:(stats?.completedTasks??0)+' из '+(stats?.totalTasks??0), subColor:'#9B97CC', icon:'ti-chart-pie', accent:'#7C3AED', accBg:'#EDE9FE', badge:'+5%', badgeColor:'#7C3AED', badgeBg:'#EDE9FE' },
+                { label:'Выполнено', value:stats?.completionRate??0, suffix:'%', sub:(stats?.completedTasks??0)+' из '+(stats?.totalTasks??0), subColor:'#9B97CC', icon:'ti-chart-pie', accent:'#7C3AED', accBg:'#EDE9FE', badge:'+5%', badgeColor:'#7C3AED', badgeBg:'#EDE9FE' },
               ].map((k,i) => (
-                <div key={i} style={{ ...cardStyle, position:'relative', overflow:'hidden', paddingTop:'14px' }}>
+                <div key={i} className="float-in hover-lift" style={{ ...cardStyle, position:'relative', overflow:'hidden', paddingTop:'14px', animationDelay:(0.05+i*0.07)+'s' }}>
                   {/* % badge top right */}
                   <div style={{ position:'absolute', top:'12px', right:'12px', fontSize:'10px', fontWeight:700, color:k.badgeColor, background:k.badgeBg, padding:'2px 7px', borderRadius:'10px' }}>{k.badge}</div>
                   {/* Icon */}
-                  <div style={{ width:'36px', height:'36px', borderRadius:'12px', background:k.accBg, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:'12px' }}>
+                  <div className="icon-pop" style={{ width:'36px', height:'36px', borderRadius:'12px', background:k.accBg, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:'12px' }}>
                     <i className={'ti '+k.icon} style={{ fontSize:'18px', color:k.accent }} aria-hidden="true" />
                   </div>
                   <p style={{ fontSize:'10px', color:'#9B97CC', margin:'0 0 4px', fontWeight:500, textTransform:'uppercase', letterSpacing:'0.5px' }}>{k.label}</p>
-                  <p style={{ fontSize:'26px', fontWeight:800, color:'#1a1040', margin:'0 0 4px', letterSpacing:'-1px', lineHeight:1 }}>{k.value}</p>
+                  <p style={{ fontSize:'26px', fontWeight:800, color:'#1a1040', margin:'0 0 4px', letterSpacing:'-1px', lineHeight:1 }}>
+                    {typeof k.value === 'number' ? <AnimatedNumber value={k.value} suffix={k.suffix} /> : k.value}
+                  </p>
                   <p style={{ fontSize:'11px', color:k.subColor, margin:0, fontWeight:500 }}>{k.sub}</p>
                 </div>
               ))}
@@ -243,14 +251,14 @@ export default function DashboardPage() {
           {openActivity && (
             <div style={{ display:'grid', gridTemplateColumns:'200px 1fr 1fr', gap:'12px', marginTop:'16px' }}>
               {/* Purple featured card */}
-              <div style={{ background:'linear-gradient(135deg,#7F77DD 0%,#5248C5 100%)', borderRadius:'16px', padding:'18px', display:'flex', flexDirection:'column', gap:'8px', boxShadow:'0 8px 24px rgba(127,119,221,0.3)' }}>
+              <div className="gradient-hero float-in" style={{ background:'linear-gradient(120deg,#8b7cf6 0%, #7F77DD 45%, #5248C5 100%)', backgroundSize:'200% 200%', borderRadius:'16px', padding:'18px', display:'flex', flexDirection:'column', gap:'8px', boxShadow:'0 8px 24px rgba(127,119,221,0.3)', animationDelay:'0.1s' }}>
                 <p style={{ fontSize:'10px', color:'rgba(255,255,255,0.7)', margin:0, fontWeight:500, textTransform:'uppercase', letterSpacing:'0.5px' }}>Топ раздел</p>
                 {sections.length > 0 ? (
                   <>
                     <p style={{ fontSize:'13px', fontWeight:700, color:'white', margin:0 }}>
                       {sections[0].platform==='WILDBERRIES'?'WB':'OZ'} · {SECTION_LABELS[sections[0].section]??sections[0].section}
                     </p>
-                    <p style={{ fontSize:'28px', fontWeight:800, color:'white', margin:0, letterSpacing:'-1px', lineHeight:1 }}>{sections[0].clicks.toLocaleString('ru')}</p>
+                    <p style={{ fontSize:'28px', fontWeight:800, color:'white', margin:0, letterSpacing:'-1px', lineHeight:1 }}><AnimatedNumber value={sections[0].clicks} /></p>
                     <p style={{ fontSize:'10px', color:'rgba(255,255,255,0.6)', margin:0 }}>кликов за 7 дней</p>
                     {fmtSec(sections[0].timeSeconds) && (
                       <p style={{ fontSize:'11px', color:'rgba(255,255,255,0.8)', margin:0 }}>⏱ {fmtSec(sections[0].timeSeconds)} активного времени</p>
@@ -262,7 +270,7 @@ export default function DashboardPage() {
               </div>
 
               {/* Sections bar chart */}
-              <div style={cardStyle}>
+              <div className="float-in" style={{ ...cardStyle, animationDelay:'0.17s' }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'14px' }}>
                   <p style={{ fontSize:'13px', fontWeight:700, color:'#1a1040', margin:0 }}>Топ разделы</p>
                   <button onClick={()=>router.push('/dashboard/analytics/sections')}
@@ -294,7 +302,7 @@ export default function DashboardPage() {
               </div>
 
               {/* Team */}
-              <div style={cardStyle}>
+              <div className="float-in" style={{ ...cardStyle, animationDelay:'0.24s' }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'14px' }}>
                   <p style={{ fontSize:'13px', fontWeight:700, color:'#1a1040', margin:0 }}>Команда</p>
                   <button onClick={()=>router.push('/dashboard/employees')}
@@ -302,24 +310,26 @@ export default function DashboardPage() {
                     Все →
                   </button>
                 </div>
-                {presence.slice(0,5).map((emp:any) => {
+                {presence.slice(0,5).map((emp:any, idx:number) => {
                   const isAlert = !emp.isOnline && emp.lastActivityAt && (Date.now()-emp.lastActivityAt)>2*3600000;
                   return (
-                    <div key={emp.userId}
-                      style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 10px', borderRadius:'12px', cursor:'pointer', marginBottom:'4px', transition:'background 0.15s', background:'#F8F7FF' }}
-                      onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background='#EDE9FE'}
-                      onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background='#F8F7FF'}
+                    <div key={emp.userId} className="row-in row-hover"
+                      style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 10px', cursor:'pointer', marginBottom:'4px', background:'#F8F7FF', animationDelay:(0.3+idx*0.05)+'s' }}
                       onClick={()=>router.push('/dashboard/employees/'+emp.userId)}>
                       <div style={{ position:'relative', flexShrink:0 }}>
                         <div style={{ width:'32px', height:'32px', borderRadius:'50%', background:avatarColor(emp.name), display:'flex', alignItems:'center', justifyContent:'center' }}>
                           <span style={{ color:'white', fontSize:'12px', fontWeight:600 }}>{emp.name?.charAt(0)}</span>
                         </div>
-                        <span style={{ position:'absolute', bottom:0, right:0, width:'9px', height:'9px', borderRadius:'50%', background:emp.isOnline?'#16A34A':isAlert?'#DC2626':'#D1D5DB', border:'2px solid white' }} />
+                        {emp.isOnline ? (
+                          <span className="pulse-dot" style={{ position:'absolute', bottom:0, right:0, border:'2px solid white' }} />
+                        ) : (
+                          <span style={{ position:'absolute', bottom:0, right:0, width:'9px', height:'9px', borderRadius:'50%', background:isAlert?'#DC2626':'#D1D5DB', border:'2px solid white' }} />
+                        )}
                       </div>
                       <div style={{ flex:1, minWidth:0 }}>
                         <p style={{ fontSize:'12px', fontWeight:600, color:'#1a1040', margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{emp.name}</p>
                         <p style={{ fontSize:'10px', color:emp.isOnline?'#16A34A':isAlert?'#DC2626':'#9B97CC', margin:0 }}>
-                          {emp.isOnline?'● Онлайн':emp.lastActivityAt?timeAgo(emp.lastActivityAt):'Офлайн'}
+                          {emp.isOnline?'Онлайн':emp.lastActivityAt?timeAgo(emp.lastActivityAt):'Офлайн'}
                         </p>
                       </div>
                     </div>
@@ -362,8 +372,8 @@ export default function DashboardPage() {
                 };
                 const pr = PRIORITY_LABELS[t.priority] ?? PRIORITY_LABELS.MEDIUM;
                 return (
-                  <div key={t.id}
-                    style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr 120px', padding:'10px 16px', borderBottom:i<tasks.length-1?'1px solid #F9F8FF':'none', cursor:'pointer', transition:'background 0.1s', alignItems:'center', background:overdue?'#FFF5F5':'white' }}
+                  <div key={t.id} className="row-in"
+                    style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr 120px', padding:'10px 16px', borderBottom:i<tasks.length-1?'1px solid #F9F8FF':'none', cursor:'pointer', transition:'background 0.1s', alignItems:'center', background:overdue?'#FFF5F5':'white', animationDelay:(0.1+i*0.04)+'s' }}
                     onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background=overdue?'#FEE2E2':'#F8F7FF'}
                     onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background=overdue?'#FFF5F5':'white'}
                     onClick={()=>router.push('/dashboard/tasks/'+t.id)}>
@@ -396,11 +406,9 @@ export default function DashboardPage() {
             <SectionHeader title="Проекты" open={openProjects} onToggle={()=>setOpenProjects(v=>!v)} />
             {openProjects && (
               <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:'10px', marginTop:'14px' }}>
-                {projects.map((p:any) => (
+                {projects.map((p:any, i:number) => (
                   <a key={p.id} href={'/dashboard/projects/'+p.id} style={{ textDecoration:'none' }}>
-                    <div style={{ padding:'14px', borderRadius:'12px', border:'1px solid #EDE9FE', cursor:'pointer', transition:'box-shadow 0.15s' }}
-                      onMouseEnter={e=>(e.currentTarget as HTMLDivElement).style.boxShadow='0 4px 12px rgba(127,119,221,0.15)'}
-                      onMouseLeave={e=>(e.currentTarget as HTMLDivElement).style.boxShadow='none'}>
+                    <div className="row-in hover-lift" style={{ padding:'14px', borderRadius:'12px', border:'1px solid #EDE9FE', cursor:'pointer', animationDelay:(i*0.05)+'s' }}>
                       <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'8px' }}>
                         <div style={{ width:'10px', height:'10px', borderRadius:'50%', background:p.color??'#7F77DD', flexShrink:0 }} />
                         <span style={{ fontSize:'13px', fontWeight:700, color:'#1a1040', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.name}</span>
@@ -430,11 +438,9 @@ export default function DashboardPage() {
             <SectionHeader title="Карточки товаров" open={openProducts} onToggle={()=>setOpenProducts(v=>!v)} />
             {openProducts && (
               <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(120px,1fr))', gap:'10px', marginTop:'14px' }}>
-                {products.map((p:any) => (
+                {products.map((p:any, i:number) => (
                   <a key={p.id} href={'/dashboard/products/'+p.id} style={{ textDecoration:'none' }}>
-                    <div style={{ borderRadius:'12px', overflow:'hidden', border:'1px solid #EDE9FE', cursor:'pointer', transition:'box-shadow 0.15s' }}
-                      onMouseEnter={e=>(e.currentTarget as HTMLDivElement).style.boxShadow='0 4px 12px rgba(127,119,221,0.15)'}
-                      onMouseLeave={e=>(e.currentTarget as HTMLDivElement).style.boxShadow='none'}>
+                    <div className="row-in hover-lift" style={{ borderRadius:'12px', overflow:'hidden', border:'1px solid #EDE9FE', cursor:'pointer', animationDelay:(i*0.04)+'s' }}>
                       <div style={{ aspectRatio:'1', background:'#F8F7FF', overflow:'hidden' }}>
                         {p.photoUrl
                           ? <img src={p.photoUrl} alt={p.name} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
