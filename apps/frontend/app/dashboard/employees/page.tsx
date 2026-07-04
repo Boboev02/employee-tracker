@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePermissions } from '@/lib/usePermissions';
 import { useSocket } from '@/lib/useSocket';
+import { DeleteSectionButton } from '@/components/admin/DeleteSectionButton';
 
 const AVATAR_COLORS = ['#7F77DD','#2563EB','#16A34A','#D97706','#DC2626','#0891B2','#7C3AED'];
 const avatarColor = (name: string) => AVATAR_COLORS[(name?.charCodeAt(0)??0) % AVATAR_COLORS.length];
@@ -139,6 +140,9 @@ export default function EmployeesPage() {
             <i className="ti ti-search" style={{ position:'absolute', left:'12px', top:'50%', transform:'translateY(-50%)', fontSize:'14px', color:'#9B97CC' }} aria-hidden="true"/>
             <input placeholder="Поиск..." value={search} onChange={e=>setSearch(e.target.value)} style={{ ...inp, width:'220px', paddingLeft:'34px' }}/>
           </div>
+          {mounted && perms.isAdmin && (
+            <DeleteSectionButton section="employees" label="всех сотрудников" token={localStorage.getItem('access_token') ?? ''} userRoles={perms.roles ?? []} onDeleted={() => window.location.reload()} />
+          )}
           {mounted && perms.isAdmin && (
             <button onClick={()=>setShowInvite(true)}
               style={{ background:'linear-gradient(135deg,#7F77DD,#5248C5)', color:'white', border:'none', borderRadius:'20px', padding:'9px 20px', fontSize:'13px', fontWeight:700, cursor:'pointer', boxShadow:'0 4px 12px rgba(127,119,221,0.3)', display:'flex', alignItems:'center', gap:'6px' }}>

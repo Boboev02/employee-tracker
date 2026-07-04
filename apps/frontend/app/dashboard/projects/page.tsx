@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { DeleteSectionButton } from '@/components/admin/DeleteSectionButton';
 
 const API = 'https://employee-tracker.ru/api/v1';
 const COLORS = ['#7F77DD','#8B5CF6','#3B82F6','#10B981','#F59E0B','#EF4444','#EC4899','#06B6D4'];
@@ -19,11 +20,17 @@ export default function ProjectsPage() {
   const [form, setForm] = useState({ name:'', description:'', color:'#7F77DD', dueDate:'', departmentId:'' });
   const [departments, setDepartments] = useState<any[]>([]);
   const [formError, setFormError] = useState('');
+  const [token, setToken] = useState('');
+  const [userRoles, setUserRoles] = useState<string[]>([]);
 
   const h = () => ({ 'Content-Type':'application/json', Authorization:'Bearer '+localStorage.getItem('access_token') });
 
   useEffect(() => {
-    if (!localStorage.getItem('access_token')) { router.push('/login'); return; }
+    const t = localStorage.getItem('access_token');
+    if (!t) { router.push('/login'); return; }
+    setToken(t);
+    const u = JSON.parse(localStorage.getItem('user') ?? '{}');
+    setUserRoles(u.roles ?? []);
     load();
     fetch(API+'/dictionaries/departments', { headers: h() }).then(r=>r.json()).then(d=>setDepartments(Array.isArray(d)?d:[])).catch(()=>{});
   }, []);
@@ -72,10 +79,13 @@ export default function ProjectsPage() {
           <h1 style={{ fontSize:'18px', fontWeight:800, color:'#1a1040', margin:0 }}>Проекты</h1>
           <p style={{ fontSize:'11px', color:'#9B97CC', margin:'2px 0 0' }}>{projects.length} проектов</p>
         </div>
-        <button onClick={() => setShowForm(true)}
-          style={{ background:'linear-gradient(135deg,#7F77DD,#5248C5)', color:'white', border:'none', borderRadius:'14px', padding:'9px 20px', fontSize:'13px', fontWeight:700, cursor:'pointer' }}>
-          + Новый проект
-        </button>
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          {token && <DeleteSectionButton section="projects" label="все проекты" token={token} userRoles={userRoles} onDeleted={load} />}
+          <button onClick={() => setShowForm(true)}
+            style={{ background:'linear-gradient(135deg,#7F77DD,#5248C5)', color:'white', border:'none', borderRadius:'14px', padding:'9px 20px', fontSize:'13px', fontWeight:700, cursor:'pointer' }}>
+            + Новый проект
+          </button>
+        </div>
       </div>
 
       <div style={{ padding:'20px 28px', display:'flex', flexDirection:'column', gap:'16px' }}>

@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCustomFields, CustomField } from '@/hooks/useCustomFields';
+import { DeleteSectionButton } from '@/components/admin/DeleteSectionButton';
 
 const FIELD_TYPE_LABELS: Record<string, string> = {
   TEXT:'Текст', TEXTAREA:'Большой текст', NUMBER:'Число', MONEY:'Деньги',
@@ -88,9 +89,13 @@ function CustomFieldsManager({ token }: { token: string }) {
   return (
     <div style={{ padding:'24px 28px', maxWidth:960, margin:'0 auto' }}>
       {/* Header */}
-      <div style={{ marginBottom:24 }}>
-        <h1 style={{ fontSize:22, fontWeight:800, color:'#1a1040', margin:0 }}>Пользовательские поля</h1>
-        <p style={{ fontSize:13, color:'#9B97CC', margin:'4px 0 0' }}>Настройте карточку задачи под ваши процессы</p>
+      <div style={{ marginBottom:24, display:'flex', alignItems:'flex-start', justifyContent:'space-between' }}>
+        <div>
+          <h1 style={{ fontSize:22, fontWeight:800, color:'#1a1040', margin:0 }}>Пользовательские поля</h1>
+          <p style={{ fontSize:13, color:'#9B97CC', margin:'4px 0 0' }}>Настройте карточку задачи под ваши процессы</p>
+        </div>
+        {tab==='fields' && <DeleteSectionButton section="custom-fields" label="все пользовательские поля" token={token} userRoles={JSON.parse(localStorage.getItem('user')??'{}').roles ?? []} onDeleted={()=>window.location.reload()} />}
+        {tab==='types' && <DeleteSectionButton section="task-types" label="все типы задач" token={token} userRoles={JSON.parse(localStorage.getItem('user')??'{}').roles ?? []} onDeleted={()=>window.location.reload()} />}
       </div>
 
       {/* Tabs */}

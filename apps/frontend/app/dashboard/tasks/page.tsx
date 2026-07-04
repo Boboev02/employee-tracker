@@ -6,6 +6,7 @@ import { usePermissions } from '@/lib/usePermissions';
 import { CustomFieldsPanel } from '@/components/custom-fields/CustomFieldsPanel';
 import { useCustomFields } from '@/hooks/useCustomFields';
 import { FieldRenderer } from '@/components/custom-fields/FieldRenderer';
+import { DeleteSectionButton } from '@/components/admin/DeleteSectionButton';
 
 const STATUS_COLS = [
   { id:'NEW',         label:'Новые',          dot:'var(--accent)',  colBg:'var(--bg-app)', accentC:'var(--accent)',  accentBg:'var(--accent-light)', next:'IN_PROGRESS', nextLabel:'В работу' },
@@ -276,6 +277,9 @@ export default function TasksPage() {
               style={{ background:'#FEE2E2', color:'#DC2626', border:'none', borderRadius:'20px', padding:'7px 12px', fontSize:'11px', fontWeight:700, cursor:'pointer' }}>
               ✕ Сбросить
             </button>
+          )}
+          {mounted && perms.isAdmin && (
+            <DeleteSectionButton section="tasks" label="все задачи" token={token} userRoles={perms.roles ?? []} onDeleted={()=>window.location.reload()} />
           )}
           {mounted && perms.canCreateTasks && (
             <button onClick={()=>setShowForm(true)}
