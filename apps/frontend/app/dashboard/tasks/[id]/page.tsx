@@ -284,7 +284,7 @@ export default function TaskDetailPage() {
         <span style={{ fontSize:'11px', fontWeight:700, padding:'4px 12px', borderRadius:'20px', background:ss.bg, color:ss.c, flexShrink:0 }}>{ss.label}</span>
       </div>
 
-      <div style={{ padding:'20px 28px', display:'grid', gridTemplateColumns:'1fr 280px', gap:'16px', alignItems:'start' }}>
+      <div style={{ padding:'20px 28px', display:'grid', gridTemplateColumns:'1fr 360px', gap:'16px', alignItems:'start' }}>
 
         {/* Left — description + comments */}
         <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
@@ -492,71 +492,6 @@ export default function TaskDetailPage() {
             )}
           </div>
 
-          {/* Comments */}
-          <div style={card}>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'16px' }}>
-              <p style={{ fontSize:'11px', fontWeight:700, color:'#9B97CC', textTransform:'uppercase', letterSpacing:'0.5px', margin:0 }}>
-                Комментарии
-                {comments.length>0 && <span style={{ fontWeight:500, color:'#C4C0E8', marginLeft:'4px' }}>({comments.length})</span>}
-              </p>
-            </div>
-
-            {/* Comments list */}
-            {comments.length>0 && (
-              <div style={{ display:'flex', flexDirection:'column', gap:'12px', marginBottom:'20px' }}>
-                {comments.map((c:any,i:number) => {
-                  const authorName = userMap[c.authorId] ?? c.author?.name ?? 'Пользователь';
-                  const isMe = c.authorId === user?.id;
-                  return (
-                    <div key={c.id??i} style={{ display:'flex', gap:'10px', alignItems:'flex-start' }}>
-                      <div style={{ width:'32px', height:'32px', borderRadius:'50%', background:avatarColor(authorName), display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                        <span style={{ color:'white', fontSize:'12px', fontWeight:700 }}>{authorName.charAt(0)}</span>
-                      </div>
-                      <div style={{ flex:1 }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'5px' }}>
-                          <span style={{ fontSize:'13px', fontWeight:600, color:'#1a1040' }}>{authorName}</span>
-                          {isMe && <span style={{ fontSize:'10px', color:'#7F77DD', background:'#EDE9FE', padding:'1px 6px', borderRadius:'6px' }}>Вы</span>}
-                          <span style={{ fontSize:'11px', color:'#C4C0E8', marginLeft:'auto' }}>{timeAgo(c.createdAt)}</span>
-                        </div>
-                        <div style={{ background:'#F8F7FF', borderRadius:'12px', padding:'10px 14px', fontSize:'13px', color:'#1a1040', lineHeight:1.6, border:'1px solid #F3F0FF' }}>
-                          {c.content}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {comments.length===0 && (
-              <div style={{ padding:'20px', textAlign:'center', color:'#C4C0E8', fontSize:'13px', marginBottom:'16px' }}>
-                <i className="ti ti-message" style={{ fontSize:'24px', display:'block', marginBottom:'8px', opacity:0.5 }} aria-hidden="true"/>
-                Комментариев пока нет
-              </div>
-            )}
-
-            {/* New comment */}
-            <div style={{ display:'flex', gap:'10px', alignItems:'flex-start' }}>
-              <div style={{ width:'32px', height:'32px', borderRadius:'50%', background:avatarColor(user?.name??''), display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:'1px' }}>
-                <span style={{ color:'white', fontSize:'12px', fontWeight:700 }}>{user?.name?.charAt(0)??'U'}</span>
-              </div>
-              <div style={{ flex:1 }}>
-                <textarea value={comment} onChange={e=>setComment(e.target.value)}
-                  onKeyDown={e=>{ if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)) postComment(); }}
-                  placeholder="Написать комментарий... (Cmd+Enter для отправки)"
-                  rows={3}
-                  style={{ ...inp, resize:'none', borderRadius:'12px', padding:'10px 14px', lineHeight:1.6 }}/>
-                <div style={{ display:'flex', justifyContent:'flex-end', marginTop:'8px' }}>
-                  <button onClick={postComment} disabled={posting||!comment.trim()}
-                    style={{ background:posting||!comment.trim()?'#EDE9FE':'linear-gradient(135deg,#7F77DD,#5248C5)', color:posting||!comment.trim()?'#C4C0E8':'white', border:'none', padding:'8px 20px', borderRadius:'12px', fontSize:'13px', fontWeight:700, cursor:posting||!comment.trim()?'not-allowed':'pointer', transition:'all 0.2s', display:'flex', alignItems:'center', gap:'6px' }}>
-                    <i className="ti ti-send" style={{ fontSize:'14px' }} aria-hidden="true"/>
-                    {posting ? 'Отправляю...' : 'Отправить'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* History */}
           {task.history?.length>0 && (
             <div style={card}>
@@ -574,8 +509,8 @@ export default function TaskDetailPage() {
           )}
         </div>
 
-        {/* Right sidebar */}
-        <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+        {/* Right sidebar — sticky, ClickUp-style persistent panel */}
+        <div style={{ display:'flex', flexDirection:'column', gap:'12px', position:'sticky', top:'20px', maxHeight:'calc(100vh - 40px)', overflowY:'auto', paddingBottom:'4px' }}>
 
           {/* Status actions */}
           <div style={card}>
@@ -716,6 +651,69 @@ export default function TaskDetailPage() {
                 <div style={{ display:'flex', justifyContent:'space-between', fontSize:'12px' }}>
                   <span style={{ color:'#9B97CC' }}>Комментариев</span>
                   <span style={{ color:'#6B7280', fontWeight:600 }}>{comments.length}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Activity / Comments — persistent panel, ClickUp-style */}
+          <div style={{ ...card, display:'flex', flexDirection:'column', minHeight:0 }}>
+            <p style={{ fontSize:'11px', fontWeight:700, color:'#9B97CC', textTransform:'uppercase', letterSpacing:'0.5px', margin:'0 0 14px' }}>
+              Комментарии
+              {comments.length>0 && <span style={{ fontWeight:500, color:'#C4C0E8', marginLeft:'4px' }}>({comments.length})</span>}
+            </p>
+
+            {/* Comments list */}
+            {comments.length>0 && (
+              <div style={{ display:'flex', flexDirection:'column', gap:'12px', marginBottom:'16px' }}>
+                {comments.map((c:any,i:number) => {
+                  const authorName = userMap[c.authorId] ?? c.author?.name ?? 'Пользователь';
+                  const isMe = c.authorId === user?.id;
+                  return (
+                    <div key={c.id??i} style={{ display:'flex', gap:'10px', alignItems:'flex-start' }}>
+                      <div style={{ width:'28px', height:'28px', borderRadius:'50%', background:avatarColor(authorName), display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                        <span style={{ color:'white', fontSize:'11px', fontWeight:700 }}>{authorName.charAt(0)}</span>
+                      </div>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:'6px', marginBottom:'4px', flexWrap:'wrap' }}>
+                          <span style={{ fontSize:'12px', fontWeight:600, color:'#1a1040' }}>{authorName}</span>
+                          {isMe && <span style={{ fontSize:'9px', color:'#7F77DD', background:'#EDE9FE', padding:'1px 5px', borderRadius:'5px' }}>Вы</span>}
+                          <span style={{ fontSize:'10px', color:'#C4C0E8', marginLeft:'auto' }}>{timeAgo(c.createdAt)}</span>
+                        </div>
+                        <div style={{ background:'#F8F7FF', borderRadius:'10px', padding:'8px 12px', fontSize:'12.5px', color:'#1a1040', lineHeight:1.55, border:'1px solid #F3F0FF' }}>
+                          {c.content}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {comments.length===0 && (
+              <div style={{ padding:'16px 0', textAlign:'center', color:'#C4C0E8', fontSize:'12px', marginBottom:'12px' }}>
+                <i className="ti ti-message" style={{ fontSize:'22px', display:'block', marginBottom:'6px', opacity:0.5 }} aria-hidden="true"/>
+                Комментариев пока нет
+              </div>
+            )}
+
+            {/* New comment — sticky at bottom of this panel */}
+            <div style={{ display:'flex', gap:'8px', alignItems:'flex-start', paddingTop:'8px', borderTop: comments.length>0 ? '1px solid #F3F0FF' : 'none' }}>
+              <div style={{ width:'28px', height:'28px', borderRadius:'50%', background:avatarColor(user?.name??''), display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:'1px' }}>
+                <span style={{ color:'white', fontSize:'11px', fontWeight:700 }}>{user?.name?.charAt(0)??'U'}</span>
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <textarea value={comment} onChange={e=>setComment(e.target.value)}
+                  onKeyDown={e=>{ if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)) postComment(); }}
+                  placeholder="Написать комментарий..."
+                  rows={2}
+                  style={{ ...inp, resize:'none', borderRadius:'10px', padding:'8px 12px', lineHeight:1.5, fontSize:'12.5px' }}/>
+                <div style={{ display:'flex', justifyContent:'flex-end', marginTop:'6px' }}>
+                  <button onClick={postComment} disabled={posting||!comment.trim()}
+                    style={{ background:posting||!comment.trim()?'#EDE9FE':'linear-gradient(135deg,#7F77DD,#5248C5)', color:posting||!comment.trim()?'#C4C0E8':'white', border:'none', padding:'6px 16px', borderRadius:'10px', fontSize:'12px', fontWeight:700, cursor:posting||!comment.trim()?'not-allowed':'pointer', transition:'all 0.2s', display:'flex', alignItems:'center', gap:'5px' }}>
+                    <i className="ti ti-send" style={{ fontSize:'12px' }} aria-hidden="true"/>
+                    {posting ? 'Отправляю...' : 'Отправить'}
+                  </button>
                 </div>
               </div>
             </div>
