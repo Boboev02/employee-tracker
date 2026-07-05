@@ -99,7 +99,7 @@ export class TaskController {
 
   @Post(':id/participants')
   @RequirePermissions('task:update:any', 'task:update:self')
-  addParticipant(@CurrentUser() user: any, @Param('id') id: string, @Body() body: { userId: string; role: 'co_executor' | 'observer' }) {
+  addParticipant(@CurrentUser() user: any, @Param('id') id: string, @Body() body: { userId: string; role: 'co_executor' | 'observer' | 'reviewer' | 'approver' }) {
     return this.tasks.addParticipant(id, user.orgId, user.id, body, user.permissions);
   }
 

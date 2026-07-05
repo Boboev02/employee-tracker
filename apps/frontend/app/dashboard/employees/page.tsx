@@ -16,13 +16,35 @@ const STATUS_STYLES: Record<string,{c:string;bg:string;l:string}> = {
   SUSPENDED: { c:'#DC2626', bg:'#FEE2E2', l:'Заблокирован' },
 };
 const ROLE_STYLES: Record<string,{c:string;bg:string}> = {
-  ADMIN:    { c:'#D97706', bg:'#FEF3C7' },
-  MANAGER:  { c:'#2563EB', bg:'#DBEAFE' },
-  EMPLOYEE: { c:'#7F77DD', bg:'#EDE9FE' },
+  SUPER_ADMIN:        { c:'#DC2626', bg:'#FEE2E2' },
+  OWNER:              { c:'#DC2626', bg:'#FEE2E2' },
+  DIRECTOR:           { c:'#B91C1C', bg:'#FEE2E2' },
+  ADMIN:              { c:'#D97706', bg:'#FEF3C7' },
+  DEPARTMENT_HEAD:    { c:'#C2410C', bg:'#FFEDD5' },
+  MANAGER:            { c:'#2563EB', bg:'#DBEAFE' },
+  ACCOUNTANT:         { c:'#0891B2', bg:'#CFFAFE' },
+  LOGISTICIAN:        { c:'#65A30D', bg:'#ECFCCB' },
+  MARKETER:           { c:'#DB2777', bg:'#FCE7F3' },
+  PROMOTION_MANAGER:  { c:'#C026D3', bg:'#FAE8FF' },
+  SUPPORT_OPERATOR:   { c:'#0D9488', bg:'#CCFBF1' },
+  HR:                 { c:'#9333EA', bg:'#F3E8FF' },
+  INTERN:             { c:'#6B7280', bg:'#F3F4F6' },
+  VIEWER:             { c:'#6B7280', bg:'#F3F4F6' },
+  EMPLOYEE:           { c:'#7F77DD', bg:'#EDE9FE' },
 };
 const ROLE_LABELS: Record<string,string> = {
-  ADMIN:'Администратор', MANAGER:'Менеджер', EMPLOYEE:'Сотрудник',
+  SUPER_ADMIN:'Супер-админ', OWNER:'Владелец', DIRECTOR:'Директор',
+  ADMIN:'Администратор', DEPARTMENT_HEAD:'Руководитель отдела', MANAGER:'Менеджер',
+  ACCOUNTANT:'Бухгалтер', LOGISTICIAN:'Логист', MARKETER:'Маркетолог',
+  PROMOTION_MANAGER:'Менеджер по продвижению', SUPPORT_OPERATOR:'Оператор поддержки',
+  HR:'HR-менеджер', INTERN:'Стажёр', VIEWER:'Наблюдатель', EMPLOYEE:'Сотрудник',
 };
+// Grouped for select dropdowns (optgroup-style ordering)
+const ROLE_GROUPS: { label: string; roles: string[] }[] = [
+  { label:'Руководство', roles:['DIRECTOR','ADMIN','DEPARTMENT_HEAD','MANAGER'] },
+  { label:'Специалисты', roles:['ACCOUNTANT','LOGISTICIAN','MARKETER','PROMOTION_MANAGER','SUPPORT_OPERATOR','HR'] },
+  { label:'Прочее', roles:['EMPLOYEE','INTERN','VIEWER'] },
+];
 
 export default function EmployeesPage() {
   const router  = useRouter();
@@ -226,11 +248,13 @@ export default function EmployeesPage() {
                     {mounted && perms.isAdmin && editingRole===emp.id ? (
                       <div style={{ display:'flex', gap:'4px', alignItems:'center' }}>
                         <select defaultValue={empRoles[0]} onChange={e=>setNewRole(e.target.value)}
-                          style={{ fontSize:'11px', border:'1px solid #7F77DD', borderRadius:'8px', padding:'4px 8px', background:'#F8F7FF', color:'#1a1040', outline:'none', maxWidth:'120px' }}
+                          style={{ fontSize:'11px', border:'1px solid #7F77DD', borderRadius:'8px', padding:'4px 8px', background:'#F8F7FF', color:'#1a1040', outline:'none', maxWidth:'160px' }}
                           autoFocus>
-                          <option value="EMPLOYEE">Сотрудник</option>
-                          <option value="MANAGER">Менеджер</option>
-                          <option value="ADMIN">Администратор</option>
+                          {ROLE_GROUPS.map(g => (
+                            <optgroup key={g.label} label={g.label}>
+                              {g.roles.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                            </optgroup>
+                          ))}
                         </select>
                         <button onClick={()=>handleRoleChange(emp.id, newRole)}
                           style={{ width:'24px', height:'24px', background:'#7F77DD', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontSize:'12px', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
@@ -364,9 +388,11 @@ export default function EmployeesPage() {
               <div>
                 <label style={{ fontSize:'10px', fontWeight:700, color:'#9B97CC', letterSpacing:'0.4px', display:'block', marginBottom:'6px', textTransform:'uppercase' }}>Роль</label>
                 <select value={invite.role} onChange={e=>setInvite({...invite,role:e.target.value})} style={inp}>
-                  <option value="EMPLOYEE">Сотрудник</option>
-                  <option value="MANAGER">Менеджер</option>
-                  <option value="ADMIN">Администратор</option>
+                  {ROLE_GROUPS.map(g => (
+                    <optgroup key={g.label} label={g.label}>
+                      {g.roles.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                    </optgroup>
+                  ))}
                 </select>
               </div>
               {inviteError && <div style={{ background:'#FEE2E2', color:'#DC2626', borderRadius:'10px', padding:'8px 14px', fontSize:'12px' }}>{inviteError}</div>}

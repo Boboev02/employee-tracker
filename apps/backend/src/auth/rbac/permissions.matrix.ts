@@ -80,6 +80,74 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     'analytics:view:self',
     'task:read:self','task:update:self',
   ],
+  // Директор — топ-менеджер, видит всё как OWNER, но не обязательно владелец аккаунта
+  DIRECTOR: [
+    'org:read','org:update',
+    'user:invite','user:read:all','user:update:any','user:suspend',
+    'team:create','team:read:all','team:update','team:members:manage',
+    'tracking:view:all','tracking:export',
+    'analytics:view:org','analytics:view:team',
+    'task:create','task:read:all','task:update:any','task:delete','task:assign',
+    'report:generate:org','report:view','audit:view',
+    'custom_field:view','custom_field:edit',
+    'crm:read','crm:write','crm:delete',
+  ],
+  // Руководитель отдела — управляет своим отделом (не всей организацией)
+  DEPARTMENT_HEAD: [
+    'org:read',
+    'user:invite','user:read:team','user:read:self','user:update:self',
+    'team:read:all','team:members:manage',
+    'tracking:view:team','tracking:view:self',
+    'analytics:view:team','analytics:view:self',
+    'task:create','task:read:team','task:read:self','task:update:any','task:assign',
+    'report:generate:team','report:view',
+    'custom_field:view','custom_field:edit',
+  ],
+  // Бухгалтер — только финансы, отчёты, KPI
+  ACCOUNTANT: [
+    'org:read',
+    'user:read:self','user:update:self',
+    'analytics:view:org',
+    'report:generate:org','report:view',
+    'task:read:self','task:update:self',
+  ],
+  // Логист — задачи, товары, склад (ограниченный доступ)
+  LOGISTICIAN: [
+    'user:read:self','user:update:self',
+    'tracking:view:self',
+    'analytics:view:self',
+    'task:create','task:read:team','task:read:self','task:update:self',
+    'report:view',
+  ],
+  // Маркетолог — CRM, аналитика, продвижение, без доступа к финансам
+  MARKETER: [
+    'user:read:self','user:update:self',
+    'tracking:view:self',
+    'analytics:view:team','analytics:view:self',
+    'task:create','task:read:team','task:read:self','task:update:self',
+    'crm:read','crm:write',
+    'report:view',
+  ],
+  // Менеджер по продвижению — реклама, контент, CRM-лиды, без финансов
+  PROMOTION_MANAGER: [
+    'user:read:self','user:update:self',
+    'tracking:view:self',
+    'analytics:view:self',
+    'task:create','task:read:self','task:update:self',
+    'crm:read','crm:write',
+    'report:view',
+  ],
+  // Оператор поддержки — только чат/отзывы WB-Ozon и свои задачи
+  SUPPORT_OPERATOR: [
+    'user:read:self','user:update:self',
+    'tracking:view:self',
+    'task:read:self','task:update:self',
+  ],
+  // Стажёр — только просмотр + свои задачи, ничего не удаляет
+  INTERN: [
+    'user:read:self','user:update:self',
+    'task:read:self','task:update:self',
+  ],
 };
 
 export function resolvePermissions(roles: string[]): Set<Permission> {

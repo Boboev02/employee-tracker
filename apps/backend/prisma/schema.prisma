@@ -54,6 +54,7 @@ model User {
   primaryDepartmentId String?
   primaryDepartment   Department? @relation("PrimaryDeptMembers", fields: [primaryDepartmentId], references: [id])
   departmentLinks     DepartmentMember[]
+  taskParticipations  TaskParticipant[]
 }
 
 model Role {
@@ -491,9 +492,10 @@ model TaskParticipant {
   id        String   @id @default(uuid())
   taskId    String
   userId    String
-  role      String   @default("observer") // co_executor | observer
+  role      String   @default("observer") // co_executor | observer | reviewer | approver
   createdAt DateTime @default(now())
   task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([taskId, userId])
   @@index([taskId])

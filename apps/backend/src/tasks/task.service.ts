@@ -303,7 +303,7 @@ export class TaskService {
   async getParticipants(taskId: string) {
     return this.prisma.taskParticipant.findMany({
       where: { taskId },
-      include: { task: { select: { id: true } } },
+      include: { user: { select: { id: true, name: true, avatarUrl: true } } },
     });
   }
 

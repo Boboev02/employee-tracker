@@ -19,6 +19,14 @@ const PRIORITY_STYLE: Record<string,{bg:string;c:string;label:string}> = {
   HIGH:     { bg:'#FEF3C7', c:'#D97706', label:'Высокий' },
   CRITICAL: { bg:'#FEE2E2', c:'#DC2626', label:'Критический' },
 };
+
+// RACI-модель участников задачи
+const PARTICIPANT_ROLES: Record<string,{label:string;icon:string;color:string}> = {
+  co_executor: { label:'Соисполнитель', icon:'🤝', color:'#2563EB' },
+  observer:    { label:'Наблюдатель',   icon:'👁️', color:'#9B97CC' },
+  reviewer:    { label:'Проверяющий',   icon:'🔍', color:'#D97706' },
+  approver:    { label:'Согласующий',   icon:'✅', color:'#16A34A' },
+};
 const AVATAR_COLORS = ['#7F77DD','#2563EB','#16A34A','#D97706','#DC2626','#0891B2'];
 const avatarColor = (name: string) => AVATAR_COLORS[(name?.charCodeAt(0)??0) % AVATAR_COLORS.length];
 
@@ -50,6 +58,8 @@ export default function TaskDetailPage() {
   const [comments, setComments] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
   const [userMap, setUserMap]   = useState<Record<string,string>>({});
+  const [showAddParticipant, setShowAddParticipant] = useState(false);
+  const [newParticipant, setNewParticipant] = useState({ userId:'', role:'co_executor' });
   const [loading, setLoading]   = useState(true);
   const [comment, setComment]   = useState('');
   const [posting, setPosting]   = useState(false);
@@ -87,7 +97,13 @@ export default function TaskDetailPage() {
     try {
       const res  = await fetch('https://employee-tracker.ru/api/v1/tasks/'+id, { headers:{ Authorization:'Bearer '+t } });
       const data = await res.json();
-      setTask(data); setTitleVal(data.title ?? '');
+      // Загружаем участников (RACI: соисполнители, наблюдатели, проверяющие, согласующие)
+      let participants: any[] = [];
+      try {
+        const pRes = await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/participants', { headers:{ Authorization:'Bearer '+t } });
+        if (pRes.ok) participants = await pRes.json();
+      } catch {}
+      setTask({ ...data, participants }); setTitleVal(data.title ?? '');
       setComments(Array.isArray(data.comments)?data.comments:[]);
       // Загружаем чеклисты
       const clRes = await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/checklists', { headers:{ Authorization:'Bearer '+t } });
@@ -113,6 +129,24 @@ export default function TaskDetailPage() {
     await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/move', {
       method:'PATCH', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token },
       body: JSON.stringify({ status }),
+    });
+    loadTask(token);
+  };
+
+  const addParticipant = async () => {
+    if (!newParticipant.userId) return;
+    await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/participants', {
+      method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token },
+      body: JSON.stringify(newParticipant),
+    });
+    setShowAddParticipant(false);
+    setNewParticipant({ userId:'', role:'co_executor' });
+    loadTask(token);
+  };
+
+  const removeParticipant = async (participantUserId: string) => {
+    await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/participants/'+participantUserId, {
+      method:'DELETE', headers:{ Authorization:'Bearer '+token },
     });
     loadTask(token);
   };
@@ -583,6 +617,72 @@ export default function TaskDetailPage() {
                   {employees.map((e:any)=><option key={e.id} value={e.id}>{e.name}</option>)}
                 </select>
               </div>
+
+              {/* Postanovshchik (creator) — read-only display */}
+              {task.createdById && (
+                <div>
+                  <p style={{ fontSize:'10px', color:'#9B97CC', margin:'0 0 6px', fontWeight:600 }}>Постановщик</p>
+                  <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px', background:'#F8F7FF', borderRadius:10 }}>
+                    <span style={{ fontSize:16 }}>📌</span>
+                    <span style={{ fontSize:13, fontWeight:600, color:'#1a1040' }}>
+                      {employees.find((e:any)=>e.id===task.createdById)?.name ?? task.createdById}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* RACI Participants: co-executor, observer, reviewer, approver */}
+              <div>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'6px' }}>
+                  <p style={{ fontSize:'10px', color:'#9B97CC', margin:0, fontWeight:600 }}>Участники</p>
+                  {canEdit && (
+                    <button onClick={()=>setShowAddParticipant(true)} style={{ background:'none', border:'none', color:'#7F77DD', fontSize:11, fontWeight:700, cursor:'pointer' }}>+ Добавить</button>
+                  )}
+                </div>
+                {(!task.participants || task.participants.length===0) && (
+                  <p style={{ fontSize:12, color:'#C4C0E8', fontStyle:'italic', margin:0 }}>Нет участников</p>
+                )}
+                <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                  {(task.participants??[]).map((p:any) => {
+                    const rc = PARTICIPANT_ROLES[p.role] ?? PARTICIPANT_ROLES.observer;
+                    const emp = employees.find((e:any)=>e.id===p.userId) ?? p.user;
+                    return (
+                      <div key={p.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', background:'#F8F7FF', borderRadius:10 }}>
+                        <span style={{ fontSize:14 }}>{rc.icon}</span>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <p style={{ fontSize:12, fontWeight:600, color:'#1a1040', margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{emp?.name ?? p.userId}</p>
+                          <p style={{ fontSize:10, color:rc.color, margin:0, fontWeight:600 }}>{rc.label}</p>
+                        </div>
+                        {canEdit && (
+                          <button onClick={()=>removeParticipant(p.id)} style={{ background:'none', border:'none', color:'#C4C0E8', cursor:'pointer', fontSize:14 }}>✕</button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Add participant modal */}
+              {showAddParticipant && (
+                <div style={{ position:'fixed', inset:0, background:'rgba(26,16,64,0.4)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <div style={{ background:'white', borderRadius:20, padding:24, width:340, boxShadow:'0 24px 64px rgba(127,119,221,0.2)' }}>
+                    <h3 style={{ fontSize:15, fontWeight:800, color:'#1a1040', margin:'0 0 16px' }}>Добавить участника</h3>
+                    <p style={{ fontSize:11, color:'#9B97CC', margin:'0 0 6px', fontWeight:600 }}>Сотрудник</p>
+                    <select value={newParticipant.userId} onChange={e=>setNewParticipant(p=>({...p,userId:e.target.value}))} style={{...inp, marginBottom:12}}>
+                      <option value="">— выбрать —</option>
+                      {employees.filter((e:any)=>e.id!==task.assigneeId).map((e:any)=><option key={e.id} value={e.id}>{e.name}</option>)}
+                    </select>
+                    <p style={{ fontSize:11, color:'#9B97CC', margin:'0 0 6px', fontWeight:600 }}>Роль</p>
+                    <select value={newParticipant.role} onChange={e=>setNewParticipant(p=>({...p,role:e.target.value}))} style={{...inp, marginBottom:16}}>
+                      {Object.entries(PARTICIPANT_ROLES).map(([k,v])=><option key={k} value={k}>{v.icon} {v.label}</option>)}
+                    </select>
+                    <div style={{ display:'flex', gap:8 }}>
+                      <button onClick={addParticipant} disabled={!newParticipant.userId} style={{ flex:1, background:'linear-gradient(135deg,#7F77DD,#5248C5)', color:'white', border:'none', borderRadius:10, padding:'10px', fontSize:13, fontWeight:700, cursor:newParticipant.userId?'pointer':'not-allowed', opacity:newParticipant.userId?1:0.6 }}>Добавить</button>
+                      <button onClick={()=>setShowAddParticipant(false)} style={{ flex:1, background:'#F8F7FF', color:'#6B7280', border:'1px solid #EDE9FE', borderRadius:10, padding:'10px', fontSize:13, cursor:'pointer' }}>Отмена</button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Due date */}
               <div>
