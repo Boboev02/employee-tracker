@@ -1,9 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CrmAutomationService } from './crm-automation.service';
 
 @Injectable()
 export class CrmService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly automation: CrmAutomationService,
+  ) {}
 
   // ===== ЛИДЫ =====
   async getLeads(orgId: string, filters: any = {}) {
@@ -24,6 +28,7 @@ export class CrmService {
       data: { orgId, name: dto.name, email: dto.email, phone: dto.phone, source: dto.source, ownerId: userId, notes: dto.notes, tags: dto.tags ?? [] },
     });
     await this.logActivity(orgId, userId, { leadId: lead.id, type: 'created', content: 'Лид создан' });
+    await this.automation.onEntityCreated(orgId, 'LEAD', lead).catch(() => {});
     return lead;
   }
 
@@ -33,6 +38,12 @@ export class CrmService {
     const updated = await this.prisma.crmLead.update({ where: { id }, data: { ...dto, updatedAt: new Date() } });
     if (dto.status && dto.status !== lead.status) {
       await this.logActivity(orgId, userId, { leadId: id, type: 'status_change', content: `${lead.status} → ${dto.status}` });
+      await this.automation.onStageChanged(orgId, 'LEAD', updated, dto.status).catch(() => {});
+    }
+    for (const field of Object.keys(dto)) {
+      if (field !== 'status' && (lead as any)[field] !== dto[field]) {
+        await this.automation.onFieldChanged(orgId, 'LEAD', updated, field, dto[field]).catch(() => {});
+      }
     }
     return updated;
   }
@@ -173,6 +184,7 @@ export class CrmService {
       data: { orgId, title: dto.title, amount: dto.amount, currency: dto.currency ?? 'RUB', stage: dto.stage ?? 'NEW', probability: dto.probability ?? 0, contactId: dto.contactId, companyId: dto.companyId, ownerId: userId, source: dto.source, tags: dto.tags ?? [] },
     });
     await this.logActivity(orgId, userId, { dealId: deal.id, type: 'deal_created', content: 'Сделка создана' });
+    await this.automation.onEntityCreated(orgId, 'DEAL', deal).catch(() => {});
     return deal;
   }
 
@@ -182,6 +194,12 @@ export class CrmService {
     const updated = await this.prisma.crmDeal.update({ where: { id }, data: { ...dto, updatedAt: new Date() } });
     if (dto.stage && dto.stage !== deal.stage) {
       await this.logActivity(orgId, userId, { dealId: id, type: 'status_change', content: `Этап: ${deal.stage} → ${dto.stage}` });
+      await this.automation.onStageChanged(orgId, 'DEAL', updated, dto.stage).catch(() => {});
+    }
+    for (const field of Object.keys(dto)) {
+      if (field !== 'stage' && (deal as any)[field] !== dto[field]) {
+        await this.automation.onFieldChanged(orgId, 'DEAL', updated, field, dto[field]).catch(() => {});
+      }
     }
     return updated;
   }

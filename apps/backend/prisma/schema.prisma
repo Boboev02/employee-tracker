@@ -597,6 +597,7 @@ model CrmContact {
   company   CrmCompany? @relation(fields: [companyId], references: [id])
   deals     CrmDeal[]
   activities CrmActivity[]
+  cases     CrmCase[]
 
   @@index([orgId])
   @@index([companyId])
@@ -620,6 +621,7 @@ model CrmCompany {
   contacts  CrmContact[]
   deals     CrmDeal[]
   activities CrmActivity[]
+  cases     CrmCase[]
 
   @@index([orgId])
 }
@@ -647,6 +649,8 @@ model CrmDeal {
   company    CrmCompany?  @relation(fields: [companyId], references: [id])
   activities CrmActivity[]
   tasks      Task[]
+  cases      CrmCase[]
+  documents  CrmDocument[]
 
   @@index([orgId, stage])
   @@index([ownerId])
@@ -1073,4 +1077,124 @@ model ChatMessage {
 
   @@index([channelId, createdAt])
   @@index([senderId])
+}
+
+// ===== CRM: АВТОМАТИЗАЦИЯ (Роботы + Триггеры, как в Bitrix24) =====
+
+model CrmAutomationRule {
+  id                  String   @id @default(uuid())
+  orgId               String
+  entityType          String   // DEAL | LEAD
+  name                String
+  triggerType         String   // ON_STAGE_ENTER | ON_CREATE | ON_FIELD_CHANGE | ON_TIME_ELAPSED
+  triggerStage        String?  // стадия/статус для ON_STAGE_ENTER
+  triggerField        String?  // поле для ON_FIELD_CHANGE
+  triggerFieldValue   String?  // ожидаемое значение поля (опционально)
+  triggerDelayMinutes Int?     // задержка в минутах для ON_TIME_ELAPSED
+  conditions          Json?    // доп. условия [{field, operator, value}]
+  actions             Json     // массив действий [{type, params}]
+  isActive            Boolean  @default(true)
+  sortOrder           Int      @default(0)
+  createdById         String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([orgId, entityType])
+}
+
+model CrmAutomationLog {
+  id         String   @id @default(uuid())
+  orgId      String
+  ruleId     String
+  entityType String
+  entityId   String
+  status     String   // SUCCESS | ERROR | SKIPPED
+  message    String?  @db.Text
+  createdAt  DateTime @default(now())
+
+  @@index([orgId, entityId])
+  @@index([ruleId])
+}
+
+// ===== CRM: КЕЙСЫ / ОБРАЩЕНИЯ СО SLA =====
+
+model CrmCase {
+  id          String    @id @default(uuid())
+  orgId       String
+  number      Int
+  subject     String
+  description String?   @db.Text
+  status      String    @default("OPEN") // OPEN | IN_PROGRESS | RESOLVED | CLOSED
+  priority    String    @default("MEDIUM") // LOW | MEDIUM | HIGH | URGENT
+  contactId   String?
+  companyId   String?
+  dealId      String?
+  assignedToId String?
+  slaMinutes  Int       @default(1440) // срок реакции в минутах (по умолчанию 24ч)
+  dueBy       DateTime?
+  resolvedAt  DateTime?
+  createdById String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  contact CrmContact? @relation(fields: [contactId], references: [id])
+  company CrmCompany? @relation(fields: [companyId], references: [id])
+  deal    CrmDeal?    @relation(fields: [dealId], references: [id])
+
+  @@index([orgId, status])
+  @@index([assignedToId])
+}
+
+// ===== CRM: ДОКУМЕНТЫ (Счета / Коммерческие предложения) =====
+
+model CrmDocument {
+  id          String   @id @default(uuid())
+  orgId       String
+  dealId      String?
+  type        String   // QUOTE | INVOICE
+  number      String
+  items       Json     // [{ name, qty, price, total }]
+  totalAmount Float
+  currency    String   @default("RUB")
+  status      String   @default("DRAFT") // DRAFT | SENT | ACCEPTED | PAID | CANCELLED
+  companyRequisites Json? // реквизиты компании-продавца
+  clientInfo  Json?    // реквизиты клиента (снимок на момент создания)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  deal CrmDeal? @relation(fields: [dealId], references: [id])
+
+  @@index([orgId, dealId])
+}
+
+// ===== CRM: WEB-TO-LEAD ФОРМЫ =====
+
+model CrmWebForm {
+  id          String   @id @default(uuid())
+  orgId       String
+  name        String
+  fields      Json     // [{ key, label, type, required }]
+  defaultSource String @default("website")
+  defaultOwnerId String?
+  isActive    Boolean  @default(true)
+  submitCount Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@index([orgId])
+}
+
+// ===== CRM: НАСТРОЙКИ EMAIL (SMTP) =====
+
+model CrmEmailSettings {
+  id        String   @id @default(uuid())
+  orgId     String   @unique
+  smtpHost  String?
+  smtpPort  Int?     @default(587)
+  smtpUser  String?
+  smtpPass  String?  // хранится как есть (для MVP; в проде — шифровать)
+  fromName  String?
+  fromEmail String?
+  isActive  Boolean  @default(false)
+  updatedAt DateTime @updatedAt
 }
