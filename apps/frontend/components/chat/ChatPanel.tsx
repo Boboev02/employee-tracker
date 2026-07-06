@@ -180,10 +180,11 @@ export function ChatPanel({ token, currentUserId, compact = false }: Props) {
       if (r.ok) {
         const data = await r.json();
         const isImage = ['png','jpg','jpeg','gif','webp'].includes(data.fileType);
-        const isAudio = ['webm','ogg','mp3','wav','m4a'].includes(data.fileType);
+        const isAudio = ['webm','ogg','mp3','wav','m4a'].includes(data.fileType) && file.type.startsWith('audio');
+        const isVideo = ['mp4','mov','avi','mkv'].includes(data.fileType) || file.type.startsWith('video');
         await chat.sendMessage(activeChannel.id, {
           attachmentUrl: data.url, attachmentName: data.fileName,
-          attachmentType: isImage ? 'image' : isAudio ? 'audio' : 'file',
+          attachmentType: isImage ? 'image' : isAudio ? 'audio' : isVideo ? 'video' : 'file',
         });
       }
     } finally { setUploading(false); }
@@ -301,7 +302,7 @@ export function ChatPanel({ token, currentUserId, compact = false }: Props) {
                 </div>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:2 }}>
                   <span style={{ fontSize:12, color:'#9B97CC', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>
-                    {ch.lastMessage ? (ch.lastMessage.content ?? (ch.lastMessage.attachmentType==='image' ? '📷 Фото' : ch.lastMessage.attachmentType==='audio' ? '🎤 Голосовое' : '📎 Файл')) : 'Нет сообщений'}
+                    {ch.lastMessage ? (ch.lastMessage.content ?? (ch.lastMessage.attachmentType==='image' ? '📷 Фото' : ch.lastMessage.attachmentType==='audio' ? '🎤 Голосовое' : ch.lastMessage.attachmentType==='video' ? '🎬 Видео' : '📎 Файл')) : 'Нет сообщений'}
                   </span>
                   {ch.unreadCount > 0 ? (
                     <span style={{ background:'#F59E0B', color:'white', fontSize:10, fontWeight:700, borderRadius:20, width:18, height:18, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginLeft:6 }}>{ch.unreadCount}</span>
@@ -422,6 +423,9 @@ export function ChatPanel({ token, currentUserId, compact = false }: Props) {
                           )}
                           {m.attachmentUrl && m.attachmentType==='audio' && (
                             <audio controls src={m.attachmentUrl} style={{ height:34, maxWidth:220 }} />
+                          )}
+                          {m.attachmentUrl && m.attachmentType==='video' && (
+                            <video controls src={m.attachmentUrl} style={{ maxWidth:240, borderRadius:12, border:'1px solid #EDE9FE' }} />
                           )}
 
                           {isDeleted ? (

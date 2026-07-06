@@ -20,15 +20,17 @@ export class UploadController {
       },
     }),
     fileFilter: (req, file, cb) => {
-      const allowed = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.png', '.jpg', '.jpeg', '.webm', '.ogg', '.mp3', '.wav', '.m4a'];
+      // Блок-лист: запрещаем только потенциально опасные исполняемые типы.
+      // Остальное (документы, изображения, видео, аудио, архивы) разрешено — как в мессенджере.
+      const blocked = ['.exe', '.bat', '.cmd', '.sh', '.msi', '.dll', '.scr', '.com', '.jar', '.app', '.php', '.js', '.vbs', '.ps1'];
       const ext = path.extname(file.originalname).toLowerCase();
-      if (allowed.includes(ext)) {
-        cb(null, true);
-      } else {
+      if (blocked.includes(ext)) {
         cb(new BadRequestException('Недопустимый тип файла'), false);
+      } else {
+        cb(null, true);
       }
     },
-    limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
+    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
   }))
   uploadFile(@UploadedFile() file: any) {
     if (!file) throw new BadRequestException('Файл не загружен');
