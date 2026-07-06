@@ -181,6 +181,7 @@ model Task {
   status        String    @default("NEW")
   priority      String    @default("MEDIUM")
   assigneeId    String?
+  assigneeIds   String[]  @default([]) // Все исполнители задачи (включая assigneeId для обратной совместимости)
   createdById   String
   assignee      User?     @relation("TaskAssignee", fields: [assigneeId], references: [id])
   dueDate       DateTime?

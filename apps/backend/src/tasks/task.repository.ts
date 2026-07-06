@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { buildFilterWhere, FilterGroup } from './filter-builder.util';
 
 @Injectable()
 export class TaskRepository {
@@ -14,25 +15,35 @@ export class TaskRepository {
         project:    { select: { id: true, name: true, status: true, color: true } },
         department: { select: { id: true, name: true, color: true } },
         assignee:   { select: { id: true, name: true, avatarUrl: true } },
+        participants: {
+          where: { role: 'co_executor' },
+          include: { user: { select: { id: true, name: true, avatarUrl: true } } },
+        },
       },
     });
   }
 
   async findKanban(orgId: string, filters: any = {}) {
     const where: any = { orgId, deletedAt: null };
-    if (filters.assigneeId) where.assigneeId = filters.assigneeId;
+    if (filters.assigneeId) where.assigneeIds = { has: filters.assigneeId };
     if (filters.teamId)     where.teamId     = filters.teamId;
     // Если переданы ограничения по видимости (EMPLOYEE без task:read:all/team) — фильтруем
-    // задачи где пользователь автор ИЛИ исполнитель
+    // задачи где пользователь автор ИЛИ один из исполнителей
     if (filters._restrictToUserId) {
-      where.OR = [{ createdById: filters._restrictToUserId }, { assigneeId: filters._restrictToUserId }];
+      where.OR = [{ createdById: filters._restrictToUserId }, { assigneeIds: { has: filters._restrictToUserId } }];
     }
 
     const tasks = await this.prisma.task.findMany({
       where,
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
       take: 500,
-      include: { assignee: { select: { id: true, name: true, avatarUrl: true } } },
+      include: {
+        assignee: { select: { id: true, name: true, avatarUrl: true } },
+        participants: {
+          where: { role: 'co_executor' },
+          include: { user: { select: { id: true, name: true, avatarUrl: true } } },
+        },
+      },
     });
 
     const columns: Record<string, any[]> = {
@@ -47,7 +58,7 @@ export class TaskRepository {
   async findMany(orgId: string, filters: any = {}) {
     const where: any = { orgId, deletedAt: null };
     if (filters.status)       where.status       = Array.isArray(filters.status) ? { in: filters.status } : filters.status;
-    if (filters.assigneeId)   where.assigneeId   = filters.assigneeId;
+    if (filters.assigneeId)   where.assigneeIds  = { has: filters.assigneeId };
     if (filters.taskTypeId)   where.taskTypeId   = filters.taskTypeId;
     if (filters.projectId)    where.projectId    = filters.projectId;
     if (filters.departmentId) where.departmentId = filters.departmentId;
@@ -70,11 +81,30 @@ export class TaskRepository {
     if (filters._restrictToUserId) {
       where.AND = [
         ...(where.AND ?? []),
-        { OR: [{ createdById: filters._restrictToUserId }, { assigneeId: filters._restrictToUserId }] },
+        { OR: [{ createdById: filters._restrictToUserId }, { assigneeIds: { has: filters._restrictToUserId } }] },
       ];
     }
     if (filters._customFieldWhere) {
       Object.assign(where, filters._customFieldWhere);
+    }
+
+    // ── Продвинутый конструктор фильтров (ClickUp-стиль) ────────────────────────
+    if (filters.advancedFilter) {
+      try {
+        const group: FilterGroup = typeof filters.advancedFilter === 'string' ? JSON.parse(filters.advancedFilter) : filters.advancedFilter;
+        const filterWhere = buildFilterWhere(group);
+        if (filterWhere) {
+          where.AND = [...(where.AND ?? []), filterWhere];
+        }
+      } catch {}
+    }
+
+    // ── Быстрые фильтры ───────────────────────────────────────────────────────
+    if (filters.meMode && filters._currentUserId) {
+      where.AND = [...(where.AND ?? []), { assigneeIds: { has: filters._currentUserId } }];
+    }
+    if (filters.hideCompleted === 'true' || filters.hideCompleted === true) {
+      where.AND = [...(where.AND ?? []), { status: { not: 'DONE' } }];
     }
 
     const orderBy: any = {};

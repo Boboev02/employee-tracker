@@ -6,6 +6,8 @@ import { usePermissions } from '@/lib/usePermissions';
 import { CustomFieldsPanel } from '@/components/custom-fields/CustomFieldsPanel';
 import { useCustomFields } from '@/hooks/useCustomFields';
 import { FieldRenderer } from '@/components/custom-fields/FieldRenderer';
+import { FilterBuilder } from '@/components/tasks/FilterBuilder';
+import { evaluateFilterGroup, filterGroupIsEmpty, EMPTY_FILTER_GROUP, FilterGroupState } from '@/lib/taskFilterEngine';
 import { DeleteSectionButton } from '@/components/admin/DeleteSectionButton';
 
 const STATUS_COLS = [
@@ -35,7 +37,7 @@ export default function TasksPage() {
   const [loading, setLoading]     = useState(true);
   const [showForm, setShowForm]   = useState(false);
   const [employees, setEmployees] = useState<any[]>([]);
-  const [newTask, setNewTask]     = useState({ title:'', priority:'MEDIUM', description:'', assigneeId:'', dueDate:'', departmentId:'', productId:'', projectId:'' });
+  const [newTask, setNewTask]     = useState<any>({ title:'', priority:'MEDIUM', description:'', assigneeIds:[] as string[], dueDate:'', departmentId:'', productId:'', projectId:'' });
   const [formError, setFormError] = useState('');
   const [showProductPicker, setShowProductPicker] = useState(false);
   const [productSearch, setProductSearch] = useState('');
@@ -61,6 +63,7 @@ export default function TasksPage() {
   const [aiDept, setAiDept]     = useState<{ id: string; name: string; color: string } | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [token, setToken]         = useState('');
+  const [currentUserId, setCurrentUserId] = useState('');
   const [mounted, setMounted]     = useState(false);
   const [dragTask, setDragTask]   = useState<{id:string;fromCol:string}|null>(null);
   const [dragOverCol, setDragOverCol] = useState<string|null>(null);
@@ -75,7 +78,11 @@ export default function TasksPage() {
   const [filterPriority, setFilterPriority] = useState('');
   const [filterSearch,   setFilterSearch]   = useState('');
   const [filterOverdue,  setFilterOverdue]  = useState(false);
+  const [hideCompleted, setHideCompleted] = useState(false);
   const [filterRoutine,  setFilterRoutine]  = useState(false);
+  const [advFilter, setAdvFilter] = useState<FilterGroupState>(EMPTY_FILTER_GROUP);
+  const [showAdvFilter, setShowAdvFilter] = useState(false);
+  const [meMode, setMeMode] = useState(false);
   const [showFilters,    setShowFilters]    = useState(false);
 
   useEffect(()=>setMounted(true),[]);
@@ -84,6 +91,8 @@ export default function TasksPage() {
     const t = localStorage.getItem('access_token');
     if (!t) { router.push('/login'); return; }
     setToken(t); loadKanban(t);
+    const u = JSON.parse(localStorage.getItem('user') ?? '{}');
+    setCurrentUserId(u.id ?? u.sub ?? '');
     fetch('https://employee-tracker.ru/api/v1/employees', { headers:{ Authorization:'Bearer '+t } })
       .then(r=>r.json()).then(d=>setEmployees(Array.isArray(d)?d:[])).catch(()=>{});
     fetch('https://employee-tracker.ru/api/v1/dictionaries/departments', { headers:{ Authorization:'Bearer '+t } })
@@ -146,14 +155,17 @@ export default function TasksPage() {
     e.preventDefault();
     if (!newTask.projectId)    { setFormError('Поле "Проект" обязательно'); return; }
     if (!newTask.departmentId) { setFormError('Поле "Отдел" обязательно'); return; }
-    if (!newTask.assigneeId)   { setFormError('Поле "Исполнитель" обязательно'); return; }
+    if (!newTask.assigneeIds || newTask.assigneeIds.length === 0) { setFormError('Поле "Исполнители" обязательно — выберите хотя бы одного'); return; }
     setFormError('');
+
+    const [primaryAssignee, ...coAssignees] = newTask.assigneeIds;
 
     const res = await fetch('https://employee-tracker.ru/api/v1/tasks', {
       method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token },
       body: JSON.stringify({
         ...newTask,
-        assigneeId: newTask.assigneeId || undefined,
+        assigneeId: primaryAssignee,
+        coAssigneeIds: coAssignees,
         dueDate: newTask.dueDate || undefined,
         departmentId: newTask.departmentId || undefined,
         productId: newTask.productId || undefined,
@@ -166,7 +178,7 @@ export default function TasksPage() {
       setFormError(err.message ?? 'Ошибка создания задачи');
       return;
     }
-    setNewTask({ title:'', priority:'MEDIUM', description:'', assigneeId:'', dueDate:'', departmentId:'', productId:'', projectId:'' });
+    setNewTask({ title:'', priority:'MEDIUM', description:'', assigneeIds:[], dueDate:'', departmentId:'', productId:'', projectId:'' });
     setCustomFieldValues({});
     setSelectedProduct(null);
     setProductSearch('');
@@ -210,16 +222,21 @@ export default function TasksPage() {
       if (filterPriority && task.priority !== filterPriority) return false;
       if (filterSearch && !task.title?.toLowerCase().includes(filterSearch.toLowerCase())) return false;
       if (filterOverdue && !(task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'DONE')) return false;
+      if (hideCompleted && task.status === 'DONE') return false;
       if (filterRoutine && !task.isRoutine) return false;
+      if (meMode && task.assigneeId !== currentUserId) return false;
+      if (!filterGroupIsEmpty(advFilter) && !evaluateFilterGroup(task, advFilter)) return false;
       return true;
     });
   };
 
-  const hasActiveFilters = filterAssignee || filterPriority || filterSearch || filterOverdue || filterRoutine;
+  const hasActiveFilters = filterAssignee || filterPriority || filterSearch || filterOverdue || filterRoutine || hideCompleted || meMode || !filterGroupIsEmpty(advFilter);
 
   const clearFilters = () => {
     setFilterAssignee(''); setFilterPriority('');
     setFilterSearch(''); setFilterOverdue(false); setFilterRoutine(false);
+    setHideCompleted(false);
+    setMeMode(false); setAdvFilter(EMPTY_FILTER_GROUP);
   };
 
   const totalTasks = Object.values(columns).reduce((s,arr)=>s+arr.length, 0);
@@ -271,6 +288,21 @@ export default function TasksPage() {
             Фильтры
             {hasActiveFilters && <span style={{ width:'7px', height:'7px', borderRadius:'50%', background:'#DC2626', position:'absolute', top:'5px', right:'5px' }}/>}
           </button>
+          {/* Advanced filter builder */}
+          <div style={{ position:'relative' }}>
+            <button onClick={()=>setShowAdvFilter(v=>!v)}
+              style={{ background: !filterGroupIsEmpty(advFilter) ? '#EDE9FE' : '#F8F7FF', color: !filterGroupIsEmpty(advFilter) ? '#7F77DD' : '#6B7280', border:'1px solid #EDE9FE', borderRadius:'20px', padding:'7px 14px', fontSize:'12px', fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:'6px' }}>
+              ⚙️ Расширенный{!filterGroupIsEmpty(advFilter) && ` (${advFilter.rules.length})`}
+            </button>
+            {showAdvFilter && (
+              <FilterBuilder value={advFilter} onChange={setAdvFilter} employees={employees} onClose={()=>setShowAdvFilter(false)} />
+            )}
+          </div>
+          {/* Me mode */}
+          <button onClick={()=>setMeMode(v=>!v)}
+            style={{ background:meMode?'#EDE9FE':'#F8F7FF', color:meMode?'#7F77DD':'#6B7280', border:'1px solid #EDE9FE', borderRadius:'20px', padding:'7px 14px', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
+            👤 Я
+          </button>
           {/* Clear filters */}
           {hasActiveFilters && (
             <button onClick={clearFilters}
@@ -315,6 +347,10 @@ export default function TasksPage() {
           </div>
           {/* Toggles */}
           <div style={{ display:'flex', gap:'8px', marginLeft:'auto' }}>
+            <button onClick={()=>setHideCompleted(!hideCompleted)}
+              style={{ padding:'5px 14px', borderRadius:'20px', fontSize:'11px', fontWeight:700, border:'none', cursor:'pointer', background:hideCompleted?'#EDE9FE':'#F8F7FF', color:hideCompleted?'#7F77DD':'#9B97CC', transition:'all 0.15s' }}>
+              🙈 Скрыть готовые
+            </button>
             <button onClick={()=>setFilterOverdue(!filterOverdue)}
               style={{ padding:'5px 14px', borderRadius:'20px', fontSize:'11px', fontWeight:700, border:'none', cursor:'pointer', background:filterOverdue?'#FEE2E2':'#F8F7FF', color:filterOverdue?'#DC2626':'#9B97CC', transition:'all 0.15s' }}>
               ⚠️ Просроченные
@@ -590,10 +626,22 @@ export default function TasksPage() {
                           )}
                           {task.assignee && (
                             <div style={{ display:'flex', alignItems:'center', gap:'4px', marginLeft:'auto' }}>
-                              <div style={{ width:'20px', height:'20px', borderRadius:'50%', background:avatarColor(task.assignee.name), display:'flex', alignItems:'center', justifyContent:'center' }}>
-                                <span style={{ color:'white', fontSize:'8px', fontWeight:700 }}>{task.assignee.name?.charAt(0)}</span>
+                              <div style={{ display:'flex', marginLeft: (task.participants?.length>0) ? '10px' : 0 }}>
+                                <div title={task.assignee.name} style={{ width:'20px', height:'20px', borderRadius:'50%', background:avatarColor(task.assignee.name), display:'flex', alignItems:'center', justifyContent:'center', border:'1.5px solid white', zIndex:2 }}>
+                                  <span style={{ color:'white', fontSize:'8px', fontWeight:700 }}>{task.assignee.name?.charAt(0)}</span>
+                                </div>
+                                {(task.participants??[]).slice(0,2).map((p:any, pi:number) => (
+                                  <div key={p.id} title={p.user?.name} style={{ width:'20px', height:'20px', borderRadius:'50%', background:avatarColor(p.user?.name??''), display:'flex', alignItems:'center', justifyContent:'center', border:'1.5px solid white', marginLeft:'-8px', zIndex:1-pi }}>
+                                    <span style={{ color:'white', fontSize:'8px', fontWeight:700 }}>{p.user?.name?.charAt(0)}</span>
+                                  </div>
+                                ))}
+                                {(task.participants??[]).length>2 && (
+                                  <div style={{ width:'20px', height:'20px', borderRadius:'50%', background:'#E5E7EB', display:'flex', alignItems:'center', justifyContent:'center', border:'1.5px solid white', marginLeft:'-8px' }}>
+                                    <span style={{ color:'#6B7280', fontSize:'7px', fontWeight:700 }}>+{(task.participants??[]).length-2}</span>
+                                  </div>
+                                )}
                               </div>
-                              <span style={{ fontSize:'10px', color:'#9B97CC' }}>{task.assignee.name?.split(' ')[0]}</span>
+                              {!(task.participants?.length>0) && <span style={{ fontSize:'10px', color:'#9B97CC' }}>{task.assignee.name?.split(' ')[0]}</span>}
                             </div>
                           )}
                         </div>
@@ -672,11 +720,30 @@ export default function TasksPage() {
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontSize:'10px', color:'#9B97CC', display:'block', marginBottom:'5px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.4px' }}>Исполнитель *</label>
-                  <select value={newTask.assigneeId} onChange={e=>setNewTask({...newTask,assigneeId:e.target.value})} style={inp} required>
-                    <option value="">— выбрать —</option>
-                    {employees.map(emp=><option key={emp.id} value={emp.id}>{emp.name}</option>)}
-                  </select>
+                  <label style={{ fontSize:'10px', color:'#9B97CC', display:'block', marginBottom:'5px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.4px' }}>Исполнители *</label>
+                  <div style={{ position:'relative' }}>
+                    <select value="" onChange={e=>{ const id=e.target.value; if(!id) return; setNewTask(t=>({...t, assigneeIds: Array.from(new Set([...(t.assigneeIds??[]), id]))})); }} style={inp}>
+                      <option value="">+ Добавить исполнителя</option>
+                      {employees.filter((emp:any)=>!(newTask.assigneeIds??[]).includes(emp.id)).map((emp:any)=><option key={emp.id} value={emp.id}>{emp.name}</option>)}
+                    </select>
+                  </div>
+                  {(newTask.assigneeIds??[]).length > 0 && (
+                    <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:8 }}>
+                      {(newTask.assigneeIds??[]).map((id:string, idx:number) => {
+                        const emp = employees.find((e:any)=>e.id===id);
+                        return (
+                          <span key={id} style={{ display:'flex', alignItems:'center', gap:5, fontSize:11, fontWeight:600, background: idx===0?'#EDE9FE':'#F8F7FF', color: idx===0?'#7F77DD':'#6B7280', padding:'4px 10px', borderRadius:20, border: idx===0?'1px solid #C7BFFF':'1px solid #EDE9FE' }}>
+                            {idx===0 && '★ '}{emp?.name}
+                            <button type="button" onClick={()=>setNewTask(t=>({...t, assigneeIds:(t.assigneeIds??[]).filter((x:string)=>x!==id)}))}
+                              style={{ background:'none', border:'none', cursor:'pointer', color:'inherit', fontSize:12, padding:0, lineHeight:1 }}>✕</button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {(newTask.assigneeIds??[]).length > 1 && (
+                    <p style={{ fontSize:10, color:'#9B97CC', margin:'6px 0 0' }}>★ — основной исполнитель, остальные — соисполнители</p>
+                  )}
                 </div>
               </div>
 

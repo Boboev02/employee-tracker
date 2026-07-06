@@ -11,9 +11,10 @@ import { ApprovalsService } from '../approvals/approvals.service';
 // Проверяет может ли пользователь редактировать/удалить конкретную задачу.
 // Если у него есть "any"-право (ADMIN/MANAGER) — разрешено всё.
 // Если только "self"-право (EMPLOYEE) — разрешено только если он автор ИЛИ исполнитель.
-function canModifyTask(task: { createdById: string; assigneeId?: string | null }, userId: string, permissions?: Set<string>, anyPerm = 'task:update:any') {
+function canModifyTask(task: { createdById: string; assigneeId?: string | null; assigneeIds?: string[] }, userId: string, permissions?: Set<string>, anyPerm = 'task:update:any') {
   if (permissions?.has(anyPerm)) return true;
-  return task.createdById === userId || task.assigneeId === userId;
+  if (task.createdById === userId || task.assigneeId === userId) return true;
+  return Array.isArray(task.assigneeIds) && task.assigneeIds.includes(userId);
 }
 
 @Injectable()
@@ -52,6 +53,7 @@ export class TaskService {
 
   async getList(orgId: string, filters: any, user?: any) {
     const base = this.applyVisibilityRestriction(filters, user);
+    if (user) base._currentUserId = user.sub ?? user.id;
 
     // Parse custom field filters from query: ?cf=[{"fieldId":"...","op":"EQ","val":"...","type":"TEXT"}]
     if (filters.cf) {
@@ -68,6 +70,8 @@ export class TaskService {
 
   async create(orgId: string, userId: string, dto: any) {
     let { departmentId, projectId, assigneeId, parentId } = dto;
+    // Принимаем либо dto.assigneeIds (массив), либо одиночный dto.assigneeId — приводим к единому виду
+    let assigneeIds: string[] = Array.isArray(dto.assigneeIds) ? dto.assigneeIds.filter(Boolean) : (assigneeId ? [assigneeId] : []);
 
     if (parentId) {
       // Подзадача: наследует отдел и проект от родительской задачи
@@ -79,7 +83,7 @@ export class TaskService {
     } else {
       // Обычная задача: Отдел, Проект и Исполнитель обязательны
       if (!projectId) throw new BadRequestException('Поле "Проект" обязательно для создания задачи');
-      if (!assigneeId) throw new BadRequestException('Поле "Исполнитель" обязательно для создания задачи');
+      if (assigneeIds.length === 0) throw new BadRequestException('Поле "Исполнитель" обязательно для создания задачи');
 
       // Автонаследование: отдел определяется проектом (гарантирует согласованность)
       const project = await this.prisma.project.findFirst({ where: { id: projectId, orgId, deletedAt: null } });
@@ -88,6 +92,9 @@ export class TaskService {
       departmentId = project.departmentId;
     }
 
+    // Primary assigneeId = первый в списке (для обратной совместимости с уведомлениями/фильтрами)
+    assigneeId = assigneeIds[0] ?? null;
+
     const task = await this.repo.create({
       orgId,
       createdById: userId,
@@ -95,6 +102,7 @@ export class TaskService {
       description:  dto.description,
       priority:     dto.priority ?? 'MEDIUM',
       assigneeId,
+      assigneeIds,
       teamId:       dto.teamId,
       departmentId,
       projectId,
@@ -109,6 +117,17 @@ export class TaskService {
     // Save custom field values if provided
     if (dto.customFields && typeof dto.customFields === 'object') {
       await this.customFields.setTaskFieldValues(task.id, orgId, dto.customFields).catch(() => {});
+    }
+
+    // Множественные исполнители: остальные выбранные (кроме основного) добавляются как соисполнители
+    if (Array.isArray(dto.coAssigneeIds) && dto.coAssigneeIds.length > 0) {
+      const uniqueCoIds = Array.from(new Set(dto.coAssigneeIds.filter((id: string) => id !== assigneeId)));
+      if (uniqueCoIds.length) {
+        await this.prisma.taskParticipant.createMany({
+          data: uniqueCoIds.map((uid: string) => ({ taskId: task.id, userId: uid, role: 'co_executor' })),
+          skipDuplicates: true,
+        }).catch(() => {});
+      }
     }
 
     // Log creation activity
@@ -144,7 +163,7 @@ export class TaskService {
       throw new ForbiddenException('Вы можете редактировать только свои задачи или задачи, назначенные вам');
     }
 
-    const fields = ['title', 'description', 'priority', 'assigneeId', 'dueDate', 'tags'];
+    const fields = ['title', 'description', 'priority', 'assigneeId', 'assigneeIds', 'dueDate', 'tags'];
     for (const field of fields) {
       if (dto[field] !== undefined && dto[field] !== (task as any)[field]) {
         await this.repo.addHistory(id, userId, field, String((task as any)[field] ?? ''), String(dto[field]));
@@ -154,6 +173,10 @@ export class TaskService {
     const data: any = {};
     for (const field of fields) {
       if (dto[field] !== undefined) data[field] = field === 'dueDate' ? new Date(dto[field]) : dto[field];
+    }
+    // Синхронизация: если обновили список исполнителей — первый становится основным assigneeId
+    if (dto.assigneeIds !== undefined) {
+      data.assigneeId = Array.isArray(dto.assigneeIds) && dto.assigneeIds.length > 0 ? dto.assigneeIds[0] : null;
     }
 
     return this.repo.update(id, orgId, data);
