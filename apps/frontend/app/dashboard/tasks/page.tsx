@@ -1,6 +1,6 @@
 'use client';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePermissions } from '@/lib/usePermissions';
 import { CustomFieldsPanel } from '@/components/custom-fields/CustomFieldsPanel';
@@ -74,7 +74,7 @@ export default function TasksPage() {
   const [calDate, setCalDate] = useState(new Date());
 
   // Filters
-  const [filterAssignee, setFilterAssignee] = useState('');
+  const [filterAssignee, setFilterAssignee] = useState<string[]>([]);
   const [filterPriority, setFilterPriority] = useState('');
   const [filterSearch,   setFilterSearch]   = useState('');
   const [filterOverdue,  setFilterOverdue]  = useState(false);
@@ -218,7 +218,7 @@ export default function TasksPage() {
   // Apply filters
   const applyFilters = (tasks: any[]) => {
     return tasks.filter(task => {
-      if (filterAssignee && task.assigneeId !== filterAssignee) return false;
+      if (filterAssignee.length > 0 && !filterAssignee.includes(task.assigneeId)) return false;
       if (filterPriority && task.priority !== filterPriority) return false;
       if (filterSearch && !task.title?.toLowerCase().includes(filterSearch.toLowerCase())) return false;
       if (filterOverdue && !(task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'DONE')) return false;
@@ -230,10 +230,10 @@ export default function TasksPage() {
     });
   };
 
-  const hasActiveFilters = filterAssignee || filterPriority || filterSearch || filterOverdue || filterRoutine || hideCompleted || meMode || !filterGroupIsEmpty(advFilter);
+  const hasActiveFilters = filterAssignee.length > 0 || filterPriority || filterSearch || filterOverdue || filterRoutine || hideCompleted || meMode || !filterGroupIsEmpty(advFilter);
 
   const clearFilters = () => {
-    setFilterAssignee(''); setFilterPriority('');
+    setFilterAssignee([]); setFilterPriority('');
     setFilterSearch(''); setFilterOverdue(false); setFilterRoutine(false);
     setHideCompleted(false);
     setMeMode(false); setAdvFilter(EMPTY_FILTER_GROUP);
@@ -325,14 +325,8 @@ export default function TasksPage() {
       {/* Filter panel */}
       {showFilters && (
         <div style={{ background:'white', borderBottom:'1px solid #F3F0FF', padding:'12px 28px', display:'flex', gap:'12px', alignItems:'center', flexWrap:'wrap' }}>
-          {/* Assignee */}
-          <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-            <i className="ti ti-user" style={{ fontSize:'14px', color:'#9B97CC' }} aria-hidden="true"/>
-            <select value={filterAssignee} onChange={e=>setFilterAssignee(e.target.value)} style={sel}>
-              <option value="">Все сотрудники</option>
-              {employees.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
-            </select>
-          </div>
+          {/* Assignee — multi-select dropdown */}
+          <AssigneeMultiSelect employees={employees} selected={filterAssignee} onChange={setFilterAssignee} />
           {/* Priority */}
           <div style={{ display:'flex', gap:'4px' }}>
             {[{v:'',l:'Все'},{v:'LOW',l:'Низкий'},{v:'MEDIUM',l:'Средний'},{v:'HIGH',l:'Высокий'},{v:'CRITICAL',l:'Критич.'}].map(p=>{
@@ -873,11 +867,56 @@ const STATUS_COL_MAP: Record<string,{bg:string;c:string;label:string}> = {
   DONE:        { bg:'#DCFCE7', c:'#16A34A', label:'Готово' },
 };
 
+function AssigneeMultiSelect({ employees, selected, onChange }: { employees: any[]; selected: string[]; onChange: (ids: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onClickOutside = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  const toggle = (id: string) => onChange(selected.includes(id) ? selected.filter(x=>x!==id) : [...selected, id]);
+  const label = selected.length===0 ? 'Все сотрудники' : selected.length===1 ? (employees.find(e=>e.id===selected[0])?.name ?? '1 выбран') : `${selected.length} сотрудников`;
+
+  return (
+    <div ref={ref} style={{ position:'relative' }}>
+      <button onClick={()=>setOpen(v=>!v)}
+        style={{ display:'flex', alignItems:'center', gap:'6px', ...sel, cursor:'pointer', background: selected.length>0 ? '#EDE9FE' : 'white', color: selected.length>0 ? '#7F77DD' : '#1a1040', fontWeight: selected.length>0 ? 700 : 400 }}>
+        <i className="ti ti-user" style={{ fontSize:'14px' }} aria-hidden="true"/>
+        {label}
+        <i className={`ti ti-chevron-${open?'up':'down'}`} style={{ fontSize:'11px', marginLeft:'2px' }} aria-hidden="true"/>
+      </button>
+      {open && (
+        <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, zIndex:100, background:'white', border:'1px solid #EDE9FE', borderRadius:'14px', boxShadow:'0 8px 24px rgba(127,119,221,0.18)', width:'220px' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', borderBottom:'1px solid #F3F0FF' }}>
+            <span style={{ fontSize:'12px', fontWeight:700, color:'#1a1040' }}>Сотрудники</span>
+            {selected.length>0 && <button onClick={()=>onChange([])} style={{ fontSize:'11px', color:'#7F77DD', background:'none', border:'none', cursor:'pointer', fontWeight:600 }}>Сбросить</button>}
+          </div>
+          <div style={{ maxHeight:'260px', overflowY:'auto', padding:'8px' }}>
+            {employees.map(e => (
+              <label key={e.id} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'7px 8px', borderRadius:'8px', cursor:'pointer', fontSize:'13px', color:'#1a1040' }}
+                onMouseEnter={ev=>(ev.currentTarget as HTMLElement).style.background='#F8F7FF'}
+                onMouseLeave={ev=>(ev.currentTarget as HTMLElement).style.background='transparent'}>
+                <input type="checkbox" checked={selected.includes(e.id)} onChange={()=>toggle(e.id)} style={{ width:'15px', height:'15px', accentColor:'#7F77DD', cursor:'pointer' }} />
+                {e.name}
+              </label>
+            ))}
+          </div>
+          <div style={{ padding:'8px 14px', borderTop:'1px solid #F3F0FF', display:'flex', justifyContent:'flex-end' }}>
+            <button onClick={()=>setOpen(false)} style={{ fontSize:'12px', fontWeight:700, color:'white', background:'linear-gradient(135deg,#7F77DD,#5248C5)', border:'none', borderRadius:'8px', padding:'6px 16px', cursor:'pointer' }}>Готово</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ListViewWithCustomFields({
   token, listTasks, loading, filterSearch, filterAssignee, filterPriority, onRowClick,
 }: {
   token: string; listTasks: any[]; loading: boolean;
-  filterSearch: string; filterAssignee: string; filterPriority: string;
+  filterSearch: string; filterAssignee: string[]; filterPriority: string;
   onRowClick: (id: string) => void;
 }) {
   const cf = useCustomFields(token);
@@ -902,7 +941,7 @@ function ListViewWithCustomFields({
   const filtered = listTasks
     .filter(t => {
       if (filterSearch && !t.title.toLowerCase().includes(filterSearch.toLowerCase())) return false;
-      if (filterAssignee && t.assigneeId !== filterAssignee) return false;
+      if (filterAssignee.length > 0 && !filterAssignee.includes(t.assigneeId)) return false;
       if (filterPriority && t.priority !== filterPriority) return false;
       return true;
     })
@@ -927,29 +966,126 @@ function ListViewWithCustomFields({
     </th>
   );
 
+  const [showColMenu, setShowColMenu] = useState(false);
+  const colMenuRef = useRef<HTMLDivElement>(null);
+
+  // ── Группировка ──────────────────────────────────────────────────────────────
+  const GROUP_OPTIONS = [
+    { v:'none',     l:'Без группировки' },
+    { v:'assignee', l:'По исполнителю' },
+    { v:'status',   l:'По статусу' },
+    { v:'priority', l:'По приоритету' },
+  ];
+  const [groupBy, setGroupBy] = useState('none');
+  const [showGroupMenu, setShowGroupMenu] = useState(false);
+  const groupMenuRef = useRef<HTMLDivElement>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const onClickOutside = (e: MouseEvent) => { if (groupMenuRef.current && !groupMenuRef.current.contains(e.target as Node)) setShowGroupMenu(false); };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  const groupKeyOf = (task: any): string => {
+    if (groupBy === 'assignee') return task.assignee?.name ?? 'Без исполнителя';
+    if (groupBy === 'status')   return STATUS_COL_MAP[task.status]?.label ?? task.status;
+    if (groupBy === 'priority') return PS[task.priority]?.l ?? task.priority;
+    return '';
+  };
+
+  const groups: { key: string; tasks: any[] }[] = groupBy === 'none'
+    ? [{ key: '', tasks: filtered }]
+    : (() => {
+        const map = new Map<string, any[]>();
+        filtered.forEach(t => {
+          const k = groupKeyOf(t);
+          if (!map.has(k)) map.set(k, []);
+          map.get(k)!.push(t);
+        });
+        return Array.from(map.entries()).map(([key, tasks]) => ({ key, tasks }));
+      })();
+
+  const toggleGroupCollapse = (key: string) => setCollapsedGroups(prev => {
+    const next = new Set(prev);
+    next.has(key) ? next.delete(key) : next.add(key);
+    return next;
+  });
+
+  const colCount = 6 + cfCols.length; // задача, статус, исполнитель, приоритет, дедлайн, создана + кастом поля
+  useEffect(() => {
+    const onClickOutside = (e: MouseEvent) => {
+      if (colMenuRef.current && !colMenuRef.current.contains(e.target as Node)) setShowColMenu(false);
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
   if (loading) return <div style={{ textAlign:'center', padding:'40px', color:'#9B97CC' }}>Загрузка...</div>;
+
+  const toggleableFields = cf.fields.filter(f => f.showInTable);
 
   return (
     <div style={{ padding:'16px 28px', flex:1 }}>
-      {/* Column visibility toggle */}
-      {cf.fields.filter(f => f.showInTable).length > 0 && (
-        <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginBottom:'10px' }}>
-          {cf.fields.filter(f => f.showInTable).map(f => (
-            <button key={f.id} onClick={() => setHiddenCols(prev => {
-              const next = new Set(prev);
-              next.has(f.id) ? next.delete(f.id) : next.add(f.id);
-              return next;
-            })}
-              style={{ fontSize:'11px', padding:'3px 10px', borderRadius:'20px', border:'1px solid',
-                borderColor: hiddenCols.has(f.id) ? '#EDE9FE' : '#7F77DD',
-                background: hiddenCols.has(f.id) ? '#F8F7FF' : '#EDE9FE',
-                color: hiddenCols.has(f.id) ? '#C4C0E8' : '#7F77DD',
-                cursor:'pointer', fontWeight:600, transition:'all 0.15s' }}>
-              {hiddenCols.has(f.id) ? '○' : '●'} {f.name}
-            </button>
-          ))}
+      {/* Column visibility toggle — collapsed into a dropdown button */}
+      {toggleableFields.length > 0 && (
+        <div ref={colMenuRef} style={{ position:'relative', marginBottom:'10px', display:'inline-block' }}>
+          <button onClick={()=>setShowColMenu(v=>!v)}
+            style={{ display:'flex', alignItems:'center', gap:'6px', fontSize:'12px', fontWeight:700, padding:'6px 14px', borderRadius:'20px', border:'1px solid #EDE9FE', background: showColMenu || hiddenCols.size>0 ? '#EDE9FE' : 'white', color: showColMenu || hiddenCols.size>0 ? '#7F77DD' : '#6B7280', cursor:'pointer' }}>
+            <i className="ti ti-columns-3" style={{ fontSize:'14px' }} aria-hidden="true"/>
+            Столбцы
+            {hiddenCols.size > 0 && <span style={{ fontSize:'10px', background:'#7F77DD', color:'white', borderRadius:'20px', padding:'1px 6px' }}>{toggleableFields.length - hiddenCols.size}/{toggleableFields.length}</span>}
+            <i className={`ti ti-chevron-${showColMenu?'up':'down'}`} style={{ fontSize:'12px' }} aria-hidden="true"/>
+          </button>
+
+          {showColMenu && (
+            <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, zIndex:100, background:'white', border:'1px solid #EDE9FE', borderRadius:'14px', boxShadow:'0 8px 24px rgba(127,119,221,0.18)', width:'240px', display:'flex', flexDirection:'column' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', borderBottom:'1px solid #F3F0FF' }}>
+                <span style={{ fontSize:'12px', fontWeight:700, color:'#1a1040' }}>Показать поля</span>
+                <button onClick={()=>setHiddenCols(new Set())} style={{ fontSize:'11px', color:'#7F77DD', background:'none', border:'none', cursor:'pointer', fontWeight:600 }}>Сбросить</button>
+              </div>
+              <div style={{ maxHeight:'240px', overflowY:'auto', padding:'8px' }}>
+                {toggleableFields.map(f => (
+                  <label key={f.id} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'7px 8px', borderRadius:'8px', cursor:'pointer', fontSize:'13px', color:'#1a1040' }}
+                    onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background='#F8F7FF'}
+                    onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background='transparent'}>
+                    <input type="checkbox" checked={!hiddenCols.has(f.id)} onChange={() => setHiddenCols(prev => {
+                      const next = new Set(prev);
+                      next.has(f.id) ? next.delete(f.id) : next.add(f.id);
+                      return next;
+                    })} style={{ width:'15px', height:'15px', accentColor:'#7F77DD', cursor:'pointer' }} />
+                    {f.name}
+                  </label>
+                ))}
+              </div>
+              <div style={{ padding:'8px 14px', borderTop:'1px solid #F3F0FF', display:'flex', justifyContent:'flex-end' }}>
+                <button onClick={()=>setShowColMenu(false)} style={{ fontSize:'12px', fontWeight:700, color:'white', background:'linear-gradient(135deg,#7F77DD,#5248C5)', border:'none', borderRadius:'8px', padding:'6px 16px', cursor:'pointer' }}>Готово</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
+
+      {/* Grouping dropdown */}
+      <div ref={groupMenuRef} style={{ position:'relative', marginBottom:'10px', marginLeft:'8px', display:'inline-block' }}>
+        <button onClick={()=>setShowGroupMenu(v=>!v)}
+          style={{ display:'flex', alignItems:'center', gap:'6px', fontSize:'12px', fontWeight:700, padding:'6px 14px', borderRadius:'20px', border:'1px solid #EDE9FE', background: showGroupMenu || groupBy!=='none' ? '#EDE9FE' : 'white', color: showGroupMenu || groupBy!=='none' ? '#7F77DD' : '#6B7280', cursor:'pointer' }}>
+          <i className="ti ti-layout-list" style={{ fontSize:'14px' }} aria-hidden="true"/>
+          {GROUP_OPTIONS.find(g=>g.v===groupBy)?.l ?? 'Группировка'}
+          <i className={`ti ti-chevron-${showGroupMenu?'up':'down'}`} style={{ fontSize:'12px' }} aria-hidden="true"/>
+        </button>
+        {showGroupMenu && (
+          <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, zIndex:100, background:'white', border:'1px solid #EDE9FE', borderRadius:'14px', boxShadow:'0 8px 24px rgba(127,119,221,0.18)', width:'190px', padding:'6px' }}>
+            {GROUP_OPTIONS.map(g => (
+              <button key={g.v} onClick={()=>{ setGroupBy(g.v); setShowGroupMenu(false); }}
+                style={{ display:'flex', alignItems:'center', gap:'8px', width:'100%', textAlign:'left', padding:'8px 10px', borderRadius:'8px', border:'none', background: groupBy===g.v?'#F0EDFF':'transparent', color: groupBy===g.v?'#7F77DD':'#1a1040', fontSize:'13px', fontWeight: groupBy===g.v?700:400, cursor:'pointer' }}
+                onMouseEnter={e=>{ if(groupBy!==g.v) (e.currentTarget as HTMLElement).style.background='#F8F7FF'; }}
+                onMouseLeave={e=>{ if(groupBy!==g.v) (e.currentTarget as HTMLElement).style.background='transparent'; }}>
+                {groupBy===g.v && '✓ '}{g.l}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div style={{ background:'white', borderRadius:'16px', boxShadow:'0 4px 16px rgba(127,119,221,0.08)', overflowX:'auto' }}>
         <table style={{ width:'100%', borderCollapse:'collapse', minWidth: 600 + cfCols.length * 140 }}>
@@ -965,7 +1101,22 @@ function ListViewWithCustomFields({
             </tr>
           </thead>
           <tbody>
-            {filtered.map((task, i) => {
+            {groups.map(group => {
+              const isCollapsed = groupBy !== 'none' && collapsedGroups.has(group.key);
+              return (
+              <Fragment key={group.key || '_all'}>
+                {groupBy !== 'none' && (
+                  <tr onClick={()=>toggleGroupCollapse(group.key)} style={{ background:'#F0EDFF', cursor:'pointer', borderBottom:'1px solid #EDE9FE' }}>
+                    <td colSpan={colCount} style={{ padding:'9px 14px' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                        <i className={`ti ti-chevron-${isCollapsed?'right':'down'}`} style={{ fontSize:'13px', color:'#7F77DD' }} aria-hidden="true"/>
+                        <span style={{ fontSize:'12.5px', fontWeight:800, color:'#1a1040' }}>{group.key}</span>
+                        <span style={{ fontSize:'11px', fontWeight:700, color:'#7F77DD', background:'white', borderRadius:'20px', padding:'1px 9px' }}>{group.tasks.length}</span>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                {!isCollapsed && group.tasks.map((task, i) => {
               const ps = PS[task.priority] ?? PS.MEDIUM;
               const sc = STATUS_COL_MAP[task.status];
               const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'DONE';
@@ -1010,6 +1161,9 @@ function ListViewWithCustomFields({
                     {new Date(task.createdAt).toLocaleDateString('ru')}
                   </td>
                 </tr>
+              );
+            })}
+              </Fragment>
               );
             })}
           </tbody>
