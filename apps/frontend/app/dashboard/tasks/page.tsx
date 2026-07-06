@@ -135,7 +135,7 @@ export default function TasksPage() {
         const found = departments.find(d => d.id === data.departmentId);
         if (found) {
           setAiDept(found);
-          setNewTask(prev => ({ ...prev, departmentId: found.id }));
+          setNewTask((prev: any) => ({ ...prev, departmentId: found.id }));
         } else setAiDept(null);
       } else setAiDept(null);
     } catch { setAiDept(null); }
@@ -143,7 +143,7 @@ export default function TasksPage() {
   };
 
   const handleTitleChange = (title: string) => {
-    setNewTask(prev => ({ ...prev, title }));
+    setNewTask((prev: any) => ({ ...prev, title }));
     setAiDept(null);
     clearTimeout(aiTimerRef.current);
     aiTimerRef.current = setTimeout(() => classifyDepartment(title), 800);
@@ -686,7 +686,7 @@ export default function TasksPage() {
                     <span style={{ fontSize:'11px', color:'#16A34A', fontWeight:600 }}>✨ ИИ предлагает:</span>
                     <span style={{ width:'10px', height:'10px', borderRadius:'50%', background: aiDept.color ?? '#7F77DD', flexShrink:0 }} />
                     <span style={{ fontSize:'12px', fontWeight:700, color:'#1a1040', flex:1 }}>{aiDept.name}</span>
-                    <button type="button" onClick={() => setNewTask(prev => ({ ...prev, departmentId: aiDept.id }))}
+                    <button type="button" onClick={() => setNewTask((prev: any) => ({ ...prev, departmentId: aiDept.id }))}
                       style={{ background: newTask.departmentId === aiDept.id ? '#16A34A' : 'white', color: newTask.departmentId === aiDept.id ? 'white' : '#16A34A', border:'1px solid #86EFAC', borderRadius:'8px', padding:'3px 10px', fontSize:'11px', cursor:'pointer', fontWeight:600 }}>
                       {newTask.departmentId === aiDept.id ? '✓ Принято' : 'Принять'}
                     </button>
