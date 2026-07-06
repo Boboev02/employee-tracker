@@ -882,7 +882,7 @@ function AssigneeMultiSelect({ employees, selected, onChange }: { employees: any
   return (
     <div ref={ref} style={{ position:'relative' }}>
       <button onClick={()=>setOpen(v=>!v)}
-        style={{ display:'flex', alignItems:'center', gap:'6px', ...sel, cursor:'pointer', background: selected.length>0 ? '#EDE9FE' : 'white', color: selected.length>0 ? '#7F77DD' : '#1a1040', fontWeight: selected.length>0 ? 700 : 400 }}>
+        style={{ background:'#F8F7FF', border:'1px solid #EDE9FE', borderRadius:'20px', padding:'6px 14px', fontSize:'12px', outline:'none', display:'flex', alignItems:'center', gap:'6px', cursor:'pointer', color: selected.length>0 ? '#7F77DD' : '#1a1040', fontWeight: selected.length>0 ? 700 : 400, ...(selected.length>0 ? { background:'#EDE9FE' } : {}) }}>
         <i className="ti ti-user" style={{ fontSize:'14px' }} aria-hidden="true"/>
         {label}
         <i className={`ti ti-chevron-${open?'up':'down'}`} style={{ fontSize:'11px', marginLeft:'2px' }} aria-hidden="true"/>
