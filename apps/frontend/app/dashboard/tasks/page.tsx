@@ -722,7 +722,7 @@ export default function TasksPage() {
                 <div>
                   <label style={{ fontSize:'10px', color:'#9B97CC', display:'block', marginBottom:'5px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.4px' }}>Исполнители *</label>
                   <div style={{ position:'relative' }}>
-                    <select value="" onChange={e=>{ const id=e.target.value; if(!id) return; setNewTask(t=>({...t, assigneeIds: Array.from(new Set([...(t.assigneeIds??[]), id]))})); }} style={inp}>
+                    <select value="" onChange={e=>{ const id=e.target.value; if(!id) return; setNewTask((t: any) =>({...t, assigneeIds: Array.from(new Set([...(t.assigneeIds??[]), id]))})); }} style={inp}>
                       <option value="">+ Добавить исполнителя</option>
                       {employees.filter((emp:any)=>!(newTask.assigneeIds??[]).includes(emp.id)).map((emp:any)=><option key={emp.id} value={emp.id}>{emp.name}</option>)}
                     </select>
@@ -734,7 +734,7 @@ export default function TasksPage() {
                         return (
                           <span key={id} style={{ display:'flex', alignItems:'center', gap:5, fontSize:11, fontWeight:600, background: idx===0?'#EDE9FE':'#F8F7FF', color: idx===0?'#7F77DD':'#6B7280', padding:'4px 10px', borderRadius:20, border: idx===0?'1px solid #C7BFFF':'1px solid #EDE9FE' }}>
                             {idx===0 && '★ '}{emp?.name}
-                            <button type="button" onClick={()=>setNewTask(t=>({...t, assigneeIds:(t.assigneeIds??[]).filter((x:string)=>x!==id)}))}
+                            <button type="button" onClick={()=>setNewTask((t: any) =>({...t, assigneeIds:(t.assigneeIds??[]).filter((x:string)=>x!==id)}))}
                               style={{ background:'none', border:'none', cursor:'pointer', color:'inherit', fontSize:12, padding:0, lineHeight:1 }}>✕</button>
                           </span>
                         );
@@ -775,7 +775,7 @@ export default function TasksPage() {
                       <div style={{ fontSize:'12px', fontWeight:700, color:'#1a1040', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{selectedProduct.name}</div>
                       <div style={{ fontSize:'11px', color:'#9B97CC' }}>{selectedProduct.marketplace} · {selectedProduct.articleId}</div>
                     </div>
-                    <button type="button" onClick={()=>{ setSelectedProduct(null); setNewTask(t=>({...t,productId:''})); }}
+                    <button type="button" onClick={()=>{ setSelectedProduct(null); setNewTask((t: any) =>({...t,productId:''})); }}
                       style={{ background:'none', border:'none', cursor:'pointer', color:'#9B97CC', fontSize:16 }}>✕</button>
                   </div>
                 ) : (
@@ -815,7 +815,7 @@ export default function TasksPage() {
                       )}
                       {products.map((p:any) => (
                         <div key={p.id}
-                          onClick={()=>{ setSelectedProduct(p); setNewTask(t=>({...t,productId:p.id})); setShowProductPicker(false); setProductSearch(''); }}
+                          onClick={()=>{ setSelectedProduct(p); setNewTask((t: any) =>({...t,productId:p.id})); setShowProductPicker(false); setProductSearch(''); }}
                           style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 20px', cursor:'pointer', borderBottom:'1px solid #F8F7FF', transition:'background 0.1s' }}
                           onMouseEnter={e=>(e.currentTarget as HTMLDivElement).style.background='#F8F7FF'}
                           onMouseLeave={e=>(e.currentTarget as HTMLDivElement).style.background='white'}>
