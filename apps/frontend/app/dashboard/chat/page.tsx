@@ -19,8 +19,8 @@ export default function ChatPage() {
   if (!token) return null;
 
   return (
-    <div style={{ height:'100vh', display:'flex', flexDirection:'column', background:'#f7f7fb' }}>
-      <div style={{ padding:'16px 24px', borderBottom:'1px solid #EDE9FE', background:'white' }}>
+    <div style={{ height:'100vh', display:'flex', flexDirection:'column', background:'#EEECFA' }}>
+      <div style={{ padding:'16px 24px 4px' }}>
         <h1 style={{ fontSize:18, fontWeight:800, color:'#1a1040', margin:0 }}>💬 Чаты</h1>
         <p style={{ fontSize:12, color:'#9B97CC', margin:'2px 0 0' }}>Личные и групповые сообщения команды</p>
       </div>

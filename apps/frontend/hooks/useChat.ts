@@ -137,7 +137,7 @@ export function useChat(token: string | null, onIncomingMessage?: (channelId: st
     } catch {}
   }, [h]);
 
-  const sendMessage = useCallback(async (channelId: string, dto: { content?: string; attachmentUrl?: string; attachmentName?: string; attachmentType?: string }) => {
+  const sendMessage = useCallback(async (channelId: string, dto: { content?: string; attachmentUrl?: string; attachmentName?: string; attachmentType?: string; replyToId?: string; mentionedIds?: string[] }) => {
     const r = await fetch(`${API}/channels/${channelId}/messages`, { method: 'POST', headers: h(), body: JSON.stringify(dto) });
     if (r.ok) return r.json();
     return null;

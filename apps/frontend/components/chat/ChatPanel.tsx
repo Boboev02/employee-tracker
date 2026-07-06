@@ -247,18 +247,24 @@ export function ChatPanel({ token, currentUserId, compact = false }: Props) {
     }
   };
 
-  const cardBg = compact ? 'white' : '#f7f7fb';
+  const cardBg = compact ? 'white' : '#EEECFA';
   let lastDate = '';
 
   return (
-    <div style={{ display:'flex', height:'100%', background:cardBg, borderRadius: compact ? 16 : 0, overflow:'hidden', position:'relative' }}>
-      <div style={{ width: compact ? (activeChannel ? 0 : '100%') : 300, borderRight: compact ? 'none' : '1px solid #EDE9FE', display:'flex', flexDirection:'column', overflow:'hidden', transition:'width 0.2s' }}>
-        <div style={{ padding:'14px 16px', borderBottom:'1px solid #EDE9FE', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          <h3 style={{ fontSize:15, fontWeight:800, color:'#1a1040', margin:0 }}>Чаты</h3>
-          <button onClick={()=>setShowNewChat(true)} style={{ width:28, height:28, borderRadius:8, background:'#EDE9FE', border:'none', color:'#7F77DD', cursor:'pointer', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center' }}>+</button>
+    <div style={{ display:'flex', height:'100%', background:cardBg, borderRadius: compact ? 16 : 0, overflow:'hidden', position:'relative', padding: compact ? 0 : '16px', gap: compact ? 0 : 12 }}>
+      <div style={{ width: compact ? (activeChannel ? 0 : '100%') : 300, borderRight: compact ? 'none' : 'none', display:'flex', flexDirection:'column', overflow:'hidden', transition:'width 0.2s', background:'white', borderRadius:20, boxShadow: compact ? 'none' : '0 4px 20px rgba(127,119,221,0.08)' }}>
+        <div style={{ padding:'16px 16px 10px' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+            <h3 style={{ fontSize:16, fontWeight:800, color:'#1a1040', margin:0 }}>Чаты</h3>
+            <button onClick={()=>setShowNewChat(true)} style={{ width:32, height:32, borderRadius:10, background:'linear-gradient(135deg,#7F77DD,#5248C5)', border:'none', color:'white', cursor:'pointer', fontSize:17, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 4px 12px rgba(127,119,221,0.3)' }}>+</button>
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:8, background:'#F5F4FC', borderRadius:14, padding:'9px 14px' }}>
+            <span style={{ color:'#B5B0E0', fontSize:14 }}>🔍</span>
+            <span style={{ color:'#B5B0E0', fontSize:12.5 }}>Поиск чатов...</span>
+          </div>
         </div>
 
-        <div style={{ flex:1, overflowY:'auto' }}>
+        <div style={{ flex:1, overflowY:'auto', padding:'4px 10px 10px' }}>
           {chat.loadingChannels && <div style={{ padding:20, textAlign:'center', color:'#9B97CC', fontSize:12 }}>Загрузка...</div>}
           {!chat.loadingChannels && chat.channels.length===0 && (
             <div style={{ padding:'30px 16px', textAlign:'center', color:'#C4C0E8', fontSize:12 }}>
@@ -269,28 +275,32 @@ export function ChatPanel({ token, currentUserId, compact = false }: Props) {
           {chat.channels.map(ch => {
             const chOther = ch.type==='DIRECT' ? ch.members.find(m=>m.id!==currentUserId) : null;
             const chOnline = chOther ? getStatus(chOther.id)==='ONLINE' : false;
+            const isActive = activeChannel?.id===ch.id;
+            const isRead = ch.lastMessage && ch.lastMessage.senderId===currentUserId;
             return (
             <div key={ch.id} onClick={()=>setActiveChannel(ch)}
-              style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 16px', cursor:'pointer', background: activeChannel?.id===ch.id ? '#F8F7FF' : 'transparent', borderBottom:'1px solid #FAF9FF' }}
-              onMouseEnter={e=>{ if(activeChannel?.id!==ch.id) (e.currentTarget as HTMLElement).style.background='#FAF9FF'; }}
-              onMouseLeave={e=>{ if(activeChannel?.id!==ch.id) (e.currentTarget as HTMLElement).style.background='transparent'; }}>
+              style={{ display:'flex', alignItems:'center', gap:10, padding:'11px 12px', cursor:'pointer', background: isActive ? '#F0EDFF' : 'transparent', borderRadius:16, marginBottom:2, transition:'background 0.15s' }}
+              onMouseEnter={e=>{ if(!isActive) (e.currentTarget as HTMLElement).style.background='#FAF9FF'; }}
+              onMouseLeave={e=>{ if(!isActive) (e.currentTarget as HTMLElement).style.background='transparent'; }}>
               <div style={{ position:'relative', flexShrink:0 }}>
-                <div style={{ width:40, height:40, borderRadius:'50%', background: ch.avatarUrl ? `url(${ch.avatarUrl}) center/cover` : (ch.type==='GROUP' ? '#7F77DD' : avatarColor(ch.name??'')), display:'flex', alignItems:'center', justifyContent:'center', fontSize:16 }}>
-                  {!ch.avatarUrl && (ch.type==='GROUP' ? '👥' : <span style={{ color:'white', fontSize:14, fontWeight:700 }}>{ch.name?.charAt(0)??'?'}</span>)}
+                <div style={{ width:44, height:44, borderRadius:'50%', background: ch.avatarUrl ? `url(${ch.avatarUrl}) center/cover` : (ch.type==='GROUP' ? '#7F77DD' : avatarColor(ch.name??'')), display:'flex', alignItems:'center', justifyContent:'center', fontSize:17 }}>
+                  {!ch.avatarUrl && (ch.type==='GROUP' ? '👥' : <span style={{ color:'white', fontSize:15, fontWeight:700 }}>{ch.name?.charAt(0)??'?'}</span>)}
                 </div>
-                {ch.type==='DIRECT' && chOnline && <span style={{ position:'absolute', bottom:0, right:0, width:10, height:10, borderRadius:'50%', background:'#22c55e', border:'2px solid white' }} />}
+                {ch.type==='DIRECT' && chOnline && <span style={{ position:'absolute', bottom:1, right:1, width:11, height:11, borderRadius:'50%', background:'#22c55e', border:'2.5px solid white' }} />}
               </div>
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline' }}>
-                  <span style={{ fontSize:13, fontWeight:600, color:'#1a1040', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{ch.name}</span>
-                  {ch.lastMessage && <span style={{ fontSize:10, color:'#C4C0E8', flexShrink:0, marginLeft:6 }}>{timeAgo(ch.lastMessage.createdAt)}</span>}
+                  <span style={{ fontSize:13.5, fontWeight:700, color:'#1a1040', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{ch.name}</span>
+                  {ch.lastMessage && <span style={{ fontSize:10.5, color:'#B5B0E0', flexShrink:0, marginLeft:6 }}>{timeAgo(ch.lastMessage.createdAt)}</span>}
                 </div>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                  <span style={{ fontSize:11.5, color:'#9B97CC', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:2 }}>
+                  <span style={{ fontSize:12, color:'#9B97CC', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>
                     {ch.lastMessage ? (ch.lastMessage.content ?? (ch.lastMessage.attachmentType==='image' ? '📷 Фото' : ch.lastMessage.attachmentType==='audio' ? '🎤 Голосовое' : '📎 Файл')) : 'Нет сообщений'}
                   </span>
-                  {ch.unreadCount > 0 && (
-                    <span style={{ background:'#7F77DD', color:'white', fontSize:10, fontWeight:700, borderRadius:20, padding:'1px 6px', minWidth:16, textAlign:'center', flexShrink:0, marginLeft:6 }}>{ch.unreadCount}</span>
+                  {ch.unreadCount > 0 ? (
+                    <span style={{ background:'#F59E0B', color:'white', fontSize:10, fontWeight:700, borderRadius:20, width:18, height:18, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginLeft:6 }}>{ch.unreadCount}</span>
+                  ) : isRead && (
+                    <span style={{ color:'#F59E0B', fontSize:12, flexShrink:0, marginLeft:6 }}>✓✓</span>
                   )}
                 </div>
               </div>
@@ -299,7 +309,7 @@ export function ChatPanel({ token, currentUserId, compact = false }: Props) {
         </div>
       </div>
 
-      <div style={{ flex:1, display:'flex', flexDirection:'column', minWidth:0 }}>
+      <div style={{ flex:1, display:'flex', flexDirection:'column', minWidth:0, background:'white', borderRadius:20, boxShadow: compact ? 'none' : '0 4px 20px rgba(127,119,221,0.08)', overflow:'hidden' }}>
         {!activeChannel ? (
           <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#C4C0E8', flexDirection:'column', gap:8 }}>
             <div style={{ fontSize:36 }}>💬</div>
@@ -307,29 +317,29 @@ export function ChatPanel({ token, currentUserId, compact = false }: Props) {
           </div>
         ) : (
           <>
-            <div style={{ padding:'12px 16px', borderBottom:'1px solid #EDE9FE', display:'flex', alignItems:'center', gap:10 }}>
+            <div style={{ padding:'16px 20px', borderBottom:'1px solid #F0EDFC', display:'flex', alignItems:'center', gap:12 }}>
               {compact && (
                 <button onClick={()=>setActiveChannel(null)} style={{ background:'none', border:'none', color:'#9B97CC', fontSize:18, cursor:'pointer' }}>←</button>
               )}
               <div style={{ position:'relative' }}>
                 <div onClick={()=> activeChannel.type==='GROUP' && avatarInputRef.current?.click()}
-                  style={{ width:32, height:32, borderRadius:'50%', background: activeChannel.avatarUrl ? `url(${activeChannel.avatarUrl}) center/cover` : (activeChannel.type==='GROUP' ? '#7F77DD' : avatarColor(activeChannel.name??'')), display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, cursor: activeChannel.type==='GROUP' ? 'pointer' : 'default' }}>
-                  {!activeChannel.avatarUrl && (activeChannel.type==='GROUP' ? '👥' : <span style={{ color:'white', fontSize:12, fontWeight:700 }}>{activeChannel.name?.charAt(0)}</span>)}
+                  style={{ width:42, height:42, borderRadius:'50%', background: activeChannel.avatarUrl ? `url(${activeChannel.avatarUrl}) center/cover` : (activeChannel.type==='GROUP' ? '#7F77DD' : avatarColor(activeChannel.name??'')), display:'flex', alignItems:'center', justifyContent:'center', fontSize:17, cursor: activeChannel.type==='GROUP' ? 'pointer' : 'default' }}>
+                  {!activeChannel.avatarUrl && (activeChannel.type==='GROUP' ? '👥' : <span style={{ color:'white', fontSize:15, fontWeight:700 }}>{activeChannel.name?.charAt(0)}</span>)}
                 </div>
-                {activeChannel.type==='DIRECT' && otherStatus==='ONLINE' && <span style={{ position:'absolute', bottom:0, right:0, width:8, height:8, borderRadius:'50%', background:'#22c55e', border:'2px solid white' }} />}
+                {activeChannel.type==='DIRECT' && otherStatus==='ONLINE' && <span style={{ position:'absolute', bottom:1, right:1, width:10, height:10, borderRadius:'50%', background:'#22c55e', border:'2.5px solid white' }} />}
               </div>
               <input type="file" accept="image/*" ref={avatarInputRef} style={{ display:'none' }} onChange={e=>{ const f=e.target.files?.[0]; if(f) handleAvatarUpload(f); e.target.value=''; }} />
               <div style={{ flex:1, minWidth:0 }}>
-                <p style={{ fontSize:13, fontWeight:700, color:'#1a1040', margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{activeChannel.name}</p>
-                <p style={{ fontSize:11, color:'#9B97CC', margin:0 }}>
+                <p style={{ fontSize:14.5, fontWeight:800, color:'#1a1040', margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{activeChannel.name}</p>
+                <p style={{ fontSize:11.5, color:'#9B97CC', margin:'2px 0 0' }}>
                   {typingUser ? <span style={{ color:'#7F77DD' }}>печатает...</span>
                     : activeChannel.type==='GROUP' ? `${activeChannel.memberCount} участников`
-                    : otherStatus==='ONLINE' ? <span style={{ color:'#22c55e' }}>в сети</span> : 'не в сети'}
+                    : otherStatus==='ONLINE' ? <span style={{ color:'#22c55e' }}>● В сети</span> : 'не в сети'}
                 </p>
               </div>
-              <div style={{ display:'flex', gap:4, flexShrink:0 }}>
-                <button onClick={()=>setShowSearch(v=>!v)} title="Поиск" style={{ width:30, height:30, borderRadius:8, background: showSearch?'#EDE9FE':'none', border:'none', color:'#9B97CC', cursor:'pointer', fontSize:14 }}>🔍</button>
-                <button onClick={startCall} disabled={creatingCall} title="Видеозвонок" style={{ width:30, height:30, borderRadius:8, background:'none', border:'none', color:'#9B97CC', cursor:'pointer', fontSize:14 }}>{creatingCall?'⏳':'📞'}</button>
+              <div style={{ display:'flex', gap:6, flexShrink:0 }}>
+                <button onClick={()=>setShowSearch(v=>!v)} title="Поиск" style={roundIconBtnStyle(showSearch)}>🔍</button>
+                <button onClick={startCall} disabled={creatingCall} title="Видеозвонок" style={roundIconBtnStyle(false)}>{creatingCall?'⏳':'📹'}</button>
               </div>
             </div>
 
@@ -355,7 +365,7 @@ export function ChatPanel({ token, currentUserId, compact = false }: Props) {
               </div>
             )}
 
-            <div ref={scrollRef} style={{ flex:1, overflowY:'auto', padding:'14px 16px', display:'flex', flexDirection:'column', gap:4 }}>
+            <div ref={scrollRef} style={{ flex:1, overflowY:'auto', padding:'18px 22px', display:'flex', flexDirection:'column', gap:4, background:'#FBFAFF' }}>
               {messages.map((m, i) => {
                 const isMe = m.senderId === currentUserId;
                 const showSender = activeChannel.type==='GROUP' && !isMe && (i===0 || messages[i-1].senderId !== m.senderId);
@@ -449,7 +459,7 @@ export function ChatPanel({ token, currentUserId, compact = false }: Props) {
 
                       <span style={{ fontSize:9.5, color:'#C4C0E8', marginTop:2, display:'flex', alignItems:'center', gap:3 }}>
                         {formatTime(m.createdAt)}
-                        {isMe && !isDeleted && <span style={{ color: m.isRead ? '#7F77DD' : '#C4C0E8' }}>{m.isRead ? '✓✓' : '✓'}</span>}
+                        {isMe && !isDeleted && <span style={{ color: m.isRead ? '#F59E0B' : '#C4C0E8' }}>{m.isRead ? '✓✓' : '✓'}</span>}
                       </span>
                     </div>
                   </div>
@@ -477,23 +487,25 @@ export function ChatPanel({ token, currentUserId, compact = false }: Props) {
               </div>
             )}
 
-            <div style={{ padding:'10px 14px', borderTop:'1px solid #EDE9FE', display:'flex', alignItems:'flex-end', gap:8 }}>
+            <div style={{ padding:'14px 20px 18px', borderTop:'1px solid #F0EDFC', display:'flex', alignItems:'center', gap:10, background:'#FBFAFF' }}>
               <input type="file" ref={fileInputRef} style={{ display:'none' }} onChange={e=>{ const f=e.target.files?.[0]; if(f) handleFileUpload(f); e.target.value=''; }} />
-              <button onClick={()=>fileInputRef.current?.click()} disabled={uploading}
-                style={{ width:36, height:36, borderRadius:10, background:'#F8F7FF', border:'1px solid #EDE9FE', color:'#9B97CC', cursor:'pointer', fontSize:16, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                {uploading ? '⏳' : '📎'}
-              </button>
-              <button onClick={toggleRecording}
-                style={{ width:36, height:36, borderRadius:10, background: recording ? '#FEE2E2' : '#F8F7FF', border:'1px solid ' + (recording?'#FCA5A5':'#EDE9FE'), color: recording?'#DC2626':'#9B97CC', cursor:'pointer', fontSize:16, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                {recording ? '⏹️' : '🎤'}
-              </button>
-              <textarea ref={textareaRef} value={messageText}
-                onChange={e=>onComposerChange(e.target.value)}
-                onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); } }}
-                placeholder={recording ? 'Идёт запись...' : 'Напишите сообщение... (@ для упоминания)'} rows={1} disabled={recording}
-                style={{ flex:1, background:'#F8F7FF', border:'1px solid #EDE9FE', borderRadius:12, padding:'9px 14px', fontSize:13, resize:'none', outline:'none', maxHeight:100, fontFamily:'inherit' }} />
+              <div style={{ flex:1, display:'flex', alignItems:'center', gap:8, background:'white', border:'1px solid #EDE9FE', borderRadius:24, padding:'6px 8px 6px 16px', boxShadow:'0 2px 8px rgba(127,119,221,0.06)' }}>
+                <textarea ref={textareaRef} value={messageText}
+                  onChange={e=>onComposerChange(e.target.value)}
+                  onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); } }}
+                  placeholder={recording ? 'Идёт запись...' : 'Введите сообщение...'} rows={1} disabled={recording}
+                  style={{ flex:1, background:'none', border:'none', padding:'6px 0', fontSize:13, resize:'none', outline:'none', maxHeight:100, fontFamily:'inherit' }} />
+                <button onClick={()=>fileInputRef.current?.click()} disabled={uploading} title="Прикрепить файл"
+                  style={{ width:32, height:32, borderRadius:'50%', background:'none', border:'none', color:'#B5B0E0', cursor:'pointer', fontSize:16, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  {uploading ? '⏳' : '📎'}
+                </button>
+                <button onClick={toggleRecording} title="Голосовое сообщение"
+                  style={{ width:32, height:32, borderRadius:'50%', background: recording ? '#FEE2E2' : 'none', border:'none', color: recording?'#DC2626':'#B5B0E0', cursor:'pointer', fontSize:16, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', animation: recording ? 'pulseDot 1.2s infinite' : 'none' }}>
+                  {recording ? '⏹️' : '🎤'}
+                </button>
+              </div>
               <button onClick={send} disabled={!messageText.trim()}
-                style={{ width:36, height:36, borderRadius:10, background: messageText.trim() ? 'linear-gradient(135deg,#7F77DD,#5248C5)' : '#EDE9FE', border:'none', color:'white', cursor: messageText.trim()?'pointer':'not-allowed', fontSize:15, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                style={{ width:44, height:44, borderRadius:14, background: messageText.trim() ? 'linear-gradient(135deg,#7F77DD,#5248C5)' : '#EDE9FE', border:'none', color:'white', cursor: messageText.trim()?'pointer':'not-allowed', fontSize:17, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', boxShadow: messageText.trim() ? '0 4px 12px rgba(127,119,221,0.35)' : 'none' }}>
                 ➤
               </button>
             </div>
@@ -515,6 +527,7 @@ export function ChatPanel({ token, currentUserId, compact = false }: Props) {
 }
 
 const actionBtnStyle: React.CSSProperties = { background:'white', border:'1px solid #EDE9FE', borderRadius:8, width:26, height:26, cursor:'pointer', fontSize:12, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 2px 6px rgba(0,0,0,0.06)' };
+const roundIconBtnStyle = (active: boolean): React.CSSProperties => ({ width:38, height:38, borderRadius:'50%', background: active ? '#F0EDFF' : '#F8F7FF', border:'none', color:'#7F77DD', cursor:'pointer', fontSize:15, display:'flex', alignItems:'center', justifyContent:'center' });
 
 function NewChatModal({ chat, onClose, onSelect }: any) {
   const [mode, setMode] = useState<'direct'|'group'>('direct');
