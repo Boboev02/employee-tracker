@@ -51,6 +51,7 @@ export function ChatPanel({ token, currentUserId, compact = false }: Props) {
 
   const chat = useChat(token, onIncomingMessage);
   const { getStatus } = useSocket(token);
+  const [mounted, setMounted] = useState(false);
   const [activeChannel, setActiveChannel] = useState<ChatChannel | null>(null);
   const [messageText, setMessageText] = useState('');
   const [showNewChat, setShowNewChat] = useState(false);
@@ -80,6 +81,7 @@ export function ChatPanel({ token, currentUserId, compact = false }: Props) {
   const otherStatus = otherMember ? getStatus(otherMember.id) : null;
 
   useEffect(() => {
+    setMounted(true);
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
       Notification.requestPermission().catch(()=>{});
     }
@@ -249,6 +251,10 @@ export function ChatPanel({ token, currentUserId, compact = false }: Props) {
 
   const cardBg = compact ? 'white' : '#EEECFA';
   let lastDate = '';
+
+  if (!mounted) {
+    return <div style={{ height:'100%', background:cardBg, borderRadius: compact ? 16 : 0 }} />;
+  }
 
   return (
     <div style={{ display:'flex', height:'100%', background:cardBg, borderRadius: compact ? 16 : 0, overflow:'hidden', position:'relative', padding: compact ? 0 : '16px', gap: compact ? 0 : 12 }}>
