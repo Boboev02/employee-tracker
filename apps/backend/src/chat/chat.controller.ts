@@ -44,6 +44,49 @@ export class ChatController {
     return message;
   }
 
+  @Patch('messages/:messageId')
+  async editMessage(@CurrentUser() user: any, @Param('messageId') messageId: string, @Body() body: { content: string }) {
+    const msg = await this.chat.editMessage(messageId, user.sub ?? user.id, body.content);
+    this.gateway.broadcastEdit(msg.channelId, msg);
+    return msg;
+  }
+
+  @Delete('messages/:messageId')
+  async deleteMessage(@CurrentUser() user: any, @Param('messageId') messageId: string) {
+    const res = await this.chat.deleteMessage(messageId, user.sub ?? user.id);
+    this.gateway.broadcastDelete(res.channelId, messageId);
+    return res;
+  }
+
+  @Post('messages/:messageId/react')
+  async react(@CurrentUser() user: any, @Param('messageId') messageId: string, @Body() body: { emoji: string }) {
+    const msg = await this.chat.toggleReaction(messageId, user.sub ?? user.id, body.emoji);
+    this.gateway.broadcastReaction(msg.channelId, msg);
+    return msg;
+  }
+
+  @Post('channels/:id/pin')
+  pinMessage(@CurrentUser() user: any, @Param('id') id: string, @Body() body: { messageId: string | null }) {
+    return this.chat.pinMessage(id, user.sub ?? user.id, body.messageId);
+  }
+
+  @Post('messages/:messageId/forward')
+  async forward(@CurrentUser() user: any, @Param('messageId') messageId: string, @Body() body: { targetChannelId: string }) {
+    const message = await this.chat.forwardMessage(messageId, body.targetChannelId, user.sub ?? user.id);
+    this.gateway.broadcastMessage(body.targetChannelId, message);
+    return message;
+  }
+
+  @Patch('channels/:id/avatar')
+  updateAvatar(@CurrentUser() user: any, @Param('id') id: string, @Body() body: { avatarUrl: string }) {
+    return this.chat.updateChannelAvatar(id, user.sub ?? user.id, body.avatarUrl);
+  }
+
+  @Get('channels/:id/search')
+  searchMessages(@CurrentUser() user: any, @Param('id') id: string, @Query('q') q: string) {
+    return this.chat.searchMessages(id, user.sub ?? user.id, q ?? '');
+  }
+
   @Patch('channels/:id/read')
   markRead(@CurrentUser() user: any, @Param('id') id: string) {
     return this.chat.markAsRead(id, user.sub ?? user.id);

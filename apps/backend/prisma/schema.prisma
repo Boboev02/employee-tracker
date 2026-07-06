@@ -1024,6 +1024,7 @@ model ChatChannel {
   avatarUrl    String?
   departmentId String?  // опциональная привязка группового канала к отделу
   projectId    String?  // опциональная привязка группового канала к проекту
+  pinnedMessageId String? // закреплённое сообщение (без FK — просто ссылка на id)
   createdById  String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -1059,7 +1060,10 @@ model ChatMessage {
   content        String?   @db.Text
   attachmentUrl  String?
   attachmentName String?
-  attachmentType String?   // image | file
+  attachmentType String?   // image | file | audio
+  replyToId      String?   // ссылка на id другого сообщения (без FK, разрешается вручную)
+  mentionedIds   String[]  @default([]) // userId сотрудников, упомянутых через @Имя
+  reactions      Json?     // { "👍": ["userId1","userId2"], "❤️": ["userId3"] }
   editedAt       DateTime?
   deletedAt      DateTime?
   createdAt      DateTime  @default(now())

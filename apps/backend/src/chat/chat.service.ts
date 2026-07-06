@@ -1,9 +1,13 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationService } from '../notifications/notification.service';
 
 @Injectable()
 export class ChatService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationService,
+  ) {}
 
   // ─── Channels list ──────────────────────────────────────────────────────────
 
@@ -47,6 +51,7 @@ export class ChatService {
         avatarUrl: displayAvatar,
         departmentId: ch.departmentId,
         projectId: ch.projectId,
+        pinnedMessageId: ch.pinnedMessageId,
         memberCount: ch.members.length,
         members: ch.members.map(mm => mm.user),
         lastMessage: ch.messages[0] ?? null,
@@ -160,10 +165,32 @@ export class ChatService {
     const senders = await this.prisma.user.findMany({ where: { id: { in: senderIds } }, select: { id: true, name: true, avatarUrl: true } });
     const senderMap = new Map(senders.map(s => [s.id, s]));
 
-    return messages.reverse().map(m => ({ ...m, sender: senderMap.get(m.senderId) }));
+    // Resolve replyTo previews (fetch referenced messages)
+    const replyIds = Array.from(new Set(messages.map(m => m.replyToId).filter(Boolean))) as string[];
+    const replySources = replyIds.length
+      ? await this.prisma.chatMessage.findMany({ where: { id: { in: replyIds } } })
+      : [];
+    const replyMap = new Map(replySources.map(r => [r.id, r]));
+
+    // Determine read status: for DIRECT channels, message is "read" if the other member's lastReadAt >= createdAt
+    const members = await this.prisma.chatChannelMember.findMany({ where: { channelId } });
+    const otherMembers = members.filter(m => m.userId !== userId);
+
+    return messages.reverse().map(m => {
+      const replySrc = m.replyToId ? replyMap.get(m.replyToId) : null;
+      const isRead = m.senderId === userId
+        ? otherMembers.every(om => om.lastReadAt && om.lastReadAt >= m.createdAt)
+        : undefined;
+      return {
+        ...m,
+        sender: senderMap.get(m.senderId),
+        replyTo: replySrc ? { id: replySrc.id, content: replySrc.content, senderId: replySrc.senderId, attachmentType: replySrc.attachmentType } : null,
+        isRead,
+      };
+    });
   }
 
-  async sendMessage(channelId: string, userId: string, dto: { content?: string; attachmentUrl?: string; attachmentName?: string; attachmentType?: string }) {
+  async sendMessage(channelId: string, userId: string, dto: { content?: string; attachmentUrl?: string; attachmentName?: string; attachmentType?: string; replyToId?: string; mentionedIds?: string[] }) {
     await this.assertMember(channelId, userId);
     if (!dto.content?.trim() && !dto.attachmentUrl) throw new BadRequestException('Сообщение не может быть пустым');
 
@@ -174,13 +201,102 @@ export class ChatService {
         attachmentUrl: dto.attachmentUrl,
         attachmentName: dto.attachmentName,
         attachmentType: dto.attachmentType,
+        replyToId: dto.replyToId,
+        mentionedIds: dto.mentionedIds ?? [],
       },
     });
 
     await this.prisma.chatChannel.update({ where: { id: channelId }, data: { updatedAt: new Date() } });
 
     const sender = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, name: true, avatarUrl: true } });
-    return { ...message, sender };
+
+    let replyTo = null;
+    if (dto.replyToId) {
+      const src = await this.prisma.chatMessage.findUnique({ where: { id: dto.replyToId } });
+      if (src) replyTo = { id: src.id, content: src.content, senderId: src.senderId, attachmentType: src.attachmentType };
+    }
+
+    // Notify mentioned users
+    if (dto.mentionedIds?.length) {
+      const orgId = (await this.prisma.chatChannel.findUnique({ where: { id: channelId } }))?.orgId;
+      if (orgId) {
+        for (const mentionedId of dto.mentionedIds) {
+          if (mentionedId === userId) continue;
+          await this.notifications.create(
+            mentionedId, orgId, 'chat_mention',
+            `💬 ${sender?.name ?? 'Кто-то'} упомянул вас в чате`,
+            dto.content?.slice(0, 100) ?? 'Вложение',
+          ).catch(() => {});
+        }
+      }
+    }
+
+    return { ...message, sender, replyTo, isRead: false };
+  }
+
+  async editMessage(messageId: string, userId: string, content: string) {
+    const msg = await this.prisma.chatMessage.findUnique({ where: { id: messageId } });
+    if (!msg || msg.deletedAt) throw new NotFoundException('Сообщение не найдено');
+    if (msg.senderId !== userId) throw new ForbiddenException('Можно редактировать только свои сообщения');
+    return this.prisma.chatMessage.update({ where: { id: messageId }, data: { content: content.trim(), editedAt: new Date() } });
+  }
+
+  async deleteMessage(messageId: string, userId: string) {
+    const msg = await this.prisma.chatMessage.findUnique({ where: { id: messageId } });
+    if (!msg || msg.deletedAt) throw new NotFoundException('Сообщение не найдено');
+    if (msg.senderId !== userId) throw new ForbiddenException('Можно удалять только свои сообщения');
+    await this.prisma.chatMessage.update({ where: { id: messageId }, data: { deletedAt: new Date(), content: null } });
+    return { ok: true, channelId: msg.channelId };
+  }
+
+  async toggleReaction(messageId: string, userId: string, emoji: string) {
+    const msg = await this.prisma.chatMessage.findUnique({ where: { id: messageId } });
+    if (!msg) throw new NotFoundException('Сообщение не найдено');
+    await this.assertMember(msg.channelId, userId);
+
+    const reactions = (msg.reactions as Record<string, string[]>) ?? {};
+    const list = reactions[emoji] ?? [];
+    if (list.includes(userId)) {
+      reactions[emoji] = list.filter(id => id !== userId);
+      if (reactions[emoji].length === 0) delete reactions[emoji];
+    } else {
+      reactions[emoji] = [...list, userId];
+    }
+
+    const updated = await this.prisma.chatMessage.update({ where: { id: messageId }, data: { reactions } });
+    return { ...updated, channelId: msg.channelId };
+  }
+
+  async pinMessage(channelId: string, userId: string, messageId: string | null) {
+    await this.assertMember(channelId, userId);
+    await this.prisma.chatChannel.update({ where: { id: channelId }, data: { pinnedMessageId: messageId } });
+    return { ok: true };
+  }
+
+  async forwardMessage(sourceMessageId: string, targetChannelId: string, userId: string) {
+    const src = await this.prisma.chatMessage.findUnique({ where: { id: sourceMessageId } });
+    if (!src) throw new NotFoundException('Сообщение не найдено');
+    return this.sendMessage(targetChannelId, userId, {
+      content: src.content ?? undefined,
+      attachmentUrl: src.attachmentUrl ?? undefined,
+      attachmentName: src.attachmentName ?? undefined,
+      attachmentType: src.attachmentType ?? undefined,
+    });
+  }
+
+  async updateChannelAvatar(channelId: string, userId: string, avatarUrl: string) {
+    await this.assertMember(channelId, userId);
+    return this.prisma.chatChannel.update({ where: { id: channelId }, data: { avatarUrl } });
+  }
+
+  async searchMessages(channelId: string, userId: string, query: string) {
+    await this.assertMember(channelId, userId);
+    if (!query.trim()) return [];
+    return this.prisma.chatMessage.findMany({
+      where: { channelId, deletedAt: null, content: { contains: query, mode: 'insensitive' } },
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+    });
   }
 
   async markAsRead(channelId: string, userId: string) {

@@ -20,7 +20,7 @@ export class UploadController {
       },
     }),
     fileFilter: (req, file, cb) => {
-      const allowed = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.png', '.jpg', '.jpeg'];
+      const allowed = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.png', '.jpg', '.jpeg', '.webm', '.ogg', '.mp3', '.wav', '.m4a'];
       const ext = path.extname(file.originalname).toLowerCase();
       if (allowed.includes(ext)) {
         cb(null, true);

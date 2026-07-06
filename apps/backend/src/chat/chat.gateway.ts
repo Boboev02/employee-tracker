@@ -62,7 +62,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   // Called by ChatController after saving a message via REST
   broadcastMessage(channelId: string, message: any) {
     this.server.to('chat-channel:' + channelId).emit('chat:message', { channelId, message });
-    // Also notify each member's personal room for unread badge updates outside the open channel
     this.server.to('chat-channel:' + channelId).emit('chat:updated', { channelId });
+  }
+
+  broadcastEdit(channelId: string, message: any) {
+    this.server.to('chat-channel:' + channelId).emit('chat:message-edited', { channelId, message });
+  }
+
+  broadcastDelete(channelId: string, messageId: string) {
+    this.server.to('chat-channel:' + channelId).emit('chat:message-deleted', { channelId, messageId });
+  }
+
+  broadcastReaction(channelId: string, message: any) {
+    this.server.to('chat-channel:' + channelId).emit('chat:reaction', { channelId, message });
   }
 }
