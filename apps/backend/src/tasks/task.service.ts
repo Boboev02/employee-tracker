@@ -121,7 +121,7 @@ export class TaskService {
 
     // Множественные исполнители: остальные выбранные (кроме основного) добавляются как соисполнители
     if (Array.isArray(dto.coAssigneeIds) && dto.coAssigneeIds.length > 0) {
-      const uniqueCoIds = Array.from(new Set(dto.coAssigneeIds.filter((id: string) => id !== assigneeId)));
+      const uniqueCoIds: string[] = Array.from(new Set<string>(dto.coAssigneeIds.filter((id: string) => id !== assigneeId)));
       if (uniqueCoIds.length) {
         await this.prisma.taskParticipant.createMany({
           data: uniqueCoIds.map((uid: string) => ({ taskId: task.id, userId: uid, role: 'co_executor' })),
