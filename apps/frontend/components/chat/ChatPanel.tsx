@@ -196,22 +196,48 @@ export function ChatPanel({ token, currentUserId, compact = false }: Props) {
       setRecording(false);
       return;
     }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      alert('Ваш браузер не поддерживает запись голосовых сообщений');
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      audioChunksRef.current = [];
-      recorder.ondataavailable = e => audioChunksRef.current.push(e.data);
-      recorder.onstop = async () => {
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        const file = new File([blob], `voice-${Date.now()}.webm`, { type: 'audio/webm' });
+      // Pick a supported mime type — Safari doesn't support audio/webm, needs mp4
+      const mimeCandidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
+      const mimeType = mimeCandidates.find(t => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported?.(t));
+      if (!mimeType) {
         stream.getTracks().forEach(t => t.stop());
+        alert('Формат записи не поддерживается этим браузером');
+        return;
+      }
+      const recorder = new MediaRecorder(stream, { mimeType });
+      audioChunksRef.current = [];
+      recorder.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        if (audioChunksRef.current.length === 0) return;
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        const ext = mimeType.includes('mp4') ? 'm4a' : mimeType.includes('ogg') ? 'ogg' : 'webm';
+        const file = new File([blob], `voice-${Date.now()}.${ext}`, { type: mimeType });
         await handleFileUpload(file);
       };
+      recorder.onerror = (e: any) => {
+        console.error('MediaRecorder error', e);
+        alert('Ошибка записи: ' + (e?.error?.message ?? 'неизвестная ошибка'));
+        setRecording(false);
+      };
       mediaRecorderRef.current = recorder;
-      recorder.start();
+      recorder.start(250); // collect data every 250ms so short recordings aren't lost
       setRecording(true);
-    } catch {
-      alert('Не удалось получить доступ к микрофону');
+    } catch (err: any) {
+      console.error('getUserMedia error', err);
+      if (err?.name === 'NotAllowedError') {
+        alert('Доступ к микрофону запрещён. Разрешите доступ в настройках браузера.');
+      } else if (err?.name === 'NotFoundError') {
+        alert('Микрофон не найден на этом устройстве');
+      } else {
+        alert('Не удалось получить доступ к микрофону: ' + (err?.message ?? err));
+      }
     }
   };
 
