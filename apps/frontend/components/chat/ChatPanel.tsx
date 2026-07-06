@@ -211,7 +211,7 @@ export function ChatPanel({ token, currentUserId, compact = false, onOpenFullPag
       {/* New chat modal */}
       {showNewChat && (
         <NewChatModal token={token} chat={chat} onClose={()=>setShowNewChat(false)}
-          onSelect={(ch)=>{ setActiveChannel(ch); setShowNewChat(false); }} />
+          onSelect={(ch: ChatChannel)=>{ setActiveChannel(ch); setShowNewChat(false); }} />
       )}
     </div>
   );
