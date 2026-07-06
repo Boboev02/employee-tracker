@@ -55,6 +55,7 @@ model User {
   primaryDepartment   Department? @relation("PrimaryDeptMembers", fields: [primaryDepartmentId], references: [id])
   departmentLinks     DepartmentMember[]
   taskParticipations  TaskParticipant[]
+  chatChannels        ChatChannelMember[]
 }
 
 model Role {
@@ -1011,4 +1012,60 @@ model ApprovalDecision {
   @@unique([requestId, stepId, approverId])
   @@index([requestId])
   @@index([approverId, status])
+}
+
+// ===== CHAT / МЕССЕНДЖЕР =====
+
+model ChatChannel {
+  id           String   @id @default(uuid())
+  orgId        String
+  type         String   // DIRECT | GROUP
+  name         String?  // только для GROUP; для DIRECT вычисляется на фронте
+  avatarUrl    String?
+  departmentId String?  // опциональная привязка группового канала к отделу
+  projectId    String?  // опциональная привязка группового канала к проекту
+  createdById  String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  members  ChatChannelMember[]
+  messages ChatMessage[]
+
+  @@index([orgId, type])
+  @@index([departmentId])
+  @@index([projectId])
+}
+
+model ChatChannelMember {
+  id         String    @id @default(uuid())
+  channelId  String
+  userId     String
+  role       String    @default("member") // owner | member (для групп)
+  lastReadAt DateTime?
+  joinedAt   DateTime  @default(now())
+
+  channel ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+  @@index([channelId])
+  @@index([userId])
+}
+
+model ChatMessage {
+  id             String    @id @default(uuid())
+  channelId      String
+  senderId       String
+  content        String?   @db.Text
+  attachmentUrl  String?
+  attachmentName String?
+  attachmentType String?   // image | file
+  editedAt       DateTime?
+  deletedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  channel ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId, createdAt])
+  @@index([senderId])
 }

@@ -1,6 +1,7 @@
 'use client';
 import { Sidebar } from '@/components/layouts/Sidebar';
 import { NotificationBell } from '@/components/NotificationBell';
+import { ChatWidget } from '@/components/chat/ChatWidget';
 import { useIsMobile } from '@/hooks/useIsMobile';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -12,6 +13,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {children}
       </main>
       <NotificationBell />
+      <ChatWidget />
     </div>
   );
 }

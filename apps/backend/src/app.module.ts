@@ -2,6 +2,7 @@ import { NotesModule } from './notes/notes.module';
 import { CustomFieldsModule } from './custom-fields/custom-fields.module';
 import { RelationsModule } from './relations/relations.module';
 import { ApprovalsModule } from './approvals/approvals.module';
+import { ChatModule } from './chat/chat.module';
 import 'dotenv/config';
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
@@ -63,6 +64,7 @@ import { JwtAuthGuard }    from './auth/guards/index';
     CustomFieldsModule,
     RelationsModule,
     ApprovalsModule,
+    ChatModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
