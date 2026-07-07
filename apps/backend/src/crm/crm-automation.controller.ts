@@ -47,7 +47,10 @@ export class CrmAutomationController {
     const ip = req.ip || req.connection?.remoteAddress || '';
     if (!ip.includes('127.0.0.1') && !ip.includes('::1')) return { error: 'Forbidden' };
     const orgs = await this.prisma.organisation.findMany({ select: { id: true } });
-    for (const org of orgs) await this.automation.runTimeElapsedRules(org.id);
+    for (const org of orgs) {
+      await this.automation.runTimeElapsedRules(org.id);
+      await this.automation.runDateApproachingRules(org.id);
+    }
     return { ok: true, orgsProcessed: orgs.length };
   }
 }

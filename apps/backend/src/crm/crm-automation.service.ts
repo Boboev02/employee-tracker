@@ -64,12 +64,12 @@ export class CrmAutomationService {
 
   // ─── Trigger evaluation entry points (called from CrmService) ─────────────
 
-  async onEntityCreated(orgId: string, entityType: 'DEAL' | 'LEAD', entity: any) {
+  async onEntityCreated(orgId: string, entityType: 'DEAL' | 'LEAD' | 'CONTACT', entity: any) {
     const rules = await this.findActiveRules(orgId, entityType, 'ON_CREATE');
     for (const rule of rules) await this.tryRun(rule, entity, orgId);
   }
 
-  async onStageChanged(orgId: string, entityType: 'DEAL' | 'LEAD', entity: any, newStage: string) {
+  async onStageChanged(orgId: string, entityType: 'DEAL' | 'LEAD' | 'CONTACT', entity: any, newStage: string) {
     const rules = await this.findActiveRules(orgId, entityType, 'ON_STAGE_ENTER');
     for (const rule of rules) {
       if (rule.triggerStage && rule.triggerStage !== newStage) continue;
@@ -77,7 +77,7 @@ export class CrmAutomationService {
     }
   }
 
-  async onFieldChanged(orgId: string, entityType: 'DEAL' | 'LEAD', entity: any, field: string, newValue: any) {
+  async onFieldChanged(orgId: string, entityType: 'DEAL' | 'LEAD' | 'CONTACT', entity: any, field: string, newValue: any) {
     const rules = await this.findActiveRules(orgId, entityType, 'ON_FIELD_CHANGE');
     for (const rule of rules) {
       if (rule.triggerField !== field) continue;
@@ -97,6 +97,37 @@ export class CrmAutomationService {
         ? await this.prisma.crmDeal.findMany({ where: { orgId, deletedAt: null, updatedAt: { lte: cutoff }, ...(rule.triggerStage ? { stage: rule.triggerStage } : {}) } })
         : await this.prisma.crmLead.findMany({ where: { orgId, deletedAt: null, updatedAt: { lte: cutoff }, status: rule.triggerStage ?? 'NEW' } });
       for (const entity of entities) await this.tryRun(rule, entity, orgId);
+    }
+  }
+
+  /**
+   * Правила "дата приближается" — для подписок: за N дней до окончания триала/подписки.
+   * Триггер: ON_DATE_APPROACHING, entityType: CONTACT, triggerField: 'trialEndsAt' | 'subscriptionEndsAt',
+   * triggerDelayMinutes хранит число ДНЕЙ (не минут) для простоты переиспользования поля.
+   * Вызывается тем же cron раз в час/день, что и runTimeElapsedRules.
+   */
+  async runDateApproachingRules(orgId: string) {
+    const rules = await this.prisma.crmAutomationRule.findMany({
+      where: { orgId, isActive: true, triggerType: 'ON_DATE_APPROACHING', entityType: 'CONTACT' },
+    });
+    for (const rule of rules) {
+      const dateField = rule.triggerField ?? 'trialEndsAt';
+      const daysBefore = rule.triggerDelayMinutes ?? 3;
+      const targetDate = new Date(Date.now() + daysBefore * 86400000);
+      const dayStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+      const dayEnd = new Date(dayStart.getTime() + 86400000);
+
+      const contacts = await this.prisma.crmContact.findMany({
+        where: { orgId, deletedAt: null, [dateField]: { gte: dayStart, lt: dayEnd } },
+      });
+      // Не дублируем срабатывание в тот же день — проверяем лог
+      for (const contact of contacts) {
+        const already = await this.prisma.crmAutomationLog.findFirst({
+          where: { ruleId: rule.id, entityId: contact.id, createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } },
+        });
+        if (already) continue;
+        await this.tryRun(rule, contact, orgId);
+      }
     }
   }
 
@@ -171,7 +202,7 @@ export class CrmAutomationService {
       }
 
       case 'UPDATE_FIELD': {
-        const model = rule.entityType === 'DEAL' ? this.prisma.crmDeal : this.prisma.crmLead;
+        const model = rule.entityType === 'DEAL' ? this.prisma.crmDeal : rule.entityType === 'CONTACT' ? this.prisma.crmContact : this.prisma.crmLead;
         await (model as any).update({ where: { id: entity.id }, data: { [params.field]: params.value } });
         break;
       }
@@ -179,7 +210,7 @@ export class CrmAutomationService {
       case 'CHANGE_OWNER': {
         const newOwnerId = await this.resolveOwner(orgId, params);
         if (!newOwnerId) return;
-        const model = rule.entityType === 'DEAL' ? this.prisma.crmDeal : this.prisma.crmLead;
+        const model = rule.entityType === 'DEAL' ? this.prisma.crmDeal : rule.entityType === 'CONTACT' ? this.prisma.crmContact : this.prisma.crmLead;
         await (model as any).update({ where: { id: entity.id }, data: { ownerId: newOwnerId } });
         break;
       }

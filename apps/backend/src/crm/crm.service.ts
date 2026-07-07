@@ -60,6 +60,8 @@ export class CrmService {
       { lastName: { contains: filters.search, mode: 'insensitive' } },
       { email: { contains: filters.search, mode: 'insensitive' } },
     ];
+    if (filters.subscriptionPlan) where.subscriptionPlan = filters.subscriptionPlan;
+    if (filters.externalSource) where.externalSource = filters.externalSource;
     const take = Math.min(parseInt(filters.limit ?? '50'), 200);
     const skip = parseInt(filters.offset ?? '0');
     const [data, total] = await Promise.all([
@@ -70,6 +72,22 @@ export class CrmService {
       this.prisma.crmContact.count({ where }),
     ]);
     return { data, total, take, skip };
+  }
+
+  /** Сегментация подписчиков по тарифу — для вкладки "Подписки" */
+  async getSubscriptionStats(orgId: string) {
+    const plans = ['TRIAL', 'PRO', 'BUSINESS', 'NONE'];
+    const counts = await Promise.all(plans.map(async p => ({
+      plan: p,
+      count: await this.prisma.crmContact.count({ where: { orgId, deletedAt: null, subscriptionPlan: p } }),
+    })));
+    const trialEndingSoon = await this.prisma.crmContact.count({
+      where: { orgId, deletedAt: null, subscriptionPlan: 'TRIAL', trialEndsAt: { gte: new Date(), lte: new Date(Date.now() + 3 * 86400000) } },
+    });
+    const expiredRecently = await this.prisma.crmContact.count({
+      where: { orgId, deletedAt: null, subscriptionStatus: 'expired', OR: [{ trialEndsAt: { gte: new Date(Date.now() - 14 * 86400000) } }, { subscriptionEndsAt: { gte: new Date(Date.now() - 14 * 86400000) } }] },
+    });
+    return { byPlan: counts, trialEndingSoon, expiredRecently };
   }
 
   async getContact(orgId: string, id: string) {

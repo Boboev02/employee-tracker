@@ -31,6 +31,10 @@ export class CrmController {
   @RequirePermissions('crm:read')
   getContacts(@CurrentUser() u: any, @Query() q: any) { return this.crm.getContacts(u.orgId, q); }
 
+  @Get('contacts/subscription-stats')
+  @RequirePermissions('crm:read')
+  getSubscriptionStats(@CurrentUser() u: any) { return this.crm.getSubscriptionStats(u.orgId); }
+
   @Get('contacts/:id')
   @RequirePermissions('crm:read')
   getContact(@CurrentUser() u: any, @Param('id') id: string) { return this.crm.getContact(u.orgId, id); }

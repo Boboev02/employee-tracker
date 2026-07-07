@@ -4,25 +4,55 @@ import { useState, useEffect } from 'react';
 const API = 'https://employee-tracker.ru/api/v1';
 
 export function CrmSettingsTab({ card }: { card: React.CSSProperties }) {
-  const [sub, setSub] = useState<'email' | 'forms'>('email');
+  const [sub, setSub] = useState<'email' | 'forms' | 'integrations'>('email');
   const [emailSettings, setEmailSettings] = useState<any>({ smtpHost: '', smtpPort: 587, smtpUser: '', smtpPass: '', fromName: '', fromEmail: '', isActive: false });
   const [forms, setForms] = useState<any[]>([]);
+  const [integrations, setIntegrations] = useState<any[]>([]);
+  const [kingstats, setKingstats] = useState<any>({ apiUrl: '', apiKey: '', isActive: false });
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [showFormBuilder, setShowFormBuilder] = useState(false);
   const [newFormName, setNewFormName] = useState('');
   const [saving, setSaving] = useState(false);
-  const [testResult, setTestResult] = useState<string | null>(null);
 
   const h = () => ({ 'Content-Type': 'application/json', Authorization: 'Bearer ' + localStorage.getItem('access_token') });
 
   const load = async () => {
-    const [eRes, fRes] = await Promise.all([
+    const [eRes, fRes, iRes] = await Promise.all([
       fetch(`${API}/crm/email/settings`, { headers: h() }),
       fetch(`${API}/crm/webforms`, { headers: h() }),
+      fetch(`${API}/crm/integrations`, { headers: h() }),
     ]);
     const eData = await eRes.json().catch(() => null);
     if (eData) setEmailSettings(eData);
     setForms(await fRes.json().catch(() => []));
+    const iData = await iRes.json().catch(() => []);
+    setIntegrations(iData);
+    const ks = iData.find((i: any) => i.name === 'kingstats');
+    if (ks) setKingstats(ks);
   };
+
+  const saveKingstats = async () => {
+    setSaving(true);
+    await fetch(`${API}/crm/integrations/kingstats`, { method: 'POST', headers: h(), body: JSON.stringify({ ...kingstats, displayName: 'KingStats' }) });
+    setSaving(false);
+    load();
+  };
+
+  const syncKingstats = async () => {
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      const r = await fetch(`${API}/crm/integrations/kingstats/sync`, { method: 'POST', headers: h() });
+      const data = await r.json();
+      setSyncMsg(r.ok ? `✅ Синхронизировано: ${data.synced}` : `⚠️ ${data.message ?? 'Ошибка синхронизации'}`);
+    } catch {
+      setSyncMsg('⚠️ Не удалось связаться с сервером');
+    }
+    setSyncing(false);
+    load();
+  };
+
 
   useEffect(() => { load(); }, []);
 
@@ -53,6 +83,7 @@ export function CrmSettingsTab({ card }: { card: React.CSSProperties }) {
       <div style={{ display: 'flex', gap: 4, background: '#F8F7FF', borderRadius: 12, padding: 4, marginBottom: 16, width: 'fit-content' }}>
         <button onClick={() => setSub('email')} style={{ padding: '7px 16px', borderRadius: 8, border: 'none', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', background: sub === 'email' ? 'white' : 'transparent', color: sub === 'email' ? '#7F77DD' : '#9B97CC', boxShadow: sub === 'email' ? '0 2px 6px rgba(127,119,221,0.15)' : 'none' }}>📧 Email</button>
         <button onClick={() => setSub('forms')} style={{ padding: '7px 16px', borderRadius: 8, border: 'none', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', background: sub === 'forms' ? 'white' : 'transparent', color: sub === 'forms' ? '#7F77DD' : '#9B97CC', boxShadow: sub === 'forms' ? '0 2px 6px rgba(127,119,221,0.15)' : 'none' }}>🌐 Веб-формы</button>
+        <button onClick={() => setSub('integrations')} style={{ padding: '7px 16px', borderRadius: 8, border: 'none', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', background: sub === 'integrations' ? 'white' : 'transparent', color: sub === 'integrations' ? '#7F77DD' : '#9B97CC', boxShadow: sub === 'integrations' ? '0 2px 6px rgba(127,119,221,0.15)' : 'none' }}>🔌 Интеграции</button>
       </div>
 
       {sub === 'email' && (
@@ -137,6 +168,52 @@ export function CrmSettingsTab({ card }: { card: React.CSSProperties }) {
                 </div>
               </div>
             </div>
+          )}
+        </div>
+      )}
+
+      {sub === 'integrations' && (
+        <div style={{ ...card, padding: 20, maxWidth: 480 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+            <span style={{ fontSize: 20 }}>👑</span>
+            <p style={{ fontSize: 13, fontWeight: 700, color: '#1a1040', margin: 0 }}>KingStats — синхронизация подписчиков</p>
+          </div>
+          <p style={{ fontSize: 11.5, color: '#9B97CC', margin: '4px 0 16px' }}>Автоматически подтягивает подписчиков (тариф, дата окончания триала) как Контакты в CRM</p>
+
+          <p style={{ fontSize: 11, color: '#9B97CC', margin: '0 0 4px' }}>URL API-эндпоинта</p>
+          <input value={kingstats.apiUrl ?? ''} onChange={e => setKingstats({ ...kingstats, apiUrl: e.target.value })} placeholder="https://www.kingstats.ru/api/admin/subscribers"
+            style={{ width: '100%', background: '#F8F7FF', border: '1px solid #EDE9FE', borderRadius: 10, padding: '9px 12px', fontSize: 13, marginBottom: 10, outline: 'none', boxSizing: 'border-box' }} />
+
+          <p style={{ fontSize: 11, color: '#9B97CC', margin: '0 0 4px' }}>API-ключ</p>
+          <input type="password" value={kingstats.apiKey ?? ''} onChange={e => setKingstats({ ...kingstats, apiKey: e.target.value })} placeholder="••••••••"
+            style={{ width: '100%', background: '#F8F7FF', border: '1px solid #EDE9FE', borderRadius: 10, padding: '9px 12px', fontSize: 13, marginBottom: 14, outline: 'none', boxSizing: 'border-box' }} />
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, cursor: 'pointer' }}>
+            <input type="checkbox" checked={!!kingstats.isActive} onChange={e => setKingstats({ ...kingstats, isActive: e.target.checked })} style={{ width: 16, height: 16, accentColor: '#7F77DD' }} />
+            <span style={{ fontSize: 12.5, color: '#1a1040' }}>Интеграция активна</span>
+          </label>
+
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+            <button onClick={saveKingstats} disabled={saving} style={{ flex: 1, background: 'linear-gradient(135deg,#7F77DD,#5248C5)', color: 'white', border: 'none', borderRadius: 10, padding: '10px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              {saving ? 'Сохраняю...' : 'Сохранить'}
+            </button>
+            <button onClick={syncKingstats} disabled={syncing || !kingstats.apiUrl} style={{ flex: 1, background: kingstats.apiUrl ? '#F8F7FF' : '#F3F4F6', color: kingstats.apiUrl ? '#7F77DD' : '#C4C0E8', border: '1px solid #EDE9FE', borderRadius: 10, padding: '10px', fontSize: 13, fontWeight: 700, cursor: kingstats.apiUrl ? 'pointer' : 'not-allowed' }}>
+              {syncing ? 'Синхронизирую...' : '🔄 Синхронизировать сейчас'}
+            </button>
+          </div>
+
+          {syncMsg && <p style={{ fontSize: 12, color: syncMsg.startsWith('✅') ? '#16A34A' : '#D97706', background: syncMsg.startsWith('✅') ? '#DCFCE7' : '#FFFBEB', padding: '8px 12px', borderRadius: 8, margin: '0 0 10px' }}>{syncMsg}</p>}
+
+          {kingstats.lastSyncAt && (
+            <p style={{ fontSize: 11, color: '#9B97CC', margin: 0 }}>
+              Последняя синхронизация: {new Date(kingstats.lastSyncAt).toLocaleString('ru')} · {kingstats.syncedCount ?? 0} записей
+            </p>
+          )}
+
+          {!kingstats.apiUrl && (
+            <p style={{ fontSize: 11, color: '#D97706', background: '#FFFBEB', padding: '10px 12px', borderRadius: 8, marginTop: 10 }}>
+              ⚠ Пока не указан URL API — как только KingStats отдаст эндпоинт со списком подписчиков, впишите его сюда и нажмите «Синхронизировать»
+            </p>
           )}
         </div>
       )}

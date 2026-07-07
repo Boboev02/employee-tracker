@@ -8,6 +8,7 @@ const TRIGGER_LABELS: Record<string, string> = {
   ON_STAGE_ENTER: 'При переходе на стадию',
   ON_FIELD_CHANGE: 'При изменении поля',
   ON_TIME_ELAPSED: 'Прошло время без действий',
+  ON_DATE_APPROACHING: 'Приближается дата (подписка)',
 };
 const STAGE_OPTIONS: Record<string, { v: string; l: string }[]> = {
   DEAL: [
@@ -17,7 +18,12 @@ const STAGE_OPTIONS: Record<string, { v: string; l: string }[]> = {
   LEAD: [
     { v: 'NEW', l: 'Новый' }, { v: 'IN_PROGRESS', l: 'В работе' }, { v: 'CONVERTED', l: 'Конвертирован' }, { v: 'LOST', l: 'Потерян' },
   ],
+  CONTACT: [],
 };
+const DATE_FIELD_OPTIONS = [
+  { v: 'trialEndsAt', l: 'Окончание триала' },
+  { v: 'subscriptionEndsAt', l: 'Окончание подписки' },
+];
 const ACTION_LABELS: Record<string, string> = {
   CREATE_TASK: '📋 Поставить задачу',
   NOTIFY_USER: '🔔 Уведомить сотрудника',
@@ -29,7 +35,7 @@ const ACTION_LABELS: Record<string, string> = {
 export function CrmAutomationTab({ card }: { card: React.CSSProperties }) {
   const [rules, setRules] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
-  const [entityType, setEntityType] = useState<'DEAL' | 'LEAD'>('DEAL');
+  const [entityType, setEntityType] = useState<'DEAL' | 'LEAD' | 'CONTACT'>('DEAL');
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -86,6 +92,7 @@ export function CrmAutomationTab({ card }: { card: React.CSSProperties }) {
         <div style={{ display: 'flex', gap: 4, background: '#F8F7FF', borderRadius: 12, padding: 4 }}>
           <button onClick={() => setEntityType('DEAL')} style={{ padding: '7px 16px', borderRadius: 8, border: 'none', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', background: entityType === 'DEAL' ? 'white' : 'transparent', color: entityType === 'DEAL' ? '#7F77DD' : '#9B97CC', boxShadow: entityType === 'DEAL' ? '0 2px 6px rgba(127,119,221,0.15)' : 'none' }}>Сделки</button>
           <button onClick={() => setEntityType('LEAD')} style={{ padding: '7px 16px', borderRadius: 8, border: 'none', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', background: entityType === 'LEAD' ? 'white' : 'transparent', color: entityType === 'LEAD' ? '#7F77DD' : '#9B97CC', boxShadow: entityType === 'LEAD' ? '0 2px 6px rgba(127,119,221,0.15)' : 'none' }}>Лиды</button>
+          <button onClick={() => setEntityType('CONTACT')} style={{ padding: '7px 16px', borderRadius: 8, border: 'none', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', background: entityType === 'CONTACT' ? 'white' : 'transparent', color: entityType === 'CONTACT' ? '#7F77DD' : '#9B97CC', boxShadow: entityType === 'CONTACT' ? '0 2px 6px rgba(127,119,221,0.15)' : 'none' }}>Подписчики</button>
         </div>
         <button onClick={() => setShowForm(true)} style={{ marginLeft: 'auto', background: 'linear-gradient(135deg,#7F77DD,#5248C5)', color: 'white', border: 'none', borderRadius: 10, padding: '9px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Новое правило</button>
       </div>
@@ -107,8 +114,9 @@ export function CrmAutomationTab({ card }: { card: React.CSSProperties }) {
                   <p style={{ fontSize: 13.5, fontWeight: 800, color: '#1a1040', margin: 0 }}>{rule.name}</p>
                   <p style={{ fontSize: 11.5, color: '#9B97CC', margin: '3px 0 0' }}>
                     {TRIGGER_LABELS[rule.triggerType]}
-                    {rule.triggerStage && ` → «${STAGE_OPTIONS[entityType].find(s => s.v === rule.triggerStage)?.l ?? rule.triggerStage}»`}
+                    {rule.triggerType === 'ON_STAGE_ENTER' && rule.triggerStage && ` → «${STAGE_OPTIONS[entityType]?.find(s => s.v === rule.triggerStage)?.l ?? rule.triggerStage}»`}
                     {rule.triggerType === 'ON_TIME_ELAPSED' && ` (${rule.triggerDelayMinutes} мин)`}
+                    {rule.triggerType === 'ON_DATE_APPROACHING' && ` — ${DATE_FIELD_OPTIONS.find(d => d.v === rule.triggerField)?.l ?? rule.triggerField}, за ${rule.triggerDelayMinutes} дн.`}
                     {' · '}{(rule.actions as any[]).map(a => ACTION_LABELS[a.type] ?? a.type).join(', ')}
                   </p>
                 </div>
@@ -155,6 +163,18 @@ export function CrmAutomationTab({ card }: { card: React.CSSProperties }) {
                 <input type="number" value={form.triggerDelayMinutes} onChange={e => setForm({ ...form, triggerDelayMinutes: parseInt(e.target.value) || 0 })}
                   style={{ width: '100%', background: '#F8F7FF', border: '1px solid #EDE9FE', borderRadius: 10, padding: '9px 12px', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
               </div>
+            )}
+
+            {form.triggerType === 'ON_DATE_APPROACHING' && (
+              <>
+                <select value={form.triggerField ?? 'trialEndsAt'} onChange={e => setForm({ ...form, triggerField: e.target.value })}
+                  style={{ width: '100%', background: '#F8F7FF', border: '1px solid #EDE9FE', borderRadius: 10, padding: '9px 12px', fontSize: 13, marginBottom: 10, outline: 'none' }}>
+                  {DATE_FIELD_OPTIONS.map(d => <option key={d.v} value={d.v}>{d.l}</option>)}
+                </select>
+                <p style={{ fontSize: 11, color: '#9B97CC', margin: '0 0 6px' }}>За сколько дней ДО этой даты сработать</p>
+                <input type="number" value={form.triggerDelayMinutes} onChange={e => setForm({ ...form, triggerDelayMinutes: parseInt(e.target.value) || 0 })} placeholder="3"
+                  style={{ width: '100%', background: '#F8F7FF', border: '1px solid #EDE9FE', borderRadius: 10, padding: '9px 12px', fontSize: 13, marginBottom: 14, outline: 'none', boxSizing: 'border-box' }} />
+              </>
             )}
 
             <p style={{ fontSize: 11, color: '#9B97CC', margin: '14px 0 6px', fontWeight: 700 }}>ДЕЙСТВИЕ (ЧТО СДЕЛАТЬ)</p>

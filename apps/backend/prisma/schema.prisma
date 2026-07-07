@@ -594,6 +594,15 @@ model CrmContact {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // ── Подписки (для внешних сервисов вроде KingStats) ─────────────────────────
+  subscriptionPlan     String?   // TRIAL | PRO | BUSINESS | NONE
+  subscriptionStatus   String?   // active | expired | none
+  trialEndsAt          DateTime?
+  subscriptionEndsAt   DateTime?
+  lastLoginAt          DateTime?
+  externalId           String?   // ID пользователя во внешней системе (KingStats и т.п.)
+  externalSource       String?   // 'kingstats' и т.д.
+
   company   CrmCompany? @relation(fields: [companyId], references: [id])
   deals     CrmDeal[]
   activities CrmActivity[]
@@ -601,6 +610,28 @@ model CrmContact {
 
   @@index([orgId])
   @@index([companyId])
+  @@unique([externalSource, externalId])
+  @@index([subscriptionPlan])
+}
+
+// ===== ВНЕШНИЕ ИНТЕГРАЦИИ (KingStats и др. сервисы подписок) =====
+
+model CrmIntegration {
+  id           String    @id @default(uuid())
+  orgId        String
+  name         String    // 'kingstats'
+  displayName  String?   // "KingStats"
+  apiUrl       String?
+  apiKey       String?
+  isActive     Boolean   @default(false)
+  lastSyncAt   DateTime?
+  lastSyncStatus String? // SUCCESS | ERROR
+  lastSyncMessage String? @db.Text
+  syncedCount  Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([orgId, name])
 }
 
 model CrmCompany {

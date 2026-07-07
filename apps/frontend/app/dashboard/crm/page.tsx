@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { CrmAutomationTab } from '@/components/crm/CrmAutomationTab';
 import { CrmCasesTab } from '@/components/crm/CrmCasesTab';
 import { CrmSettingsTab } from '@/components/crm/CrmSettingsTab';
+import { CrmSubscriptionsTab } from '@/components/crm/CrmSubscriptionsTab';
 
 const API = 'https://employee-tracker.ru/api/v1';
 const STAGES = ['NEW','QUALIFIED','PROPOSAL','NEGOTIATION','WON','LOST'];
@@ -14,7 +15,7 @@ const LEAD_STATUS: Record<string,string> = { NEW:'Новый', IN_PROGRESS:'В �
 
 export default function CrmPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<'deals'|'leads'|'contacts'|'companies'|'cases'|'automation'|'settings'>('deals');
+  const [tab, setTab] = useState<'deals'|'leads'|'contacts'|'companies'|'cases'|'automation'|'settings'|'subscriptions'>('deals');
   const [kanban, setKanban] = useState<any[]>([]);
   const [leads, setLeads] = useState<any[]>([]);
   const [contacts, setContacts] = useState<any[]>([]);
@@ -106,7 +107,7 @@ export default function CrmPage() {
 
       <div style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <div style={{ display: 'flex', gap: '6px' }}>
-          {([['deals','🎯 Сделки'],['leads','📋 Лиды'],['contacts','👤 Контакты'],['companies','🏢 Компании'],['cases','🎫 Обращения'],['automation','⚡ Автоматизация'],['settings','⚙️ Настройки']] as const).map(([t, label]) => (
+          {([['deals','🎯 Сделки'],['leads','📋 Лиды'],['contacts','👤 Контакты'],['companies','🏢 Компании'],['subscriptions','📊 Подписки'],['cases','🎫 Обращения'],['automation','⚡ Автоматизация'],['settings','⚙️ Настройки']] as const).map(([t, label]) => (
             <button key={t} onClick={() => setTab(t)}
               style={{ background: tab === t ? 'linear-gradient(135deg,#7F77DD,#5248C5)' : 'white', color: tab === t ? 'white' : '#7F77DD', border: '1px solid #EDE9FE', borderRadius: '12px', padding: '9px 20px', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
               {label}
@@ -263,6 +264,7 @@ export default function CrmPage() {
           </div>
         )}
         {tab === 'cases' && <CrmCasesTab card={card} />}
+        {tab === 'subscriptions' && <CrmSubscriptionsTab card={card} />}
         {tab === 'automation' && <CrmAutomationTab card={card} />}
         {tab === 'settings' && <CrmSettingsTab card={card} />}
       </div>

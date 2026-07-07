@@ -12,16 +12,20 @@ import { CrmWebFormService } from './crm-webform.service';
 import { CrmWebFormController } from './crm-webform.controller';
 import { CrmEmailService } from './crm-email.service';
 import { CrmEmailController } from './crm-email.controller';
+import { CrmIntegrationService } from './crm-integration.service';
+import { CrmIntegrationController } from './crm-integration.controller';
 
 @Module({
   imports: [NotificationModule],
   controllers: [
     CrmController, CrmAutomationController, CrmCaseController,
     CrmDocumentController, CrmWebFormController, CrmEmailController,
+    CrmIntegrationController,
   ],
   providers: [
     CrmService, CrmAutomationService, CrmCaseService,
     CrmDocumentService, CrmWebFormService, CrmEmailService,
+    CrmIntegrationService,
   ],
   exports: [CrmService, CrmAutomationService],
 })
