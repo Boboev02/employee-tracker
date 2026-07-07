@@ -1054,6 +1054,40 @@ model SubscriberCommunication {
   @@index([orgId])
 }
 
+// ===== ЭТАП 4: АВТОМАТИЗАЦИЯ =====
+
+model SubscriberAutomationRule {
+  id               String   @id @default(uuid())
+  orgId            String
+  name             String
+  triggerType      String   // ON_REGISTER | DAYS_REMAINING | SUBSCRIPTION_EXPIRED | PLAN_PURCHASED | PLAN_CHANGED | INACTIVE_DAYS | TAG_ADDED | STATUS_CHANGED | MANAGER_ASSIGNED
+  triggerDateField String?  // trialEndsAt | subscriptionEndsAt — для DAYS_REMAINING
+  triggerDays      Int?     // число дней — для DAYS_REMAINING / INACTIVE_DAYS
+  triggerTag       String?  // конкретный тег — для TAG_ADDED
+  triggerStatus    String?  // конкретный статус — для STATUS_CHANGED (опционально)
+  conditions       Json?    // доп. условия [{field, operator, value}] — задел на будущее
+  actions          Json     // [{ type, params }]
+  isActive         Boolean  @default(true)
+  createdById      String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([orgId, triggerType])
+}
+
+model SubscriberAutomationLog {
+  id           String   @id @default(uuid())
+  orgId        String
+  ruleId       String
+  subscriberId String
+  status       String   // SUCCESS | ERROR | SKIPPED
+  message      String?  @db.Text
+  createdAt    DateTime @default(now())
+
+  @@index([orgId, subscriberId])
+  @@index([ruleId])
+}
+
 model SubscriberComment {
   id           String   @id @default(uuid())
   subscriberId String

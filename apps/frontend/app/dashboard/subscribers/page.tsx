@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import { SubscriberCard } from '@/components/subscribers/SubscriberCard';
+import { AutomationBuilder } from '@/components/subscribers/AutomationBuilder';
 
 const API = 'https://employee-tracker.ru/api/v1';
 
@@ -64,6 +65,7 @@ export default function SubscribersPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [activeSubscriber, setActiveSubscriber] = useState<any>(null);
   const [showIntegration, setShowIntegration] = useState(false);
+  const [showAutomation, setShowAutomation] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -162,10 +164,16 @@ export default function SubscribersPage() {
           <h1 style={{ fontSize: '18px', fontWeight: 800, color: '#1a1040', margin: 0 }}>CRM · Подписчики</h1>
           <p style={{ fontSize: '11px', color: '#9B97CC', margin: '2px 0 0' }}>{total} подписчиков</p>
         </div>
-        <button onClick={() => setShowIntegration(true)}
-          style={{ background: '#F8F7FF', color: '#7F77DD', border: '1px solid #EDE9FE', borderRadius: '20px', padding: '8px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
-          🔌 Интеграция KingStats
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => setShowAutomation(true)}
+            style={{ background: '#F8F7FF', color: '#7F77DD', border: '1px solid #EDE9FE', borderRadius: '20px', padding: '8px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+            ⚡ Автоматизация
+          </button>
+          <button onClick={() => setShowIntegration(true)}
+            style={{ background: '#F8F7FF', color: '#7F77DD', border: '1px solid #EDE9FE', borderRadius: '20px', padding: '8px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+            🔌 Интеграция KingStats
+          </button>
+        </div>
       </div>
 
       <div style={{ padding: '20px 28px' }}>
@@ -366,6 +374,10 @@ export default function SubscribersPage() {
 
       {showIntegration && (
         <IntegrationModal h={h} onClose={() => setShowIntegration(false)} />
+      )}
+
+      {showAutomation && (
+        <AutomationBuilder h={h} employees={employees} onClose={() => setShowAutomation(false)} />
       )}
     </div>
   );

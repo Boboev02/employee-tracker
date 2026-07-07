@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { SubscriberAutomationService } from './subscriber-automation.service';
 
 const CRM_STATUS_LABELS: Record<string, string> = {
   NEW: 'Новый', IN_PROGRESS: 'В работе', CONTACTED: 'Связались',
@@ -19,6 +20,7 @@ export class SubscriberService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly automation: SubscriberAutomationService,
   ) {}
 
   // ─── Список с поиском/фильтром/сортировкой/группировкой ────────────────────
@@ -125,6 +127,7 @@ export class SubscriberService {
           category: 'subscribers',
           details: { subscriberId: id, subscriberName: `${sub.firstName} ${sub.lastName ?? ''}`.trim(), field: FIELD_LABELS[entry.field] ?? entry.field, oldValue: entry.oldValue, newValue: entry.newValue },
         }).catch(() => {});
+        await this.automation.onFieldChanged(orgId, updated, entry.field, JSON.parse(entry.oldValue ?? 'null'), JSON.parse(entry.newValue ?? 'null')).catch(() => {});
       }
     }
     return updated;
@@ -342,11 +345,17 @@ export class SubscriberService {
           if (data.planStatus !== undefined && data.planStatus !== existing.planStatus) {
             historyEntries.push({ subscriberId: existing.id, orgId, field: 'planStatus', oldValue: JSON.stringify(existing.planStatus), newValue: JSON.stringify(data.planStatus), changedById: null });
           }
-          await this.prisma.subscriber.update({ where: { id: existing.id }, data });
-          if (historyEntries.length) await this.prisma.subscriberHistory.createMany({ data: historyEntries });
+          const updatedSub = await this.prisma.subscriber.update({ where: { id: existing.id }, data });
+          if (historyEntries.length) {
+            await this.prisma.subscriberHistory.createMany({ data: historyEntries });
+            for (const entry of historyEntries) {
+              await this.automation.onFieldChanged(orgId, updatedSub, entry.field, existing[entry.field as keyof typeof existing], (data as any)[entry.field]).catch(() => {});
+            }
+          }
           updated++;
         } else {
-          await this.prisma.subscriber.create({ data: { orgId, externalId, externalSource: name, ...data } });
+          const createdSub = await this.prisma.subscriber.create({ data: { orgId, externalId, externalSource: name, ...data } });
+          await this.automation.onRegister(orgId, createdSub).catch(() => {});
           created++;
         }
       }
