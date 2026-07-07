@@ -17,7 +17,6 @@ import { AuditModule } from './audit/audit.module';
 import { ProductsModule } from './products/products.module';
 import { DictionariesModule } from './dictionaries/dictionaries.module';
 import { ProjectsModule } from './projects/projects.module';
-import { CrmModule } from './crm/crm.module';
 import { AttachmentsModule } from './attachments/attachments.module';
 import { ResetModule } from './reset/reset.module';
 import { KpiModule } from './kpi/kpi.module';
@@ -54,7 +53,6 @@ import { JwtAuthGuard }    from './auth/guards/index';
     ProductsModule,
     DictionariesModule,
     ProjectsModule,
-    CrmModule,
     AttachmentsModule,
     HealthModule,
     KpiModule,

@@ -31,7 +31,6 @@ const NAV: NavEntry[] = [
     ],
   },
 
-  { href: '/dashboard/crm',          icon: 'ti-chart-arrows',     label: 'CRM',            admin: false },
   { href: '/dashboard/analytics',    icon: 'ti-chart-bar',        label: 'Аналитика',      admin: false },
   { href: '/dashboard/productivity', icon: 'ti-star',             label: 'Продуктивность', admin: true  },
   { href: '/dashboard/timesheet',    icon: 'ti-calendar',         label: 'Табель',         admin: false },
