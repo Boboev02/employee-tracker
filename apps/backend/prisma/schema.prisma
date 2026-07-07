@@ -56,6 +56,7 @@ model User {
   departmentLinks     DepartmentMember[]
   taskParticipations  TaskParticipant[]
   chatChannels        ChatChannelMember[]
+  managedSubscribers  Subscriber[] @relation("SubscriberManager")
 }
 
 model Role {
@@ -953,3 +954,87 @@ model ChatMessage {
   @@index([senderId])
 }
 
+
+// ===== CRM ПОДПИСЧИКОВ (KingStats и аналоги) — Этап 1 =====
+
+model Subscriber {
+  id                 String    @id @default(uuid())
+  orgId              String
+
+  // Данные из внешней системы
+  externalId         String?
+  externalSource     String?   @default("kingstats")
+  username           String?
+  firstName          String?
+  lastName           String?
+  email              String?
+  phone              String?
+  externalRole       String?   // роль в внешней системе (admin/user)
+
+  // Подписка
+  plan               String?   // TRIAL | PRO | BUSINESS | NONE
+  planStatus         String?   // active | expired | none
+  trialEndsAt        DateTime?
+  subscriptionEndsAt DateTime?
+  registeredAt       DateTime?
+  lastLoginAt        DateTime?
+
+  // CRM-поля
+  crmStatus          String    @default("NEW") // NEW | IN_PROGRESS | CONTACTED | RENEWED | LOST | ARCHIVED
+  tags               String[]  @default([])
+  managerId          String?
+  notes              String?   @db.Text
+
+  lastSyncAt         DateTime?
+  deletedAt          DateTime? // корзина (Этап 11), пока не используется активно
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  manager            User?     @relation("SubscriberManager", fields: [managerId], references: [id])
+  history            SubscriberHistory[]
+
+  @@unique([orgId, externalSource, externalId])
+  @@index([orgId])
+  @@index([crmStatus])
+  @@index([plan])
+  @@index([managerId])
+  @@index([trialEndsAt])
+  @@index([subscriptionEndsAt])
+}
+
+// История изменений подписчика (тариф/статус/теги/менеджер) — задел под Этап 2
+model SubscriberHistory {
+  id           String   @id @default(uuid())
+  subscriberId String
+  orgId        String
+  field        String   // plan | planStatus | crmStatus | tags | managerId
+  oldValue     String?
+  newValue     String?
+  changedById  String?  // null, если изменение системное (авто-синк)
+  createdAt    DateTime @default(now())
+
+  subscriber Subscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+
+  @@index([subscriberId, createdAt])
+  @@index([orgId])
+}
+
+model SubscriberIntegration {
+  id           String    @id @default(uuid())
+  orgId        String
+  name         String    // 'kingstats'
+  displayName  String?
+  apiUrl       String?
+  apiKey       String?
+  isActive     Boolean   @default(false)
+  lastSyncAt   DateTime?
+  lastSyncStatus String? // SUCCESS | ERROR
+  lastSyncMessage String? @db.Text
+  totalFetched Int       @default(0)
+  totalCreated Int       @default(0)
+  totalUpdated Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([orgId, name])
+}

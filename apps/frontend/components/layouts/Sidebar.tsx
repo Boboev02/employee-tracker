@@ -17,6 +17,7 @@ const NAV: NavEntry[] = [
   { href: '/dashboard/command-center', icon: 'ti-topology-star-3', label: '⚡ Command Center', admin: false },
   { href: '/dashboard',              icon: 'ti-layout-dashboard', label: 'Дашборд',        admin: false },
   { href: '/dashboard/chat',         icon: 'ti-message-circle',   label: 'Чат',            admin: false },
+  { href: '/dashboard/subscribers',  icon: 'ti-users-group',      label: 'CRM · Подписчики', admin: true },
   { href: '/dashboard/employees',    icon: 'ti-users',            label: 'Сотрудники',     admin: false },
 
   {
