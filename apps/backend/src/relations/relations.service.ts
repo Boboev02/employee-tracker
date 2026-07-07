@@ -200,11 +200,6 @@ export class RelationsService {
             where: { id, orgId },
             select: { id: true, name: true, marketplace: true, articleId: true, photoUrl: true, price: true },
           });
-        case 'DEAL':
-          return await this.prisma.crmDeal.findFirst({
-            where: { id, orgId },
-            select: { id: true, title: true, stage: true, amount: true },
-          });
         case 'EMPLOYEE':
           return await this.prisma.user.findFirst({
             where: { id, orgId, deletedAt: null },
@@ -247,12 +242,6 @@ export class RelationsService {
             { articleId: { contains: q, mode: 'insensitive' } },
           ]},
           select: { id: true, name: true, marketplace: true, articleId: true, photoUrl: true },
-          take: limit,
-        });
-      case 'DEAL':
-        return this.prisma.crmDeal.findMany({
-          where: { orgId, deletedAt: null, title: { contains: q, mode: 'insensitive' } },
-          select: { id: true, title: true, stage: true, amount: true },
           take: limit,
         });
       case 'EMPLOYEE':

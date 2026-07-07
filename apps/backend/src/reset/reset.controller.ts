@@ -74,18 +74,6 @@ export class ResetController {
     return { success: true, message: 'Все товары удалены' };
   }
 
-  @Delete('crm')
-  async resetCrm(@CurrentUser() user: any) {
-    this.checkAdmin(user);
-    const orgId = user.orgId;
-    await this.prisma.crmActivity.deleteMany({ where: { orgId } }).catch(()=>{});
-    await this.prisma.crmDeal.deleteMany({ where: { orgId } }).catch(()=>{});
-    await this.prisma.crmContact.deleteMany({ where: { orgId } }).catch(()=>{});
-    await this.prisma.crmCompany.deleteMany({ where: { orgId } }).catch(()=>{});
-    await this.prisma.crmLead.deleteMany({ where: { orgId } }).catch(()=>{});
-    return { success: true, message: 'Все данные CRM удалены' };
-  }
-
   @Delete('analytics')
   async resetAnalytics(@CurrentUser() user: any) {
     this.checkAdmin(user);
@@ -193,11 +181,6 @@ export class ResetController {
     await this.prisma.projectActivity.deleteMany({ where: { project: { orgId } } }).catch(()=>{});
     await this.prisma.projectMember.deleteMany({ where: { project: { orgId } } }).catch(()=>{});
     await this.prisma.project.deleteMany({ where: { orgId } }).catch(()=>{});
-    await this.prisma.crmActivity.deleteMany({ where: { orgId } }).catch(()=>{});
-    await this.prisma.crmDeal.deleteMany({ where: { orgId } }).catch(()=>{});
-    await this.prisma.crmContact.deleteMany({ where: { orgId } }).catch(()=>{});
-    await this.prisma.crmCompany.deleteMany({ where: { orgId } }).catch(()=>{});
-    await this.prisma.crmLead.deleteMany({ where: { orgId } }).catch(()=>{});
     await this.prisma.employeeKpi.deleteMany({ where: { orgId } }).catch(()=>{});
     await this.prisma.product.deleteMany({ where: { orgId } }).catch(()=>{});
     await this.prisma.entityRelation.deleteMany({ where: { orgId } }).catch(()=>{});
