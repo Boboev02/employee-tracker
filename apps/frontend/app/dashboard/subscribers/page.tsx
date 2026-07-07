@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
+import { SubscriberCard } from '@/components/subscribers/SubscriberCard';
 
 const API = 'https://employee-tracker.ru/api/v1';
 
@@ -359,113 +360,13 @@ export default function SubscribersPage() {
       </div>
 
       {activeSubscriber && (
-        <SubscriberModal subscriber={activeSubscriber} employees={employees} h={h}
-          onClose={() => setActiveSubscriber(null)} onUpdate={() => { load(); setActiveSubscriber(null); }} />
+        <SubscriberCard subscriberId={activeSubscriber.id} employees={employees} h={h}
+          onClose={() => setActiveSubscriber(null)} onUpdate={load} />
       )}
 
       {showIntegration && (
         <IntegrationModal h={h} onClose={() => setShowIntegration(false)} />
       )}
-    </div>
-  );
-}
-
-function SubscriberModal({ subscriber, employees, h, onClose, onUpdate }: any) {
-  const [full, setFull] = useState<any>(subscriber);
-  const [notes, setNotes] = useState(subscriber.notes ?? '');
-  const [newTag, setNewTag] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    fetch(`${API}/subscribers/${subscriber.id}`, { headers: h() }).then(r => r.json()).then(setFull).catch(() => {});
-  }, [subscriber.id]);
-
-  const save = async (patch: any) => {
-    setSaving(true);
-    await fetch(`${API}/subscribers/${subscriber.id}`, { method: 'PATCH', headers: h(), body: JSON.stringify(patch) });
-    setSaving(false);
-    onUpdate();
-  };
-
-  const addTag = () => {
-    if (!newTag.trim()) return;
-    save({ tags: [...(full.tags ?? []), newTag.trim()] });
-    setNewTag('');
-  };
-  const removeTag = (t: string) => save({ tags: (full.tags ?? []).filter((x: string) => x !== t) });
-
-  const pc = PLAN_COLORS[full.plan] ?? PLAN_COLORS.NONE;
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,16,64,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ background: 'white', borderRadius: 20, padding: 0, width: 480, maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(127,119,221,0.2)' }}>
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid #F3F0FF', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <h3 style={{ fontSize: 16, fontWeight: 800, color: '#1a1040', margin: 0 }}>{full.firstName} {full.lastName}</h3>
-            <p style={{ fontSize: 11.5, color: '#9B97CC', margin: '2px 0 0' }}>{full.email} {full.phone && '· ' + full.phone}</p>
-          </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#9B97CC', fontSize: 20, cursor: 'pointer' }}>✕</button>
-        </div>
-
-        <div style={{ padding: '20px 24px' }}>
-          <p style={{ fontSize: 10.5, color: '#9B97CC', fontWeight: 700, textTransform: 'uppercase', margin: '0 0 8px' }}>Подписка</p>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: pc.c, background: pc.bg, padding: '4px 12px', borderRadius: 20 }}>{PLAN_LABELS[full.plan] ?? '—'}</span>
-            {full.trialEndsAt && <span style={{ fontSize: 11.5, color: '#9B97CC' }}>Триал до {new Date(full.trialEndsAt).toLocaleDateString('ru')}</span>}
-            {full.subscriptionEndsAt && <span style={{ fontSize: 11.5, color: '#9B97CC' }}>Подписка до {new Date(full.subscriptionEndsAt).toLocaleDateString('ru')}</span>}
-          </div>
-
-          <p style={{ fontSize: 10.5, color: '#9B97CC', fontWeight: 700, textTransform: 'uppercase', margin: '0 0 8px' }}>CRM</p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
-            <div>
-              <p style={{ fontSize: 10.5, color: '#9B97CC', margin: '0 0 4px' }}>Статус</p>
-              <select value={full.crmStatus} onChange={e => { setFull({ ...full, crmStatus: e.target.value }); save({ crmStatus: e.target.value }); }}
-                style={{ width: '100%', background: '#F8F7FF', border: '1px solid #EDE9FE', borderRadius: 10, padding: '8px 10px', fontSize: 12.5, outline: 'none' }}>
-                {Object.entries(STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-              </select>
-            </div>
-            <div>
-              <p style={{ fontSize: 10.5, color: '#9B97CC', margin: '0 0 4px' }}>Менеджер</p>
-              <select value={full.managerId ?? ''} onChange={e => { setFull({ ...full, managerId: e.target.value || null }); save({ managerId: e.target.value || null }); }}
-                style={{ width: '100%', background: '#F8F7FF', border: '1px solid #EDE9FE', borderRadius: 10, padding: '8px 10px', fontSize: 12.5, outline: 'none' }}>
-                <option value="">— не назначен —</option>
-                {employees.map((e: any) => <option key={e.id} value={e.id}>{e.name}</option>)}
-              </select>
-            </div>
-          </div>
-
-          <p style={{ fontSize: 10.5, color: '#9B97CC', fontWeight: 700, textTransform: 'uppercase', margin: '0 0 8px' }}>Теги</p>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-            {(full.tags ?? []).map((t: string) => (
-              <span key={t} style={{ fontSize: 11, background: '#F3F0FF', color: '#7F77DD', padding: '3px 10px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 5 }}>
-                {t} <button onClick={() => removeTag(t)} style={{ background: 'none', border: 'none', color: '#7F77DD', cursor: 'pointer', fontSize: 10 }}>✕</button>
-              </span>
-            ))}
-          </div>
-          <div style={{ display: 'flex', gap: 6, marginBottom: 18 }}>
-            <input value={newTag} onChange={e => setNewTag(e.target.value)} onKeyDown={e => e.key === 'Enter' && addTag()} placeholder="Новый тег..."
-              style={{ flex: 1, background: '#F8F7FF', border: '1px solid #EDE9FE', borderRadius: 10, padding: '7px 10px', fontSize: 12.5, outline: 'none' }} />
-            <button onClick={addTag} style={{ background: '#EDE9FE', color: '#7F77DD', border: 'none', borderRadius: 10, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+</button>
-          </div>
-
-          <p style={{ fontSize: 10.5, color: '#9B97CC', fontWeight: 700, textTransform: 'uppercase', margin: '0 0 8px' }}>Заметки</p>
-          <textarea value={notes} onChange={e => setNotes(e.target.value)} onBlur={() => save({ notes })} rows={3}
-            style={{ width: '100%', background: '#F8F7FF', border: '1px solid #EDE9FE', borderRadius: 10, padding: '9px 12px', fontSize: 12.5, outline: 'none', boxSizing: 'border-box', resize: 'none', marginBottom: 18 }} />
-
-          {full.history?.length > 0 && (
-            <>
-              <p style={{ fontSize: 10.5, color: '#9B97CC', fontWeight: 700, textTransform: 'uppercase', margin: '0 0 8px' }}>История изменений</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 140, overflowY: 'auto' }}>
-                {full.history.map((h: any) => (
-                  <div key={h.id} style={{ fontSize: 11, color: '#9B97CC', background: '#F8F7FF', padding: '6px 10px', borderRadius: 8 }}>
-                    <b>{h.field}</b>: {h.oldValue} → {h.newValue} <span style={{ float: 'right' }}>{new Date(h.createdAt).toLocaleString('ru')}</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
     </div>
   );
 }

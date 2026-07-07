@@ -1,14 +1,23 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 
 const CRM_STATUS_LABELS: Record<string, string> = {
   NEW: 'Новый', IN_PROGRESS: 'В работе', CONTACTED: 'Связались',
   RENEWED: 'Продлил', LOST: 'Потерян', ARCHIVED: 'В архиве',
 };
 
+const FIELD_LABELS: Record<string, string> = {
+  crmStatus: 'CRM статус', tags: 'Теги', managerId: 'Менеджер', plan: 'Тариф',
+  planStatus: 'Статус подписки',
+};
+
 @Injectable()
 export class SubscriberService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   // ─── Список с поиском/фильтром/сортировкой/группировкой ────────────────────
 
@@ -104,8 +113,98 @@ export class SubscriberService {
     }
 
     const updated = await this.prisma.subscriber.update({ where: { id }, data: { ...dto, updatedAt: new Date() } });
-    if (historyEntries.length) await this.prisma.subscriberHistory.createMany({ data: historyEntries });
+    if (historyEntries.length) {
+      await this.prisma.subscriberHistory.createMany({ data: historyEntries });
+      const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } }).catch(() => null);
+      for (const entry of historyEntries) {
+        await this.audit.log({
+          orgId, userId, userName: user?.name,
+          action: `subscriber.${entry.field}.change`,
+          category: 'subscribers',
+          details: { subscriberId: id, subscriberName: `${sub.firstName} ${sub.lastName ?? ''}`.trim(), field: FIELD_LABELS[entry.field] ?? entry.field, oldValue: entry.oldValue, newValue: entry.newValue },
+        }).catch(() => {});
+      }
+    }
     return updated;
+  }
+
+  // ─── Комментарии ─────────────────────────────────────────────────────────────
+
+  async getComments(orgId: string, subscriberId: string) {
+    const comments = await this.prisma.subscriberComment.findMany({
+      where: { subscriberId, orgId },
+      orderBy: { createdAt: 'desc' },
+    });
+    const authorIds = Array.from(new Set(comments.map(c => c.authorId)));
+    const authors = await this.prisma.user.findMany({ where: { id: { in: authorIds } }, select: { id: true, name: true, avatarUrl: true } });
+    const map = new Map(authors.map(a => [a.id, a]));
+    return comments.map(c => ({ ...c, author: map.get(c.authorId) }));
+  }
+
+  async addComment(orgId: string, subscriberId: string, userId: string, content: string) {
+    if (!content?.trim()) throw new BadRequestException('Комментарий не может быть пустым');
+    const sub = await this.prisma.subscriber.findFirst({ where: { id: subscriberId, orgId } });
+    if (!sub) throw new NotFoundException('Подписчик не найден');
+
+    const comment = await this.prisma.subscriberComment.create({
+      data: { subscriberId, orgId, authorId: userId, content: content.trim() },
+    });
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } }).catch(() => null);
+    await this.audit.log({
+      orgId, userId, userName: user?.name,
+      action: 'subscriber.comment.add',
+      category: 'subscribers',
+      details: { subscriberId, subscriberName: `${sub.firstName} ${sub.lastName ?? ''}`.trim(), content: content.trim().slice(0, 200) },
+    }).catch(() => {});
+
+    return { ...comment, author: user ? { name: user.name } : null };
+  }
+
+  async deleteComment(orgId: string, commentId: string) {
+    const comment = await this.prisma.subscriberComment.findFirst({ where: { id: commentId, orgId } });
+    if (!comment) throw new NotFoundException('Комментарий не найден');
+    await this.prisma.subscriberComment.delete({ where: { id: commentId } });
+    return { ok: true };
+  }
+
+  // ─── Timeline (объединённая хронология: история изменений + комментарии) ───
+
+  async getTimeline(orgId: string, subscriberId: string) {
+    const [history, comments] = await Promise.all([
+      this.prisma.subscriberHistory.findMany({ where: { subscriberId, orgId }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.subscriberComment.findMany({ where: { subscriberId, orgId }, orderBy: { createdAt: 'desc' } }),
+    ]);
+
+    const userIds = Array.from(new Set([
+      ...history.map(h => h.changedById).filter(Boolean),
+      ...comments.map(c => c.authorId),
+    ])) as string[];
+    const users = await this.prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true, avatarUrl: true } });
+    const userMap = new Map(users.map(u => [u.id, u]));
+
+    const historyEvents = history.map(h => ({
+      type: 'history' as const,
+      id: h.id,
+      createdAt: h.createdAt,
+      field: h.field,
+      fieldLabel: FIELD_LABELS[h.field] ?? h.field,
+      oldValue: h.oldValue,
+      newValue: h.newValue,
+      user: h.changedById ? userMap.get(h.changedById) : null,
+      isSystem: !h.changedById,
+    }));
+
+    const commentEvents = comments.map(c => ({
+      type: 'comment' as const,
+      id: c.id,
+      createdAt: c.createdAt,
+      content: c.content,
+      user: userMap.get(c.authorId),
+      isSystem: false,
+    }));
+
+    return [...historyEvents, ...commentEvents].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 
   // ─── Синхронизация (Этап 1) ──────────────────────────────────────────────────
@@ -161,13 +260,26 @@ export class SubscriberService {
         };
 
         if (existing) {
+          const historyEntries: any[] = [];
+          if (data.plan !== undefined && data.plan !== existing.plan) {
+            historyEntries.push({ subscriberId: existing.id, orgId, field: 'plan', oldValue: JSON.stringify(existing.plan), newValue: JSON.stringify(data.plan), changedById: null });
+          }
+          if (data.planStatus !== undefined && data.planStatus !== existing.planStatus) {
+            historyEntries.push({ subscriberId: existing.id, orgId, field: 'planStatus', oldValue: JSON.stringify(existing.planStatus), newValue: JSON.stringify(data.planStatus), changedById: null });
+          }
           await this.prisma.subscriber.update({ where: { id: existing.id }, data });
+          if (historyEntries.length) await this.prisma.subscriberHistory.createMany({ data: historyEntries });
           updated++;
         } else {
           await this.prisma.subscriber.create({ data: { orgId, externalId, externalSource: name, ...data } });
           created++;
         }
       }
+
+      await this.audit.log({
+        orgId, action: 'subscriber.sync', category: 'subscribers',
+        details: { source: name, fetched: externalUsers.length, created, updated },
+      }).catch(() => {});
 
       await this.prisma.subscriberIntegration.update({
         where: { orgId_name: { orgId, name } },

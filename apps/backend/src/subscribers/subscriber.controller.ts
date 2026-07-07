@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query } from '@nestjs/common';
 import { CurrentUser, RequirePermissions } from '../auth/decorators/index';
 import { SubscriberService } from './subscriber.service';
 
@@ -28,6 +28,26 @@ export class SubscriberController {
   @RequirePermissions('crm:write')
   updateSubscriber(@CurrentUser() u: any, @Param('id') id: string, @Body() body: any) {
     return this.subscribers.updateSubscriber(u.orgId, id, u.id ?? u.sub, body);
+  }
+
+  @Get(':id/timeline')
+  @RequirePermissions('crm:read')
+  getTimeline(@CurrentUser() u: any, @Param('id') id: string) { return this.subscribers.getTimeline(u.orgId, id); }
+
+  @Get(':id/comments')
+  @RequirePermissions('crm:read')
+  getComments(@CurrentUser() u: any, @Param('id') id: string) { return this.subscribers.getComments(u.orgId, id); }
+
+  @Post(':id/comments')
+  @RequirePermissions('crm:write')
+  addComment(@CurrentUser() u: any, @Param('id') id: string, @Body() body: { content: string }) {
+    return this.subscribers.addComment(u.orgId, id, u.id ?? u.sub, body.content);
+  }
+
+  @Delete('comments/:commentId')
+  @RequirePermissions('crm:write')
+  deleteComment(@CurrentUser() u: any, @Param('commentId') commentId: string) {
+    return this.subscribers.deleteComment(u.orgId, commentId);
   }
 
   @Get('integrations/:name')

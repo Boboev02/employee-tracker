@@ -992,6 +992,7 @@ model Subscriber {
 
   manager            User?     @relation("SubscriberManager", fields: [managerId], references: [id])
   history            SubscriberHistory[]
+  comments           SubscriberComment[]
 
   @@unique([orgId, externalSource, externalId])
   @@index([orgId])
@@ -1011,6 +1012,20 @@ model SubscriberHistory {
   oldValue     String?
   newValue     String?
   changedById  String?  // null, если изменение системное (авто-синк)
+  createdAt    DateTime @default(now())
+
+  subscriber Subscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+
+  @@index([subscriberId, createdAt])
+  @@index([orgId])
+}
+
+model SubscriberComment {
+  id           String   @id @default(uuid())
+  subscriberId String
+  orgId        String
+  authorId     String
+  content      String   @db.Text
   createdAt    DateTime @default(now())
 
   subscriber Subscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
