@@ -39,6 +39,8 @@ export function SubscriberCard({ subscriberId, employees, h, onClose, onUpdate }
   const [newComment, setNewComment] = useState('');
   const [newTag, setNewTag] = useState('');
   const [loading, setLoading] = useState(true);
+  const [quickChannel, setQuickChannel] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -66,6 +68,16 @@ export function SubscriberCard({ subscriberId, employees, h, onClose, onUpdate }
 
   const addTag = () => { if (!newTag.trim()) return; patch({ tags: [...(full.tags ?? []), newTag.trim()] }); setNewTag(''); };
   const removeTag = (t: string) => patch({ tags: (full.tags ?? []).filter((x: string) => x !== t) });
+
+  const copyContact = () => {
+    const text = [full.firstName, full.lastName, full.email, full.phone].filter(Boolean).join(' · ');
+    navigator.clipboard?.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
+  };
+
+  const logComm = async (channel: string, content?: string) => {
+    await fetch(`${API}/subscribers/${subscriberId}/communications`, { method: 'POST', headers: h(), body: JSON.stringify({ channel, content }) }).catch(() => {});
+    if (tab === 'history') loadTimeline();
+  };
 
   const submitComment = async () => {
     if (!newComment.trim()) return;
@@ -103,6 +115,24 @@ export function SubscriberCard({ subscriberId, employees, h, onClose, onUpdate }
           <span style={{ fontSize: 11, fontWeight: 700, color: pc.c, background: pc.bg, padding: '4px 12px', borderRadius: 20, flexShrink: 0 }}>{PLAN_LABELS[full.plan] ?? '—'}</span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#9B97CC', fontSize: 20, cursor: 'pointer', flexShrink: 0 }}>✕</button>
         </div>
+
+        {/* Quick actions: Email / WhatsApp / Telegram / Phone / Copy */}
+        <div style={{ padding: '10px 24px', borderBottom: '1px solid #F3F0FF', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+          <QuickAction icon="📧" label="Email" disabled={!full.email} onClick={() => setQuickChannel('EMAIL')} />
+          <QuickAction icon="💬" label="WhatsApp" disabled={!full.phone} onClick={() => setQuickChannel('WHATSAPP')} />
+          <QuickAction icon="✈️" label="Telegram" disabled={!full.username && !full.phone} onClick={() => setQuickChannel('TELEGRAM')} />
+          <QuickAction icon="📞" label="Позвонить" disabled={!full.phone} onClick={() => { window.open(`tel:${full.phone}`, '_self'); logComm('PHONE'); }} />
+          <button onClick={copyContact} title="Скопировать контакты"
+            style={{ marginLeft: 'auto', background: copied ? '#DCFCE7' : '#F8F7FF', color: copied ? '#16A34A' : '#9B97CC', border: '1px solid #EDE9FE', borderRadius: 10, padding: '7px 12px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+            {copied ? '✓ Скопировано' : '📋 Копировать'}
+          </button>
+        </div>
+
+        {quickChannel && (
+          <QuickActionPanel channel={quickChannel} subscriber={full} h={h}
+            onClose={() => setQuickChannel(null)}
+            onSent={(content: string) => { logComm(quickChannel, content); setQuickChannel(null); }} />
+        )}
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 2, padding: '10px 16px 0', borderBottom: '1px solid #F3F0FF', flexShrink: 0, overflowX: 'auto' }}>
@@ -183,16 +213,20 @@ export function SubscriberCard({ subscriberId, employees, h, onClose, onUpdate }
               {timeline.length === 0 && <p style={{ fontSize: 12.5, color: '#C4C0E8', textAlign: 'center', padding: '20px 0' }}>Событий пока нет</p>}
               {timeline.map(ev => (
                 <div key={ev.id} style={{ display: 'flex', gap: 10, paddingBottom: 10, borderBottom: '1px solid #F8F7FF' }}>
-                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: ev.type === 'comment' ? '#EDE9FE' : '#F0EDFF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 13 }}>
-                    {ev.type === 'comment' ? '💬' : '🔄'}
+                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: ev.type === 'comment' ? '#EDE9FE' : ev.type === 'communication' ? '#DBEAFE' : '#F0EDFF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 13 }}>
+                    {ev.type === 'comment' ? '💬' : ev.type === 'communication' ? ev.channelIcon : '🔄'}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    {ev.type === 'history' ? (
+                    {ev.type === 'history' && (
                       <p style={{ fontSize: 12.5, color: '#1a1040', margin: 0 }}>
                         <b>{ev.fieldLabel}</b>: {fmtVal(ev.field, ev.oldValue)} → <b>{fmtVal(ev.field, ev.newValue)}</b>
                       </p>
-                    ) : (
-                      <p style={{ fontSize: 12.5, color: '#1a1040', margin: 0 }}>{ev.content}</p>
+                    )}
+                    {ev.type === 'comment' && <p style={{ fontSize: 12.5, color: '#1a1040', margin: 0 }}>{ev.content}</p>}
+                    {ev.type === 'communication' && (
+                      <p style={{ fontSize: 12.5, color: '#1a1040', margin: 0 }}>
+                        Связь через <b>{ev.channel}</b>{ev.content && <>: «{ev.content.slice(0, 80)}{ev.content.length > 80 ? '…' : ''}»</>}
+                      </p>
                     )}
                     <p style={{ fontSize: 10.5, color: '#9B97CC', margin: '3px 0 0' }}>
                       {ev.isSystem ? 'Автоматически (синхронизация)' : (ev.user?.name ?? 'Система')} · {new Date(ev.createdAt).toLocaleString('ru')}
@@ -241,6 +275,119 @@ function InfoRow({ label, value }: { label: string; value: any }) {
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #F8F7FF' }}>
       <span style={{ fontSize: 12, color: '#9B97CC' }}>{label}</span>
       <span style={{ fontSize: 12.5, fontWeight: 600, color: '#1a1040' }}>{value}</span>
+    </div>
+  );
+}
+
+function QuickAction({ icon, label, onClick, disabled }: { icon: string; label: string; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button onClick={onClick} disabled={disabled} title={disabled ? 'Нет данных для контакта' : label}
+      style={{ display: 'flex', alignItems: 'center', gap: 6, background: disabled ? '#F8F7FF' : '#F0EDFF', color: disabled ? '#C4C0E8' : '#7F77DD', border: 'none', borderRadius: 10, padding: '7px 12px', fontSize: 11.5, fontWeight: 700, cursor: disabled ? 'not-allowed' : 'pointer' }}>
+      {icon} {label}
+    </button>
+  );
+}
+
+/** Панель выбора шаблона + предпросмотр перед открытием внешнего канала */
+function QuickActionPanel({ channel, subscriber, h, onClose, onSent }: any) {
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
+  const [message, setMessage] = useState('');
+  const [showTemplateManager, setShowTemplateManager] = useState(false);
+
+  const CHANNEL_LABELS: Record<string, string> = { EMAIL: 'Email', WHATSAPP: 'WhatsApp', TELEGRAM: 'Telegram' };
+
+  const interpolate = (content: string) => content.replace(/\{(\w+)\}/g, (_: string, key: string) => {
+    if (key === 'plan') return PLAN_LABELS[subscriber.plan] ?? subscriber.plan ?? '';
+    return subscriber[key] ?? '';
+  });
+
+  useEffect(() => {
+    fetch(`${API}/subscribers/templates?channel=${channel}`, { headers: h() }).then(r => r.json()).then(setTemplates).catch(() => setTemplates([]));
+  }, [channel]);
+
+  const applyTemplate = (t: any) => { setSelectedTemplate(t); setMessage(interpolate(t.content)); };
+
+  const openChannel = () => {
+    if (channel === 'EMAIL') {
+      const subject = encodeURIComponent(selectedTemplate?.subject ? interpolate(selectedTemplate.subject) : '');
+      window.open(`mailto:${subscriber.email}?subject=${subject}&body=${encodeURIComponent(message)}`, '_self');
+    } else if (channel === 'WHATSAPP') {
+      const phone = (subscriber.phone ?? '').replace(/[^\d]/g, '');
+      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+    } else if (channel === 'TELEGRAM') {
+      const target = subscriber.username ? subscriber.username.replace('@', '') : (subscriber.phone ?? '').replace(/[^\d]/g, '');
+      window.open(`https://t.me/${target}`, '_blank');
+    }
+    onSent(message);
+  };
+
+  return (
+    <div style={{ padding: '14px 24px', borderBottom: '1px solid #F3F0FF', background: '#FAFAFE', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <p style={{ fontSize: 12, fontWeight: 800, color: '#1a1040', margin: 0 }}>{CHANNEL_LABELS[channel]}</p>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#9B97CC', cursor: 'pointer', fontSize: 14 }}>✕</button>
+      </div>
+
+      {templates.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+          {templates.map(t => (
+            <button key={t.id} onClick={() => applyTemplate(t)}
+              style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, border: '1px solid', borderColor: selectedTemplate?.id === t.id ? '#7F77DD' : '#EDE9FE', background: selectedTemplate?.id === t.id ? '#EDE9FE' : 'white', color: selectedTemplate?.id === t.id ? '#7F77DD' : '#6B7280', cursor: 'pointer', fontWeight: 600 }}>
+              {t.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <textarea value={message} onChange={e => setMessage(e.target.value)} placeholder={`Текст сообщения для ${subscriber.firstName}...`} rows={3}
+        style={{ width: '100%', background: 'white', border: '1px solid #EDE9FE', borderRadius: 10, padding: '9px 12px', fontSize: 12.5, outline: 'none', boxSizing: 'border-box', resize: 'none', marginBottom: 8 }} />
+
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <button onClick={openChannel} style={{ background: 'linear-gradient(135deg,#7F77DD,#5248C5)', color: 'white', border: 'none', borderRadius: 10, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+          Открыть {CHANNEL_LABELS[channel]} →
+        </button>
+        <button onClick={() => setShowTemplateManager(true)} style={{ background: 'none', border: '1px solid #EDE9FE', color: '#9B97CC', borderRadius: 10, padding: '8px 12px', fontSize: 11.5, cursor: 'pointer' }}>
+          + Новый шаблон
+        </button>
+      </div>
+
+      {showTemplateManager && (
+        <NewTemplateModal channel={channel} h={h} onClose={() => setShowTemplateManager(false)}
+          onCreated={(t: any) => { setTemplates(p => [t, ...p]); setShowTemplateManager(false); }} />
+      )}
+    </div>
+  );
+}
+
+function NewTemplateModal({ channel, h, onClose, onCreated }: any) {
+  const [name, setName] = useState('');
+  const [subject, setSubject] = useState('');
+  const [content, setContent] = useState('');
+
+  const create = async () => {
+    if (!name.trim() || !content.trim()) return;
+    const r = await fetch(`${API}/subscribers/templates`, { method: 'POST', headers: h(), body: JSON.stringify({ name, channel, subject, content }) });
+    onCreated(await r.json());
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,16,64,0.4)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ background: 'white', borderRadius: 16, padding: 20, width: 340, boxShadow: '0 24px 64px rgba(127,119,221,0.25)' }}>
+        <p style={{ fontSize: 14, fontWeight: 800, color: '#1a1040', margin: '0 0 12px' }}>Новый шаблон</p>
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="Название шаблона"
+          style={{ width: '100%', background: '#F8F7FF', border: '1px solid #EDE9FE', borderRadius: 10, padding: '8px 12px', fontSize: 12.5, marginBottom: 8, outline: 'none', boxSizing: 'border-box' }} />
+        {channel === 'EMAIL' && (
+          <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Тема письма"
+            style={{ width: '100%', background: '#F8F7FF', border: '1px solid #EDE9FE', borderRadius: 10, padding: '8px 12px', fontSize: 12.5, marginBottom: 8, outline: 'none', boxSizing: 'border-box' }} />
+        )}
+        <textarea value={content} onChange={e => setContent(e.target.value)} placeholder="Текст (доступны {firstName}, {plan}, {trialEndsAt})" rows={4}
+          style={{ width: '100%', background: '#F8F7FF', border: '1px solid #EDE9FE', borderRadius: 10, padding: '8px 12px', fontSize: 12.5, marginBottom: 12, outline: 'none', boxSizing: 'border-box', resize: 'none' }} />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={create} style={{ flex: 1, background: 'linear-gradient(135deg,#7F77DD,#5248C5)', color: 'white', border: 'none', borderRadius: 10, padding: 9, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>Создать</button>
+          <button onClick={onClose} style={{ flex: 1, background: '#F8F7FF', color: '#6B7280', border: '1px solid #EDE9FE', borderRadius: 10, padding: 9, fontSize: 12.5, cursor: 'pointer' }}>Отмена</button>
+        </div>
+      </div>
     </div>
   );
 }

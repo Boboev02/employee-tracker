@@ -6,6 +6,8 @@ import { SubscriberService } from './subscriber.service';
 export class SubscriberController {
   constructor(private readonly subscribers: SubscriberService) {}
 
+  // ─── Специфичные (не-:id) роуты — ВСЕГДА раньше generic :id ────────────────
+
   @Get()
   @RequirePermissions('crm:read')
   getSubscribers(@CurrentUser() u: any, @Query() q: any) { return this.subscribers.getSubscribers(u.orgId, q); }
@@ -19,6 +21,40 @@ export class SubscriberController {
   getGroupCounts(@CurrentUser() u: any, @Query('by') by: 'plan' | 'crmStatus' | 'managerId') {
     return this.subscribers.getGroupCounts(u.orgId, by ?? 'plan');
   }
+
+  @Get('templates')
+  @RequirePermissions('crm:read')
+  getTemplates(@CurrentUser() u: any, @Query('channel') channel?: string) { return this.subscribers.getTemplates(u.orgId, channel); }
+
+  @Post('templates')
+  @RequirePermissions('crm:write')
+  createTemplate(@CurrentUser() u: any, @Body() body: any) { return this.subscribers.createTemplate(u.orgId, u.id ?? u.sub, body); }
+
+  @Delete('templates/:id')
+  @RequirePermissions('crm:write')
+  deleteTemplate(@CurrentUser() u: any, @Param('id') id: string) { return this.subscribers.deleteTemplate(u.orgId, id); }
+
+  @Delete('comments/:commentId')
+  @RequirePermissions('crm:write')
+  deleteComment(@CurrentUser() u: any, @Param('commentId') commentId: string) {
+    return this.subscribers.deleteComment(u.orgId, commentId);
+  }
+
+  @Get('integrations/:name')
+  @RequirePermissions('crm:read')
+  getIntegration(@CurrentUser() u: any, @Param('name') name: string) { return this.subscribers.getIntegration(u.orgId, name); }
+
+  @Post('integrations/:name')
+  @RequirePermissions('org:update')
+  saveIntegration(@CurrentUser() u: any, @Param('name') name: string, @Body() body: any) {
+    return this.subscribers.saveIntegration(u.orgId, name, body);
+  }
+
+  @Post('integrations/:name/sync')
+  @RequirePermissions('crm:write')
+  sync(@CurrentUser() u: any, @Param('name') name: string) { return this.subscribers.syncNow(u.orgId, name); }
+
+  // ─── Generic :id роуты ────────────────────────────────────────────────────
 
   @Get(':id')
   @RequirePermissions('crm:read')
@@ -44,23 +80,13 @@ export class SubscriberController {
     return this.subscribers.addComment(u.orgId, id, u.id ?? u.sub, body.content);
   }
 
-  @Delete('comments/:commentId')
-  @RequirePermissions('crm:write')
-  deleteComment(@CurrentUser() u: any, @Param('commentId') commentId: string) {
-    return this.subscribers.deleteComment(u.orgId, commentId);
-  }
-
-  @Get('integrations/:name')
+  @Get(':id/communications')
   @RequirePermissions('crm:read')
-  getIntegration(@CurrentUser() u: any, @Param('name') name: string) { return this.subscribers.getIntegration(u.orgId, name); }
+  getCommunications(@CurrentUser() u: any, @Param('id') id: string) { return this.subscribers.getCommunications(u.orgId, id); }
 
-  @Post('integrations/:name')
-  @RequirePermissions('org:update')
-  saveIntegration(@CurrentUser() u: any, @Param('name') name: string, @Body() body: any) {
-    return this.subscribers.saveIntegration(u.orgId, name, body);
-  }
-
-  @Post('integrations/:name/sync')
+  @Post(':id/communications')
   @RequirePermissions('crm:write')
-  sync(@CurrentUser() u: any, @Param('name') name: string) { return this.subscribers.syncNow(u.orgId, name); }
+  logCommunication(@CurrentUser() u: any, @Param('id') id: string, @Body() body: { channel: string; content?: string; templateId?: string }) {
+    return this.subscribers.logCommunication(u.orgId, id, u.id ?? u.sub, body);
+  }
 }

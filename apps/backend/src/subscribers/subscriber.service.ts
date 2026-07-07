@@ -7,6 +7,8 @@ const CRM_STATUS_LABELS: Record<string, string> = {
   RENEWED: 'Продлил', LOST: 'Потерян', ARCHIVED: 'В архиве',
 };
 
+const PLAN_RU: Record<string, string> = { TRIAL: 'Пробный', PRO: 'Профи', BUSINESS: 'Бизнес', NONE: 'Нет подписки' };
+
 const FIELD_LABELS: Record<string, string> = {
   crmStatus: 'CRM статус', tags: 'Теги', managerId: 'Менеджер', plan: 'Тариф',
   planStatus: 'Статус подписки',
@@ -168,17 +170,78 @@ export class SubscriberService {
     return { ok: true };
   }
 
-  // ─── Timeline (объединённая хронология: история изменений + комментарии) ───
+  // ─── Этап 3: Коммуникации ────────────────────────────────────────────────────
+
+  async getTemplates(orgId: string, channel?: string) {
+    return this.prisma.messageTemplate.findMany({
+      where: { orgId, ...(channel ? { channel } : {}) },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async createTemplate(orgId: string, userId: string, dto: any) {
+    if (!dto.name?.trim() || !dto.content?.trim()) throw new BadRequestException('Название и текст шаблона обязательны');
+    return this.prisma.messageTemplate.create({
+      data: { orgId, createdById: userId, name: dto.name.trim(), channel: dto.channel, subject: dto.subject, content: dto.content.trim() },
+    });
+  }
+
+  async deleteTemplate(orgId: string, id: string) {
+    await this.prisma.messageTemplate.deleteMany({ where: { id, orgId } });
+    return { ok: true };
+  }
+
+  /** Подставляет переменные {firstName}, {plan} и т.д. в текст шаблона */
+  interpolateTemplate(content: string, subscriber: any): string {
+    return content.replace(/\{(\w+)\}/g, (_, key) => {
+      if (key === 'plan') return PLAN_RU[subscriber.plan] ?? subscriber.plan ?? '';
+      return subscriber[key] ?? '';
+    });
+  }
+
+  async getCommunications(orgId: string, subscriberId: string) {
+    const comms = await this.prisma.subscriberCommunication.findMany({
+      where: { subscriberId, orgId }, orderBy: { createdAt: 'desc' },
+    });
+    const userIds = Array.from(new Set(comms.map(c => c.sentById).filter(Boolean))) as string[];
+    const users = await this.prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } });
+    const map = new Map(users.map(u => [u.id, u]));
+    return comms.map(c => ({ ...c, sentBy: c.sentById ? map.get(c.sentById) : null }));
+  }
+
+  /** Логирует факт коммуникации (клик "Открыть WhatsApp/Email/Telegram/Позвонить") */
+  async logCommunication(orgId: string, subscriberId: string, userId: string, dto: { channel: string; content?: string; templateId?: string }) {
+    const sub = await this.prisma.subscriber.findFirst({ where: { id: subscriberId, orgId } });
+    if (!sub) throw new NotFoundException('Подписчик не найден');
+
+    const comm = await this.prisma.subscriberCommunication.create({
+      data: { subscriberId, orgId, channel: dto.channel, content: dto.content, templateId: dto.templateId, sentById: userId },
+    });
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } }).catch(() => null);
+    await this.audit.log({
+      orgId, userId, userName: user?.name,
+      action: `subscriber.communication.${dto.channel.toLowerCase()}`,
+      category: 'subscribers',
+      details: { subscriberId, subscriberName: `${sub.firstName} ${sub.lastName ?? ''}`.trim(), channel: dto.channel },
+    }).catch(() => {});
+
+    return comm;
+  }
+
+  // ─── Timeline (история + комментарии + коммуникации) ────────────────────────
 
   async getTimeline(orgId: string, subscriberId: string) {
-    const [history, comments] = await Promise.all([
+    const [history, comments, communications] = await Promise.all([
       this.prisma.subscriberHistory.findMany({ where: { subscriberId, orgId }, orderBy: { createdAt: 'desc' } }),
       this.prisma.subscriberComment.findMany({ where: { subscriberId, orgId }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.subscriberCommunication.findMany({ where: { subscriberId, orgId }, orderBy: { createdAt: 'desc' } }),
     ]);
 
     const userIds = Array.from(new Set([
       ...history.map(h => h.changedById).filter(Boolean),
       ...comments.map(c => c.authorId),
+      ...communications.map(c => c.sentById).filter(Boolean),
     ])) as string[];
     const users = await this.prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true, avatarUrl: true } });
     const userMap = new Map(users.map(u => [u.id, u]));
@@ -204,7 +267,19 @@ export class SubscriberService {
       isSystem: false,
     }));
 
-    return [...historyEvents, ...commentEvents].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const CHANNEL_ICONS: Record<string, string> = { EMAIL: '📧', WHATSAPP: '💬', TELEGRAM: '✈️', PHONE: '📞' };
+    const commEvents = communications.map(c => ({
+      type: 'communication' as const,
+      id: c.id,
+      createdAt: c.createdAt,
+      channel: c.channel,
+      channelIcon: CHANNEL_ICONS[c.channel] ?? '📨',
+      content: c.content,
+      user: c.sentById ? userMap.get(c.sentById) : null,
+      isSystem: false,
+    }));
+
+    return [...historyEvents, ...commentEvents, ...commEvents].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 
   // ─── Синхронизация (Этап 1) ──────────────────────────────────────────────────

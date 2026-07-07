@@ -993,6 +993,7 @@ model Subscriber {
   manager            User?     @relation("SubscriberManager", fields: [managerId], references: [id])
   history            SubscriberHistory[]
   comments           SubscriberComment[]
+  communications     SubscriberCommunication[]
 
   @@unique([orgId, externalSource, externalId])
   @@index([orgId])
@@ -1012,6 +1013,39 @@ model SubscriberHistory {
   oldValue     String?
   newValue     String?
   changedById  String?  // null, если изменение системное (авто-синк)
+  createdAt    DateTime @default(now())
+
+  subscriber Subscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+
+  @@index([subscriberId, createdAt])
+  @@index([orgId])
+}
+
+// ===== ЭТАП 3: КОММУНИКАЦИИ (Email/WhatsApp/Telegram/Телефон) =====
+
+model MessageTemplate {
+  id        String   @id @default(uuid())
+  orgId     String
+  name      String
+  channel   String   // EMAIL | WHATSAPP | TELEGRAM | SMS
+  subject   String?  // только для EMAIL
+  content   String   @db.Text // поддерживает {firstName}, {plan}, {trialEndsAt} и т.д.
+  createdById String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orgId, channel])
+}
+
+model SubscriberCommunication {
+  id           String   @id @default(uuid())
+  subscriberId String
+  orgId        String
+  channel      String   // EMAIL | WHATSAPP | TELEGRAM | PHONE
+  direction    String   @default("OUTGOING") // OUTGOING | INCOMING (задел на будущее)
+  content      String?  @db.Text
+  templateId   String?
+  sentById     String?
   createdAt    DateTime @default(now())
 
   subscriber Subscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
