@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { SubscriberAutomationService } from './subscriber-automation.service';
+import { NotificationService } from '../notifications/notification.service';
 
 const CRM_STATUS_LABELS: Record<string, string> = {
   NEW: 'Новый', IN_PROGRESS: 'В работе', CONTACTED: 'Связались',
@@ -21,6 +22,7 @@ export class SubscriberService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly automation: SubscriberAutomationService,
+    private readonly notifications: NotificationService,
   ) {}
 
   // ─── Список с поиском/фильтром/сортировкой/группировкой ────────────────────
@@ -285,7 +287,67 @@ export class SubscriberService {
     return [...historyEvents, ...commentEvents, ...commEvents].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 
-  // ─── Синхронизация (Этап 1) ──────────────────────────────────────────────────
+  // ─── Этап 5: Центр напоминаний ───────────────────────────────────────────────
+
+  /** Группирует подписчиков по срокам до окончания триала/подписки */
+  async getReminders(orgId: string) {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayEnd = new Date(todayStart.getTime() + 86400000);
+    const tomorrowEnd = new Date(todayStart.getTime() + 2 * 86400000);
+    const in3DaysEnd = new Date(todayStart.getTime() + 4 * 86400000);
+    const inWeekEnd = new Date(todayStart.getTime() + 8 * 86400000);
+    const inMonthEnd = new Date(todayStart.getTime() + 31 * 86400000);
+
+    const relevantDateWhere = (gte: Date, lt: Date) => ({
+      OR: [{ trialEndsAt: { gte, lt } }, { subscriptionEndsAt: { gte, lt } }],
+    });
+
+    const include = { manager: { select: { id: true, name: true } } };
+    const baseWhere = { orgId, deletedAt: null };
+
+    const [today, tomorrow, in3Days, inWeek, inMonth, overdue] = await Promise.all([
+      this.prisma.subscriber.findMany({ where: { ...baseWhere, ...relevantDateWhere(todayStart, todayEnd) }, include }),
+      this.prisma.subscriber.findMany({ where: { ...baseWhere, ...relevantDateWhere(todayEnd, tomorrowEnd) }, include }),
+      this.prisma.subscriber.findMany({ where: { ...baseWhere, ...relevantDateWhere(tomorrowEnd, in3DaysEnd) }, include }),
+      this.prisma.subscriber.findMany({ where: { ...baseWhere, ...relevantDateWhere(in3DaysEnd, inWeekEnd) }, include }),
+      this.prisma.subscriber.findMany({ where: { ...baseWhere, ...relevantDateWhere(inWeekEnd, inMonthEnd) }, include }),
+      this.prisma.subscriber.findMany({
+        where: { ...baseWhere, crmStatus: { notIn: ['LOST', 'ARCHIVED'] }, OR: [{ trialEndsAt: { lt: todayStart } }, { subscriptionEndsAt: { lt: todayStart } }] },
+        include,
+      }),
+    ]);
+
+    return { today, tomorrow, in3Days, inWeek, inMonth, overdue };
+  }
+
+  async getRemindersSummary(orgId: string) {
+    const r = await this.getReminders(orgId);
+    return {
+      today: r.today.length, tomorrow: r.tomorrow.length, in3Days: r.in3Days.length,
+      inWeek: r.inWeek.length, inMonth: r.inMonth.length, overdue: r.overdue.length,
+      total: r.today.length + r.tomorrow.length + r.in3Days.length + r.inWeek.length + r.inMonth.length + r.overdue.length,
+    };
+  }
+
+  /** Ежедневная сводка — отправляет уведомление каждому менеджеру с количеством ЕГО подписчиков, требующих внимания */
+  async sendDailySummary(orgId: string) {
+    const reminders = await this.getReminders(orgId);
+    const allRelevant = [...reminders.today, ...reminders.tomorrow, ...reminders.overdue];
+    const managerCounts = new Map<string, number>();
+    for (const s of allRelevant) {
+      if (!s.managerId) continue;
+      managerCounts.set(s.managerId, (managerCounts.get(s.managerId) ?? 0) + 1);
+    }
+    for (const [managerId, count] of managerCounts) {
+      await this.notifications.create(
+        managerId, orgId, 'subscriber_daily_summary',
+        '📊 Ежедневная сводка по подписчикам',
+        `У вас ${count} подписчик(ов), требующих внимания сегодня (истекает срок или уже просрочено)`,
+      ).catch(() => {});
+    }
+    return { ok: true, notifiedManagers: managerCounts.size, totalUrgent: allRelevant.length };
+  }
 
   async getIntegration(orgId: string, name = 'kingstats') {
     const integration = await this.prisma.subscriberIntegration.findUnique({ where: { orgId_name: { orgId, name } } });

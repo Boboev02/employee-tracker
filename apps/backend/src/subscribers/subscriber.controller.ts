@@ -1,10 +1,14 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query } from '@nestjs/common';
-import { CurrentUser, RequirePermissions } from '../auth/decorators/index';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req } from '@nestjs/common';
+import { CurrentUser, RequirePermissions, Public } from '../auth/decorators/index';
 import { SubscriberService } from './subscriber.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Controller('api/v1/subscribers')
 export class SubscriberController {
-  constructor(private readonly subscribers: SubscriberService) {}
+  constructor(
+    private readonly subscribers: SubscriberService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   // ─── Специфичные (не-:id) роуты — ВСЕГДА раньше generic :id ────────────────
 
@@ -53,6 +57,27 @@ export class SubscriberController {
   @Post('integrations/:name/sync')
   @RequirePermissions('crm:write')
   sync(@CurrentUser() u: any, @Param('name') name: string) { return this.subscribers.syncNow(u.orgId, name); }
+
+  @Get('reminders')
+  @RequirePermissions('crm:read')
+  getReminders(@CurrentUser() u: any) { return this.subscribers.getReminders(u.orgId); }
+
+  @Get('reminders/summary')
+  @RequirePermissions('crm:read')
+  getRemindersSummary(@CurrentUser() u: any) { return this.subscribers.getRemindersSummary(u.orgId); }
+
+  // Системный cron (раз в день) — отправляет ежедневную сводку менеджерам
+  @Public()
+  @Post('cron/daily-summary')
+  async dailySummary(@Req() req: any) {
+    const ip = req.ip || req.connection?.remoteAddress || '';
+    const isLocal = ip.includes('127.0.0.1') || ip.includes('::1') || /^(::ffff:)?(172\.(1[6-9]|2\d|3[01])\.|10\.|192\.168\.)/.test(ip);
+    if (!isLocal) return { error: 'Forbidden' };
+    const orgs = await this.prisma.organisation.findMany({ select: { id: true } });
+    const results = [];
+    for (const org of orgs) results.push(await this.subscribers.sendDailySummary(org.id));
+    return { ok: true, orgsProcessed: orgs.length, results };
+  }
 
   // ─── Generic :id роуты ────────────────────────────────────────────────────
 

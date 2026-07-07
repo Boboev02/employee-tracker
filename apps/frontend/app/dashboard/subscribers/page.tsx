@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import { SubscriberCard } from '@/components/subscribers/SubscriberCard';
 import { AutomationBuilder } from '@/components/subscribers/AutomationBuilder';
+import { RemindersCenter } from '@/components/subscribers/RemindersCenter';
 
 const API = 'https://employee-tracker.ru/api/v1';
 
@@ -66,6 +67,7 @@ export default function SubscribersPage() {
   const [activeSubscriber, setActiveSubscriber] = useState<any>(null);
   const [showIntegration, setShowIntegration] = useState(false);
   const [showAutomation, setShowAutomation] = useState(false);
+  const [showReminders, setShowReminders] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -165,6 +167,10 @@ export default function SubscribersPage() {
           <p style={{ fontSize: '11px', color: '#9B97CC', margin: '2px 0 0' }}>{total} подписчиков</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => setShowReminders(true)}
+            style={{ background: '#F8F7FF', color: '#7F77DD', border: '1px solid #EDE9FE', borderRadius: '20px', padding: '8px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+            🔔 Напоминания
+          </button>
           <button onClick={() => setShowAutomation(true)}
             style={{ background: '#F8F7FF', color: '#7F77DD', border: '1px solid #EDE9FE', borderRadius: '20px', padding: '8px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
             ⚡ Автоматизация
@@ -378,6 +384,11 @@ export default function SubscribersPage() {
 
       {showAutomation && (
         <AutomationBuilder h={h} employees={employees} onClose={() => setShowAutomation(false)} />
+      )}
+
+      {showReminders && (
+        <RemindersCenter h={h} onClose={() => setShowReminders(false)}
+          onSelectSubscriber={(s: any) => { setActiveSubscriber(s); setShowReminders(false); }} />
       )}
     </div>
   );
