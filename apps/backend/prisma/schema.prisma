@@ -317,8 +317,6 @@ model RoutineTask {
   @@index([assigneeId])
 }
 
-
-
 model EmployeeKpi {
   id          String   @id @default(uuid())
   orgId       String
@@ -572,5 +570,386 @@ model ProjectActivity {
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId, createdAt])
+}
+
+// ===== CUSTOM FIELDS =====
+
+model FieldGroup {
+  id          String        @id @default(uuid())
+  orgId       String
+  name        String
+  description String?
+  color       String?       @default("#7F77DD")
+  icon        String?
+  sortOrder   Int           @default(0)
+  isCollapsed Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  fields      CustomField[]
+
+  @@index([orgId, sortOrder])
+}
+
+model CustomField {
+  id             String   @id @default(uuid())
+  orgId          String
+  groupId        String?
+  // TEXT | TEXTAREA | NUMBER | MONEY | PERCENT | DATE | DATETIME
+  // SELECT | MULTISELECT | CHECKBOX | TOGGLE | USER | TEAM
+  // COMPANY | COUNTERPARTY | LINK | EMAIL | PHONE | SKU | BARCODE
+  // COLOR | FILE | FORMULA | AUTO_NUMBER | RATING
+  type           String
+  name           String
+  description    String?
+  isRequired     Boolean  @default(false)
+  isSystem       Boolean  @default(false)
+  showInTable    Boolean  @default(true)
+  showInCard     Boolean  @default(true)
+  showInFilter   Boolean  @default(true)
+  showOnCreate   Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  defaultValue   Json?
+  config         Json?
+  deletedAt      DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  group            FieldGroup?          @relation(fields: [groupId], references: [id])
+  projectBindings  FieldProjectBinding[]
+  taskTypeBindings FieldTaskTypeBinding[]
+  conditions       FieldCondition[]     @relation("ConditionSource")
+  targetConditions FieldCondition[]     @relation("ConditionTarget")
+  values           CustomFieldValue[]
+
+  @@index([orgId, sortOrder])
+  @@index([orgId, type])
+  @@index([orgId, deletedAt])
+}
+
+model FieldProjectBinding {
+  id        String @id @default(uuid())
+  fieldId   String
+  projectId String
+  field     CustomField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@unique([fieldId, projectId])
+  @@index([projectId])
+}
+
+model TaskType {
+  id        String   @id @default(uuid())
+  orgId     String
+  name      String
+  icon      String?
+  color     String?  @default("#7F77DD")
+  isDefault Boolean  @default(false)
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  fieldBindings FieldTaskTypeBinding[]
+  tasks     Task[]   @relation("TaskTypeRelation")
+
+  @@index([orgId])
+}
+
+model FieldTaskTypeBinding {
+  id         String   @id @default(uuid())
+  fieldId    String
+  taskTypeId String
+  sortOrder  Int      @default(0)
+  field      CustomField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  taskType   TaskType    @relation(fields: [taskTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([fieldId, taskTypeId])
+  @@index([taskTypeId])
+}
+
+model FieldCondition {
+  id            String @id @default(uuid())
+  orgId         String
+  sourceFieldId String
+  operator      String  // EQ | NEQ | GT | LT | GTE | LTE | CONTAINS | IS_EMPTY | NOT_EMPTY | IN
+  value         Json?
+  logicGroup    Int     @default(0)
+  action        String  // SHOW | HIDE | REQUIRE | UNREQUIRE | SET_VALUE | CLEAR_VALUE
+  targetFieldId String
+  actionValue   Json?
+  sortOrder     Int     @default(0)
+  createdAt     DateTime @default(now())
+
+  sourceField   CustomField @relation("ConditionSource", fields: [sourceFieldId], references: [id], onDelete: Cascade)
+  targetField   CustomField @relation("ConditionTarget", fields: [targetFieldId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, sourceFieldId])
+}
+
+model CustomFieldValue {
+  id        String   @id @default(uuid())
+  orgId     String
+  taskId    String
+  fieldId   String
+  strVal    String?  @db.Text
+  numVal    Float?
+  boolVal   Boolean?
+  dateVal   DateTime?
+  jsonVal   Json?
+  updatedAt DateTime @updatedAt
+
+  task  Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  field CustomField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, fieldId])
+  @@index([orgId, fieldId, strVal])
+  @@index([orgId, fieldId, numVal])
+  @@index([orgId, fieldId, dateVal])
+  @@index([orgId, fieldId, boolVal])
+}
+
+model SavedFilter {
+  id        String   @id @default(uuid())
+  orgId     String
+  userId    String
+  name      String
+  filters   Json
+  isShared  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orgId, userId])
+}
+
+model UserSidebarConfig {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  orgId     String
+  config    String   @db.Text
+  sections  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TaskAttachment {
+  id           String   @id @default(uuid())
+  taskId       String
+  orgId        String
+  uploadedById String
+  fileName     String
+  fileSize     Int
+  mimeType     String
+  url          String
+  createdAt    DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([orgId])
+}
+
+// ===== UNIVERSAL RELATIONS ENGINE =====
+
+model EntityRelation {
+  id           String   @id @default(uuid())
+  orgId        String
+
+  // Source entity
+  sourceType   String   // TASK | PROJECT | PRODUCT | DEAL | EMPLOYEE | DOCUMENT | ORDER
+  sourceId     String
+
+  // Target entity  
+  targetType   String
+  targetId     String
+
+  // Relation type
+  // TASK-TASK: DEPENDS_ON | BLOCKS | WAITING_FOR | RELATED | DUPLICATE | PARENT | CHILD | CUSTOM
+  // TASK-PRODUCT: LINKED
+  // TASK-PROJECT: LINKED
+  // etc.
+  relationType String
+
+  customLabel  String?  // for CUSTOM relation type
+  createdById  String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([orgId, sourceType, sourceId, targetType, targetId, relationType])
+  @@index([orgId, sourceType, sourceId])
+  @@index([orgId, targetType, targetId])
+  @@index([orgId, sourceType, sourceId, relationType])
+}
+
+// Universal Activity Log for all entities
+model ActivityLog {
+  id          String   @id @default(uuid())
+  orgId       String
+  entityType  String   // TASK | PROJECT | PRODUCT | DEAL | EMPLOYEE | CUSTOM_FIELD
+  entityId    String
+  actorId     String?
+  actorName   String?
+  action      String   // CREATED | UPDATED | DELETED | STATUS_CHANGED | ASSIGNED | LINKED | UNLINKED | COMMENTED | FILE_ADDED
+  field       String?  // which field changed
+  oldValue    String?  @db.Text
+  newValue    String?  @db.Text
+  meta        Json?    // extra data
+  createdAt   DateTime @default(now())
+
+  @@index([orgId, entityType, entityId, createdAt])
+  @@index([orgId, actorId])
+}
+
+// ===== APPROVAL SYSTEM =====
+
+// Шаблон маршрута согласования
+model ApprovalFlow {
+  id          String   @id @default(uuid())
+  orgId       String
+  name        String
+  description String?
+  // Триггер: MANUAL | TASK_STATUS | DEAL_STAGE | CUSTOM_FIELD
+  trigger     String   @default("MANUAL")
+  triggerConfig Json?  // { status: "REVIEW", fieldId: "xxx", value: "...", entityType: "TASK" }
+  isActive    Boolean  @default(true)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  steps    ApprovalStep[]
+  requests ApprovalRequest[]
+
+  @@index([orgId, isActive])
+}
+
+// Шаг маршрута
+model ApprovalStep {
+  id       String @id @default(uuid())
+  flowId   String
+  // Порядок шага
+  order    Int
+  name     String
+  // Тип: SEQUENTIAL (один за другим) | PARALLEL (все одновременно) | ANY_ONE (любой один)
+  type     String @default("SEQUENTIAL")
+  // Кто согласует: USER | ROLE | DEPARTMENT_HEAD | MANAGER
+  approverType String @default("USER")
+  approverIds  Json   // [userId, ...] или ["ADMIN", "MANAGER"] для role-based
+  // Дедлайн в часах (0 = без дедлайна)
+  deadlineHours Int @default(0)
+  // Действие при истечении: SKIP | ESCALATE | REJECT
+  onTimeout String @default("SKIP")
+  // Условие пропуска шага
+  skipCondition Json?
+
+  flow     ApprovalFlow      @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  decisions ApprovalDecision[]
+
+  @@index([flowId, order])
+}
+
+// Запрос на согласование (конкретный экземпляр)
+model ApprovalRequest {
+  id         String   @id @default(uuid())
+  orgId      String
+  flowId     String
+  // Что согласуем
+  entityType String   // TASK | DEAL | DOCUMENT | CUSTOM
+  entityId   String
+  entityTitle String
+  // Инициатор
+  requestedById String
+  requestedByName String
+  // Текущий шаг (индекс)
+  currentStep Int     @default(0)
+  // Статус: PENDING | APPROVED | REJECTED | CANCELLED | EXPIRED
+  status     String   @default("PENDING")
+  comment    String?  // комментарий при финальном решении
+  completedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  flow      ApprovalFlow      @relation(fields: [flowId], references: [id])
+  decisions ApprovalDecision[]
+
+  @@index([orgId, status])
+  @@index([orgId, entityType, entityId])
+  @@index([orgId, requestedById])
+}
+
+// Решение по шагу
+model ApprovalDecision {
+  id         String   @id @default(uuid())
+  requestId  String
+  stepId     String
+  approverId String
+  approverName String
+  // PENDING | APPROVED | REJECTED | SKIPPED
+  status     String   @default("PENDING")
+  comment    String?
+  decidedAt  DateTime?
+  createdAt  DateTime @default(now())
+
+  request ApprovalRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  step    ApprovalStep    @relation(fields: [stepId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, stepId, approverId])
+  @@index([requestId])
+  @@index([approverId, status])
+}
+
+// ===== CHAT / МЕССЕНДЖЕР =====
+
+model ChatChannel {
+  id           String   @id @default(uuid())
+  orgId        String
+  type         String   // DIRECT | GROUP
+  name         String?  // только для GROUP; для DIRECT вычисляется на фронте
+  avatarUrl    String?
+  departmentId String?  // опциональная привязка группового канала к отделу
+  projectId    String?  // опциональная привязка группового канала к проекту
+  pinnedMessageId String? // закреплённое сообщение (без FK — просто ссылка на id)
+  createdById  String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  members  ChatChannelMember[]
+  messages ChatMessage[]
+
+  @@index([orgId, type])
+  @@index([departmentId])
+  @@index([projectId])
+}
+
+model ChatChannelMember {
+  id         String    @id @default(uuid())
+  channelId  String
+  userId     String
+  role       String    @default("member") // owner | member (для групп)
+  lastReadAt DateTime?
+  joinedAt   DateTime  @default(now())
+
+  channel ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+  @@index([channelId])
+  @@index([userId])
+}
+
+model ChatMessage {
+  id             String    @id @default(uuid())
+  channelId      String
+  senderId       String
+  content        String?   @db.Text
+  attachmentUrl  String?
+  attachmentName String?
+  attachmentType String?   // image | file | audio
+  replyToId      String?   // ссылка на id другого сообщения (без FK, разрешается вручную)
+  mentionedIds   String[]  @default([]) // userId сотрудников, упомянутых через @Имя
+  reactions      Json?     // { "👍": ["userId1","userId2"], "❤️": ["userId3"] }
+  editedAt       DateTime?
+  deletedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  channel ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId, createdAt])
+  @@index([senderId])
 }
 
