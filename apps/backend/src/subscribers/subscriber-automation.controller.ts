@@ -35,7 +35,8 @@ export class SubscriberAutomationController {
   @Post('cron/run-scheduled')
   async runScheduled(@Req() req: any) {
     const ip = req.ip || req.connection?.remoteAddress || '';
-    if (!ip.includes('127.0.0.1') && !ip.includes('::1')) return { error: 'Forbidden' };
+    const isLocal = ip.includes('127.0.0.1') || ip.includes('::1') || ip.includes('::ffff:172.') || ip.includes('::ffff:127.') || /^(::ffff:)?(172\.(1[6-9]|2\d|3[01])\.|10\.|192\.168\.)/.test(ip);
+    if (!isLocal) return { error: 'Forbidden', ip };
     const orgs = await this.prisma.organisation.findMany({ select: { id: true } });
     for (const org of orgs) await this.automation.runScheduledRules(org.id);
     return { ok: true, orgsProcessed: orgs.length };
