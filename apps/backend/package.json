@@ -10,6 +10,7 @@
     "prisma:deploy": "prisma migrate deploy"
   },
   "dependencies": {
+    "pg": "*",
     "exceljs": "*",
     "nodemailer": "*",
     "@nestjs-modules/ioredis": "*",
@@ -42,6 +43,7 @@
     "uuid": "*"
   },
   "devDependencies": {
+    "@types/pg": "*",
     "@nestjs/cli": "*",
     "@types/bcrypt": "*",
     "@types/node": "*",

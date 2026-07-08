@@ -509,7 +509,7 @@ export default function SubscribersPage() {
 }
 
 function IntegrationModal({ h, onClose }: any) {
-  const [config, setConfig] = useState<any>({ apiUrl: '', apiKey: '', isActive: false });
+  const [config, setConfig] = useState<any>({ connectionType: 'DATABASE', apiUrl: '', apiKey: '', dbConnectionString: '', isActive: false });
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -534,19 +534,39 @@ function IntegrationModal({ h, onClose }: any) {
     setSyncing(false);
   };
 
+  const canSync = config.connectionType === 'DATABASE' ? !!config.dbConnectionString : !!config.apiUrl;
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,16,64,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fadeIn 0.15s ease-out' }}>
-      <div style={{ background: 'white', borderRadius: 20, padding: 24, width: 400, boxShadow: '0 24px 64px rgba(127,119,221,0.2)' }}>
+      <div style={{ background: 'white', borderRadius: 20, padding: 24, width: 440, boxShadow: '0 24px 64px rgba(127,119,221,0.2)' }}>
         <h3 style={{ fontSize: 16, fontWeight: 800, color: '#1a1040', margin: '0 0 4px' }}>👑 Интеграция KingStats</h3>
         <p style={{ fontSize: 11.5, color: '#9B97CC', margin: '0 0 16px' }}>Синхронизация подписчиков</p>
 
-        <p style={{ fontSize: 11, color: '#9B97CC', margin: '0 0 4px' }}>URL API</p>
-        <input value={config.apiUrl ?? ''} onChange={e => setConfig({ ...config, apiUrl: e.target.value })} placeholder="https://www.kingstats.ru/api/admin/subscribers"
-          style={{ width: '100%', background: '#F8F7FF', border: '1px solid #EDE9FE', borderRadius: 10, padding: '9px 12px', fontSize: 13, marginBottom: 10, outline: 'none', boxSizing: 'border-box' }} />
+        <div style={{ display: 'flex', gap: 4, background: '#F8F7FF', borderRadius: 10, padding: 4, marginBottom: 14 }}>
+          <button onClick={() => setConfig({ ...config, connectionType: 'DATABASE' })}
+            style={{ flex: 1, padding: '7px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: config.connectionType === 'DATABASE' ? 'white' : 'transparent', color: config.connectionType === 'DATABASE' ? '#7F77DD' : '#9B97CC', boxShadow: config.connectionType === 'DATABASE' ? '0 2px 6px rgba(127,119,221,0.15)' : 'none' }}>🗄 База данных</button>
+          <button onClick={() => setConfig({ ...config, connectionType: 'API' })}
+            style={{ flex: 1, padding: '7px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: config.connectionType === 'API' ? 'white' : 'transparent', color: config.connectionType === 'API' ? '#7F77DD' : '#9B97CC', boxShadow: config.connectionType === 'API' ? '0 2px 6px rgba(127,119,221,0.15)' : 'none' }}>🔌 HTTP API</button>
+        </div>
 
-        <p style={{ fontSize: 11, color: '#9B97CC', margin: '0 0 4px' }}>API-ключ</p>
-        <input type="password" value={config.apiKey ?? ''} onChange={e => setConfig({ ...config, apiKey: e.target.value })} placeholder="••••••••"
-          style={{ width: '100%', background: '#F8F7FF', border: '1px solid #EDE9FE', borderRadius: 10, padding: '9px 12px', fontSize: 13, marginBottom: 14, outline: 'none', boxSizing: 'border-box' }} />
+        {config.connectionType === 'DATABASE' ? (
+          <>
+            <p style={{ fontSize: 11, color: '#9B97CC', margin: '0 0 4px' }}>Строка подключения PostgreSQL</p>
+            <input type="password" value={config.dbConnectionString ?? ''} onChange={e => setConfig({ ...config, dbConnectionString: e.target.value })} placeholder="postgresql://user:pass@host.docker.internal:5433/kingstats?sslmode=disable"
+              style={{ width: '100%', background: '#F8F7FF', border: '1px solid #EDE9FE', borderRadius: 10, padding: '9px 12px', fontSize: 12.5, marginBottom: 14, outline: 'none', boxSizing: 'border-box' }} />
+            <p style={{ fontSize: 10.5, color: '#9B97CC', margin: '-8px 0 14px', lineHeight: 1.5 }}>Читает только <code>reporting.users_overview</code>, доступ на чтение. Хост должен быть <code>host.docker.internal</code> (не 127.0.0.1) — backend работает в Docker-контейнере.</p>
+          </>
+        ) : (
+          <>
+            <p style={{ fontSize: 11, color: '#9B97CC', margin: '0 0 4px' }}>URL API</p>
+            <input value={config.apiUrl ?? ''} onChange={e => setConfig({ ...config, apiUrl: e.target.value })} placeholder="https://www.kingstats.ru/api/admin/subscribers"
+              style={{ width: '100%', background: '#F8F7FF', border: '1px solid #EDE9FE', borderRadius: 10, padding: '9px 12px', fontSize: 13, marginBottom: 10, outline: 'none', boxSizing: 'border-box' }} />
+
+            <p style={{ fontSize: 11, color: '#9B97CC', margin: '0 0 4px' }}>API-ключ</p>
+            <input type="password" value={config.apiKey ?? ''} onChange={e => setConfig({ ...config, apiKey: e.target.value })} placeholder="••••••••"
+              style={{ width: '100%', background: '#F8F7FF', border: '1px solid #EDE9FE', borderRadius: 10, padding: '9px 12px', fontSize: 13, marginBottom: 14, outline: 'none', boxSizing: 'border-box' }} />
+          </>
+        )}
 
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, cursor: 'pointer' }}>
           <input type="checkbox" checked={!!config.isActive} onChange={e => setConfig({ ...config, isActive: e.target.checked })} style={{ accentColor: '#7F77DD' }} />
@@ -555,7 +575,7 @@ function IntegrationModal({ h, onClose }: any) {
 
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           <button onClick={save} disabled={saving} style={{ flex: 1, background: 'linear-gradient(135deg,#7F77DD,#5248C5)', color: 'white', border: 'none', borderRadius: 10, padding: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{saving ? 'Сохраняю...' : 'Сохранить'}</button>
-          <button onClick={sync} disabled={syncing || !config.apiUrl} style={{ flex: 1, background: '#F8F7FF', color: '#7F77DD', border: '1px solid #EDE9FE', borderRadius: 10, padding: 10, fontSize: 13, fontWeight: 700, cursor: config.apiUrl ? 'pointer' : 'not-allowed' }}>{syncing ? 'Синхронизирую...' : '🔄 Синхронизировать'}</button>
+          <button onClick={sync} disabled={syncing || !canSync} style={{ flex: 1, background: '#F8F7FF', color: '#7F77DD', border: '1px solid #EDE9FE', borderRadius: 10, padding: 10, fontSize: 13, fontWeight: 700, cursor: canSync ? 'pointer' : 'not-allowed' }}>{syncing ? 'Синхронизирую...' : '🔄 Синхронизировать'}</button>
         </div>
         {msg && <p style={{ fontSize: 12, color: msg.startsWith('✅') ? '#16A34A' : '#D97706', background: msg.startsWith('✅') ? '#DCFCE7' : '#FFFBEB', padding: '8px 12px', borderRadius: 8, margin: '0 0 10px' }}>{msg}</p>}
         <button onClick={onClose} style={{ width: '100%', background: 'none', border: 'none', color: '#9B97CC', fontSize: 12, cursor: 'pointer', padding: 6 }}>Закрыть</button>

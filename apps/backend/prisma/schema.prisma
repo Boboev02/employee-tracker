@@ -1181,8 +1181,10 @@ model SubscriberIntegration {
   orgId        String
   name         String    // 'kingstats'
   displayName  String?
+  connectionType String  @default("API") // API | DATABASE
   apiUrl       String?
   apiKey       String?
+  dbConnectionString String? // postgresql://user:pass@host:port/db — для прямого доступа к БД
   isActive     Boolean   @default(false)
   lastSyncAt   DateTime?
   lastSyncStatus String? // SUCCESS | ERROR

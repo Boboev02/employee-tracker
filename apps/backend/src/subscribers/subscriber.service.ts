@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { SubscriberAutomationService } from './subscriber-automation.service';
 import { NotificationService } from '../notifications/notification.service';
+import { Client as PgClient } from 'pg';
 
 const CRM_STATUS_LABELS: Record<string, string> = {
   NEW: 'Новый', IN_PROGRESS: 'В работе', CONTACTED: 'Связались',
@@ -464,36 +465,59 @@ export class SubscriberService {
   async getIntegration(orgId: string, name = 'kingstats') {
     const integration = await this.prisma.subscriberIntegration.findUnique({ where: { orgId_name: { orgId, name } } });
     if (!integration) return null;
-    return { ...integration, apiKey: integration.apiKey ? '••••••••' : null };
+    // Маскируем пароль внутри connectionString, но сохраняем видимость host/port/db для UI
+    let maskedConnStr = integration.dbConnectionString;
+    if (maskedConnStr) {
+      maskedConnStr = maskedConnStr.replace(/:\/\/([^:]+):([^@]+)@/, '://$1:••••••••@');
+    }
+    return { ...integration, apiKey: integration.apiKey ? '••••••••' : null, dbConnectionString: maskedConnStr };
   }
 
   async saveIntegration(orgId: string, name: string, dto: any) {
+    // Если пришла маскированная строка (пользователь не менял пароль) — не перезаписываем реальное значение
+    const isMaskedConnStr = dto.dbConnectionString?.includes('••••••••');
     return this.prisma.subscriberIntegration.upsert({
       where: { orgId_name: { orgId, name } },
       update: {
         apiUrl: dto.apiUrl,
         ...(dto.apiKey && dto.apiKey !== '••••••••' ? { apiKey: dto.apiKey } : {}),
+        ...(dto.connectionType ? { connectionType: dto.connectionType } : {}),
+        ...(dto.dbConnectionString && !isMaskedConnStr ? { dbConnectionString: dto.dbConnectionString } : {}),
         displayName: dto.displayName, isActive: dto.isActive ?? true,
       },
-      create: { orgId, name, displayName: dto.displayName ?? name, apiUrl: dto.apiUrl, apiKey: dto.apiKey, isActive: dto.isActive ?? false },
+      create: {
+        orgId, name, displayName: dto.displayName ?? name,
+        connectionType: dto.connectionType ?? 'API',
+        apiUrl: dto.apiUrl, apiKey: dto.apiKey,
+        dbConnectionString: isMaskedConnStr ? null : dto.dbConnectionString,
+        isActive: dto.isActive ?? false,
+      },
     });
   }
 
   /**
    * Запускает синхронизацию: создаёт новых подписчиков, обновляет существующих (по externalId),
    * исключает дубли через unique-constraint (orgId, externalSource, externalId).
+   * Поддерживает два типа подключения: API (HTTP) и DATABASE (прямой PostgreSQL, только чтение).
    */
   async syncNow(orgId: string, name = 'kingstats') {
     const integration = await this.prisma.subscriberIntegration.findUnique({ where: { orgId_name: { orgId, name } } });
-    if (!integration || !integration.apiUrl || !integration.apiKey) {
+    if (!integration) throw new BadRequestException(`Интеграция "${name}" не настроена`);
+    if (integration.connectionType === 'DATABASE' && !integration.dbConnectionString) {
+      throw new BadRequestException(`Не указана строка подключения к БД для "${name}"`);
+    }
+    if (integration.connectionType === 'API' && (!integration.apiUrl || !integration.apiKey)) {
       throw new BadRequestException(`Интеграция "${name}" не настроена — укажите URL и API-ключ в настройках`);
     }
 
     try {
-      const externalUsers = await this.fetchExternalSubscribers(integration.apiUrl, integration.apiKey);
+      const externalUsers = integration.connectionType === 'DATABASE'
+        ? await this.fetchFromDatabase(integration.dbConnectionString!)
+        : await this.fetchExternalSubscribers(integration.apiUrl!, integration.apiKey!);
       let created = 0, updated = 0;
 
       for (const u of externalUsers) {
+        // externalId: используем username как уникальный ключ (у KingStats нет отдельного числового id в представлении)
         const externalId = String(u.id ?? u.username ?? u.email);
         if (!externalId) continue;
 
@@ -504,9 +528,9 @@ export class SubscriberService {
         const data = {
           username: u.username, firstName: u.name ?? u.username ?? 'Без имени', email: u.email, phone: u.phone,
           externalRole: u.role, plan: u.plan, planStatus: u.planStatus,
-          trialEndsAt: u.trialEndsAt ? new Date(u.trialEndsAt) : null,
-          subscriptionEndsAt: u.subscriptionEndsAt ? new Date(u.subscriptionEndsAt) : null,
-          registeredAt: u.createdAt ? new Date(u.createdAt) : undefined,
+          trialEndsAt: u.isTrial && u.activeUntil ? new Date(u.activeUntil) : null,
+          subscriptionEndsAt: !u.isTrial && u.activeUntil ? new Date(u.activeUntil) : null,
+          registeredAt: u.registeredAt ? new Date(u.registeredAt) : undefined,
           lastLoginAt: u.lastLoginAt ? new Date(u.lastLoginAt) : null,
           lastSyncAt: new Date(),
         };
@@ -536,7 +560,7 @@ export class SubscriberService {
 
       await this.audit.log({
         orgId, action: 'subscriber.sync', category: 'subscribers',
-        details: { source: name, fetched: externalUsers.length, created, updated },
+        details: { source: name, connectionType: integration.connectionType, fetched: externalUsers.length, created, updated },
       }).catch(() => {});
 
       await this.prisma.subscriberIntegration.update({
@@ -554,7 +578,49 @@ export class SubscriberService {
   }
 
   /**
-   * ⚠️ ЗАГЛУШКА — заменить на реальный вызов при подключении API KingStats.
+   * Прямое чтение из БД KingStats (только SELECT, только view reporting.users_overview).
+   * Подключение идёт через SSH-туннель, поднятый на хосте (autossh), поэтому connectionString
+   * должен указывать на host.docker.internal (или gateway-IP), а не localhost/127.0.0.1 —
+   * иначе контейнер backend будет пытаться достучаться сам до себя.
+   */
+  private async fetchFromDatabase(connectionString: string): Promise<any[]> {
+    const client = new PgClient({ connectionString, connectionTimeoutMillis: 8000 });
+    try {
+      await client.connect();
+      const res = await client.query(`
+        SELECT username, email, name, phone, plan_code, plan_label,
+               is_trial, active_until, subscription_active, days_left, registered_at, role
+        FROM reporting.users_overview
+      `);
+      return res.rows.map((r: any) => ({
+        username: r.username,
+        email: r.email,
+        name: r.name,
+        phone: r.phone,
+        plan: this.mapPlanCode(r.plan_code, r.is_trial),
+        planStatus: r.subscription_active ? 'active' : 'expired',
+        isTrial: r.is_trial,
+        activeUntil: r.active_until,
+        registeredAt: r.registered_at,
+        role: r.role,
+      }));
+    } finally {
+      await client.end().catch(() => {});
+    }
+  }
+
+  /** Приводит код тарифа KingStats к нашей внутренней системе (TRIAL|PRO|BUSINESS|NONE) */
+  private mapPlanCode(planCode: string | null, isTrial: boolean): string {
+    if (isTrial) return 'TRIAL';
+    if (!planCode) return 'NONE';
+    const code = planCode.toUpperCase();
+    if (code.includes('BUSINESS') || code.includes('БИЗНЕС')) return 'BUSINESS';
+    if (code.includes('PRO') || code.includes('ПРОФИ')) return 'PRO';
+    return 'NONE';
+  }
+
+  /**
+   * HTTP API вариант (оставлен для будущих интеграций, где реально есть REST API).
    * Ожидаемый формат: { users: [{ id, username, email, name, phone, role, plan, planStatus, trialEndsAt, subscriptionEndsAt, createdAt, lastLoginAt }] }
    */
   private async fetchExternalSubscribers(apiUrl: string, apiKey: string): Promise<any[]> {
