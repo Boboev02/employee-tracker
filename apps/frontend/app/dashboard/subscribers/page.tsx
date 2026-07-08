@@ -167,6 +167,10 @@ export default function SubscribersPage() {
           <p style={{ fontSize: '11px', color: '#9B97CC', margin: '2px 0 0' }}>{total} подписчиков</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => router.push('/dashboard/subscribers/dashboard')}
+            style={{ background: '#F8F7FF', color: '#7F77DD', border: '1px solid #EDE9FE', borderRadius: '20px', padding: '8px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+            📊 Dashboard
+          </button>
           <button onClick={() => setShowReminders(true)}
             style={{ background: '#F8F7FF', color: '#7F77DD', border: '1px solid #EDE9FE', borderRadius: '20px', padding: '8px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
             🔔 Напоминания

@@ -1092,6 +1092,28 @@ model SubscriberAutomationLog {
   @@index([ruleId])
 }
 
+// ===== ЭТАП 7: DASHBOARD РУКОВОДИТЕЛЯ =====
+
+model SubscriberPlanPricing {
+  id           String   @id @default(uuid())
+  orgId        String
+  plan         String   // TRIAL | PRO | BUSINESS
+  monthlyPrice Float    @default(0)
+  updatedAt    DateTime @updatedAt
+
+  @@unique([orgId, plan])
+}
+
+model SubscriberDashboardLayout {
+  id        String   @id @default(uuid())
+  orgId     String
+  userId    String
+  widgetOrder Json   // ["total","active","mrr",...] — порядок виджетов для конкретного пользователя
+  updatedAt DateTime @updatedAt
+
+  @@unique([orgId, userId])
+}
+
 model SubscriberComment {
   id           String   @id @default(uuid())
   subscriberId String

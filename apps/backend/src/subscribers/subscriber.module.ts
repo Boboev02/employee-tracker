@@ -4,11 +4,13 @@ import { SubscriberController } from './subscriber.controller';
 import { SubscriberService } from './subscriber.service';
 import { SubscriberAutomationService } from './subscriber-automation.service';
 import { SubscriberAutomationController } from './subscriber-automation.controller';
+import { SubscriberDashboardService } from './subscriber-dashboard.service';
+import { SubscriberDashboardController } from './subscriber-dashboard.controller';
 
 @Module({
   imports: [NotificationModule],
-  controllers: [SubscriberController, SubscriberAutomationController],
-  providers: [SubscriberService, SubscriberAutomationService],
-  exports: [SubscriberService, SubscriberAutomationService],
+  controllers: [SubscriberController, SubscriberAutomationController, SubscriberDashboardController],
+  providers: [SubscriberService, SubscriberAutomationService, SubscriberDashboardService],
+  exports: [SubscriberService, SubscriberAutomationService, SubscriberDashboardService],
 })
 export class SubscriberModule {}
