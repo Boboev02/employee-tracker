@@ -48,6 +48,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     'crm:read','crm:write','crm:delete',
   ],
   MANAGER: [
+    'crm:read','crm:write',
     'org:read',
     'user:invite','user:read:team','user:read:self','user:update:self',
     'team:read:all','team:members:manage',
@@ -58,6 +59,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     'custom_field:view','custom_field:edit',
   ],
   VIEWER: [
+    'crm:read',
     'org:read',
     'user:read:team','user:read:self',
     'team:read:all',
@@ -67,6 +69,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     'report:view',
   ],
   HR: [
+    'crm:read','crm:write',
     'org:read',
     'user:invite','user:read:all','user:read:self','user:update:self',
     'team:read:all',
@@ -75,6 +78,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     'report:generate:org','report:view',
   ],
   EMPLOYEE: [
+    'crm:read','crm:write',
     'user:read:self','user:update:self',
     'tracking:view:self',
     'analytics:view:self',
@@ -94,6 +98,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
   ],
   // Руководитель отдела — управляет своим отделом (не всей организацией)
   DEPARTMENT_HEAD: [
+    'crm:read','crm:write',
     'org:read',
     'user:invite','user:read:team','user:read:self','user:update:self',
     'team:read:all','team:members:manage',
@@ -105,6 +110,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
   ],
   // Бухгалтер — только финансы, отчёты, KPI
   ACCOUNTANT: [
+    'crm:read','crm:write',
     'org:read',
     'user:read:self','user:update:self',
     'analytics:view:org',
@@ -113,6 +119,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
   ],
   // Логист — задачи, товары, склад (ограниченный доступ)
   LOGISTICIAN: [
+    'crm:read','crm:write',
     'user:read:self','user:update:self',
     'tracking:view:self',
     'analytics:view:self',
@@ -139,12 +146,14 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
   ],
   // Оператор поддержки — только чат/отзывы WB-Ozon и свои задачи
   SUPPORT_OPERATOR: [
+    'crm:read','crm:write',
     'user:read:self','user:update:self',
     'tracking:view:self',
     'task:read:self','task:update:self',
   ],
   // Стажёр — только просмотр + свои задачи, ничего не удаляет
   INTERN: [
+    'crm:read','crm:write',
     'user:read:self','user:update:self',
     'task:read:self','task:update:self',
   ],
