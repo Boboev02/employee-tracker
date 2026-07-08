@@ -10,11 +10,6 @@ import { PLAN_LABELS, PLAN_COLORS, STATUS_LABELS, STATUS_COLORS } from '@/lib/su
 
 const API = 'https://employee-tracker.ru/api/v1';
 
-const STATUS_COLORS: Record<string, { bg: string; c: string }> = {
-  NEW: { bg: '#EDE9FE', c: '#7F77DD' }, IN_PROGRESS: { bg: '#DBEAFE', c: '#2563EB' }, CONTACTED: { bg: '#FEF3C7', c: '#D97706' },
-  RENEWED: { bg: '#DCFCE7', c: '#16A34A' }, LOST: { bg: '#FEE2E2', c: '#DC2626' }, ARCHIVED: { bg: '#F3F4F6', c: '#6B7280' },
-};
-
 const ALL_COLUMNS = [
   { key: 'name', label: 'Имя', pinned: true },
   { key: 'contacts', label: 'Контакты' },
