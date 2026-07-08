@@ -989,6 +989,9 @@ model Subscriber {
   notes              String?   @db.Text
 
   lastSyncAt         DateTime?
+  country            String?   // для отчёта "По странам" (задел — заполняется если есть в API)
+  language           String?   // для отчёта "По языкам"
+  cancelReason       String?   // причина отказа (Этап 9 отчёт)
   deletedAt          DateTime? // корзина (Этап 11), пока не используется активно
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
@@ -1112,6 +1115,51 @@ model SubscriberDashboardLayout {
   updatedAt DateTime @updatedAt
 
   @@unique([orgId, userId])
+}
+
+// ===== ЭТАП 10: НАСТРОЙКИ CRM БЕЗ КОДА =====
+
+model SubscriberCrmStatusDef {
+  id        String   @id @default(uuid())
+  orgId     String
+  key       String   // машинное имя, используется в Subscriber.crmStatus
+  label     String
+  color     String   @default("#7F77DD")
+  sortOrder Int      @default(0)
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([orgId, key])
+}
+
+model SubscriberTagDef {
+  id        String   @id @default(uuid())
+  orgId     String
+  name      String
+  color     String   @default("#7F77DD")
+  createdAt DateTime @default(now())
+
+  @@unique([orgId, name])
+}
+
+model SubscriberCancelReasonDef {
+  id        String   @id @default(uuid())
+  orgId     String
+  label     String
+  createdAt DateTime @default(now())
+
+  @@index([orgId])
+}
+
+model SubscriberSavedView {
+  id        String   @id @default(uuid())
+  orgId     String
+  userId    String
+  name      String
+  filters   Json     // { search, plan[], crmStatus[], managerId, sortBy, sortDir, groupBy }
+  createdAt DateTime @default(now())
+
+  @@index([orgId, userId])
 }
 
 model SubscriberComment {

@@ -297,9 +297,111 @@ export class SubscriberService {
     });
   }
 
-  // ─── Этап 5: Центр напоминаний ───────────────────────────────────────────────
+  // ─── Этап 11: Корзина (мягкое удаление + восстановление) ─────────────────────
+
+  async softDelete(orgId: string, id: string, userId: string) {
+    const sub = await this.prisma.subscriber.findFirst({ where: { id, orgId, deletedAt: null } });
+    if (!sub) throw new NotFoundException('Подписчик не найден');
+    await this.prisma.subscriber.update({ where: { id }, data: { deletedAt: new Date() } });
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } }).catch(() => null);
+    await this.audit.log({
+      orgId, userId, userName: user?.name, action: 'subscriber.delete', category: 'subscribers',
+      details: { subscriberId: id, subscriberName: `${sub.firstName} ${sub.lastName ?? ''}`.trim() },
+    }).catch(() => {});
+    return { ok: true };
+  }
+
+  async getTrash(orgId: string) {
+    return this.prisma.subscriber.findMany({ where: { orgId, deletedAt: { not: null } }, orderBy: { deletedAt: 'desc' } });
+  }
+
+  async restore(orgId: string, id: string, userId: string) {
+    const sub = await this.prisma.subscriber.findFirst({ where: { id, orgId, deletedAt: { not: null } } });
+    if (!sub) throw new NotFoundException('Подписчик не найден в корзине');
+    await this.prisma.subscriber.update({ where: { id }, data: { deletedAt: null } });
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } }).catch(() => null);
+    await this.audit.log({
+      orgId, userId, userName: user?.name, action: 'subscriber.restore', category: 'subscribers',
+      details: { subscriberId: id, subscriberName: `${sub.firstName} ${sub.lastName ?? ''}`.trim() },
+    }).catch(() => {});
+    return { ok: true };
+  }
+
+  async permanentlyDelete(orgId: string, id: string) {
+    await this.prisma.subscriber.deleteMany({ where: { id, orgId, deletedAt: { not: null } } });
+    return { ok: true };
+  }
+
+  // ─── Этап 8: Массовые операции ───────────────────────────────────────────────
+
+  async bulkUpdateStatus(orgId: string, userId: string, ids: string[], crmStatus: string) {
+    for (const id of ids) await this.updateSubscriber(orgId, id, userId, { crmStatus }).catch(() => {});
+    return { ok: true, count: ids.length };
+  }
+
+  async bulkAssignManager(orgId: string, userId: string, ids: string[], managerId: string | null) {
+    for (const id of ids) await this.updateSubscriber(orgId, id, userId, { managerId }).catch(() => {});
+    return { ok: true, count: ids.length };
+  }
+
+  async bulkAddTag(orgId: string, userId: string, ids: string[], tag: string) {
+    const subs = await this.prisma.subscriber.findMany({ where: { id: { in: ids }, orgId } });
+    for (const s of subs) {
+      if (!(s.tags ?? []).includes(tag)) await this.updateSubscriber(orgId, s.id, userId, { tags: [...(s.tags ?? []), tag] }).catch(() => {});
+    }
+    return { ok: true, count: subs.length };
+  }
+
+  async bulkRemoveTag(orgId: string, userId: string, ids: string[], tag: string) {
+    const subs = await this.prisma.subscriber.findMany({ where: { id: { in: ids }, orgId } });
+    for (const s of subs) {
+      if ((s.tags ?? []).includes(tag)) await this.updateSubscriber(orgId, s.id, userId, { tags: (s.tags ?? []).filter(t => t !== tag) }).catch(() => {});
+    }
+    return { ok: true, count: subs.length };
+  }
+
+  async bulkArchive(orgId: string, userId: string, ids: string[]) {
+    return this.bulkUpdateStatus(orgId, userId, ids, 'ARCHIVED');
+  }
+
+  async bulkCreateTasks(orgId: string, userId: string, ids: string[], dto: { title: string; projectId: string; assigneeId: string; departmentId?: string; priority?: string; dueInDays?: number }) {
+    let created = 0;
+    for (const id of ids) {
+      await this.prisma.task.create({
+        data: {
+          orgId, createdById: userId, title: dto.title, subscriberId: id,
+          projectId: dto.projectId, assigneeId: dto.assigneeId, departmentId: dto.departmentId,
+          priority: dto.priority ?? 'MEDIUM', status: 'NEW',
+          dueDate: dto.dueInDays ? new Date(Date.now() + dto.dueInDays * 86400000) : undefined,
+        },
+      }).catch(() => {});
+      created++;
+    }
+    return { ok: true, created };
+  }
+
+  async bulkLogCommunication(orgId: string, userId: string, ids: string[], channel: string, content: string) {
+    for (const id of ids) await this.logCommunication(orgId, id, userId, { channel, content }).catch(() => {});
+    return { ok: true, count: ids.length };
+  }
+
+  async bulkExportCsv(orgId: string, ids?: string[]) {
+    const where: any = { orgId, deletedAt: null };
+    if (ids && ids.length > 0) where.id = { in: ids };
+    const subs = await this.prisma.subscriber.findMany({ where, include: { manager: { select: { name: true } } } });
+    const headers = ['Имя', 'Фамилия', 'Email', 'Телефон', 'Тариф', 'CRM статус', 'Менеджер', 'Триал до', 'Подписка до', 'Теги'];
+    const rows = subs.map(s => [
+      s.firstName ?? '', s.lastName ?? '', s.email ?? '', s.phone ?? '', s.plan ?? '', s.crmStatus,
+      s.manager?.name ?? '', s.trialEndsAt?.toISOString().slice(0, 10) ?? '', s.subscriptionEndsAt?.toISOString().slice(0, 10) ?? '',
+      (s.tags ?? []).join(';'),
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    return '\uFEFF' + csv; // BOM для корректной кодировки в Excel
+  }
 
   /** Группирует подписчиков по срокам до окончания триала/подписки */
+  // ─── Этап 5: Центр напоминаний ───────────────────────────────────────────────
+
   async getReminders(orgId: string) {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());

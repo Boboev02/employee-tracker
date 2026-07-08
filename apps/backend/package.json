@@ -10,6 +10,7 @@
     "prisma:deploy": "prisma migrate deploy"
   },
   "dependencies": {
+    "exceljs": "*",
     "nodemailer": "*",
     "@nestjs-modules/ioredis": "*",
     "@nestjs/bullmq": "*",

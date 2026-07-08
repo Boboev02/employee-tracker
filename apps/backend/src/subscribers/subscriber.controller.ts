@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, Res } from '@nestjs/common';
 import { CurrentUser, RequirePermissions, Public } from '../auth/decorators/index';
 import { SubscriberService } from './subscriber.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -79,6 +79,75 @@ export class SubscriberController {
     return { ok: true, orgsProcessed: orgs.length, results };
   }
 
+  // ─── Этап 8: Массовые операции ────────────────────────────────────────────
+
+  @Post('bulk/status')
+  @RequirePermissions('crm:write')
+  bulkStatus(@CurrentUser() u: any, @Body() body: { ids: string[]; crmStatus: string }) {
+    return this.subscribers.bulkUpdateStatus(u.orgId, u.id ?? u.sub, body.ids, body.crmStatus);
+  }
+
+  @Post('bulk/manager')
+  @RequirePermissions('crm:write')
+  bulkManager(@CurrentUser() u: any, @Body() body: { ids: string[]; managerId: string | null }) {
+    return this.subscribers.bulkAssignManager(u.orgId, u.id ?? u.sub, body.ids, body.managerId);
+  }
+
+  @Post('bulk/tag/add')
+  @RequirePermissions('crm:write')
+  bulkTagAdd(@CurrentUser() u: any, @Body() body: { ids: string[]; tag: string }) {
+    return this.subscribers.bulkAddTag(u.orgId, u.id ?? u.sub, body.ids, body.tag);
+  }
+
+  @Post('bulk/tag/remove')
+  @RequirePermissions('crm:write')
+  bulkTagRemove(@CurrentUser() u: any, @Body() body: { ids: string[]; tag: string }) {
+    return this.subscribers.bulkRemoveTag(u.orgId, u.id ?? u.sub, body.ids, body.tag);
+  }
+
+  @Post('bulk/archive')
+  @RequirePermissions('crm:write')
+  bulkArchive(@CurrentUser() u: any, @Body() body: { ids: string[] }) {
+    return this.subscribers.bulkArchive(u.orgId, u.id ?? u.sub, body.ids);
+  }
+
+  @Post('bulk/tasks')
+  @RequirePermissions('crm:write')
+  bulkTasks(@CurrentUser() u: any, @Body() body: any) {
+    return this.subscribers.bulkCreateTasks(u.orgId, u.id ?? u.sub, body.ids, body);
+  }
+
+  @Post('bulk/communication')
+  @RequirePermissions('crm:write')
+  bulkCommunication(@CurrentUser() u: any, @Body() body: { ids: string[]; channel: string; content: string }) {
+    return this.subscribers.bulkLogCommunication(u.orgId, u.id ?? u.sub, body.ids, body.channel, body.content);
+  }
+
+  // ─── Этап 9: Экспорт ────────────────────────────────────────────────────────
+
+  @Post('export/csv')
+  @RequirePermissions('crm:read')
+  async exportCsv(@CurrentUser() u: any, @Body() body: { ids?: string[] }, @Res() res: any) {
+    const csv = await this.subscribers.bulkExportCsv(u.orgId, body?.ids);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="subscribers.csv"');
+    res.send(csv);
+  }
+
+  // ─── Этап 11: Корзина ──────────────────────────────────────────────────────
+
+  @Get('trash')
+  @RequirePermissions('crm:read')
+  getTrash(@CurrentUser() u: any) { return this.subscribers.getTrash(u.orgId); }
+
+  @Post('trash/:id/restore')
+  @RequirePermissions('crm:write')
+  restore(@CurrentUser() u: any, @Param('id') id: string) { return this.subscribers.restore(u.orgId, id, u.id ?? u.sub); }
+
+  @Delete('trash/:id')
+  @RequirePermissions('crm:delete')
+  permanentlyDelete(@CurrentUser() u: any, @Param('id') id: string) { return this.subscribers.permanentlyDelete(u.orgId, id); }
+
   // ─── Generic :id роуты ────────────────────────────────────────────────────
 
   @Get(':id')
@@ -90,6 +159,10 @@ export class SubscriberController {
   updateSubscriber(@CurrentUser() u: any, @Param('id') id: string, @Body() body: any) {
     return this.subscribers.updateSubscriber(u.orgId, id, u.id ?? u.sub, body);
   }
+
+  @Delete(':id')
+  @RequirePermissions('crm:delete')
+  softDelete(@CurrentUser() u: any, @Param('id') id: string) { return this.subscribers.softDelete(u.orgId, id, u.id ?? u.sub); }
 
   @Get(':id/timeline')
   @RequirePermissions('crm:read')

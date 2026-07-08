@@ -38,10 +38,12 @@ export default function SubscriberDashboardPage() {
   const [token, setToken] = useState('');
   const [widgets, setWidgets] = useState<any>(null);
   const [charts, setCharts] = useState<any>(null);
+  const [reports, setReports] = useState<any>(null);
   const [order, setOrder] = useState<string[]>(DEFAULT_ORDER);
   const [loading, setLoading] = useState(true);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [showPricing, setShowPricing] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
   useEffect(() => {
@@ -59,12 +61,22 @@ export default function SubscriberDashboardPage() {
       fetch(`${API}/subscriber-dashboard/widgets`, { headers: h() }).then(r => r.json()),
       fetch(`${API}/subscriber-dashboard/charts`, { headers: h() }).then(r => r.json()),
       fetch(`${API}/subscriber-dashboard/layout`, { headers: h() }).then(r => r.json()).catch(() => null),
-    ]).then(([w, c, layout]) => {
-      setWidgets(w); setCharts(c);
+      fetch(`${API}/subscriber-dashboard/reports`, { headers: h() }).then(r => r.json()).catch(() => null),
+    ]).then(([w, c, layout, rep]) => {
+      setWidgets(w); setCharts(c); setReports(rep);
       if (layout && Array.isArray(layout) && layout.length > 0) setOrder(layout);
       setLoading(false);
     });
   }, [token, h]);
+
+  const exportExcel = async () => {
+    setExporting(true);
+    const r = await fetch(`${API}/subscriber-dashboard/export/excel`, { method: 'POST', headers: h(), body: JSON.stringify({}) });
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'subscribers.xlsx'; a.click();
+    setExporting(false);
+  };
 
   const saveOrder = async (newOrder: string[]) => {
     setOrder(newOrder);
@@ -90,6 +102,7 @@ export default function SubscriberDashboardPage() {
           <p style={{ fontSize: '11px', color: '#9B97CC', margin: '2px 0 0' }}>Перетаскивайте виджеты чтобы изменить порядок</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={exportExcel} disabled={exporting} style={{ background: '#F8F7FF', color: '#16A34A', border: '1px solid #EDE9FE', borderRadius: 20, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{exporting ? '...' : '📊 Экспорт Excel'}</button>
           <button onClick={() => setShowPricing(true)} style={{ background: '#F8F7FF', color: '#7F77DD', border: '1px solid #EDE9FE', borderRadius: 20, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>💲 Цены тарифов</button>
           <button onClick={() => router.push('/dashboard/subscribers')} style={{ background: '#F8F7FF', color: '#7F77DD', border: '1px solid #EDE9FE', borderRadius: 20, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>← К подписчикам</button>
         </div>
@@ -194,11 +207,40 @@ export default function SubscriberDashboardPage() {
                 </ResponsiveContainer>
               </ChartCard>
             </div>
+
+            {/* Reports tables (Этап 9) */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
+              <ReportTable title="👤 По менеджерам" rows={reports?.byManager ?? []} labelKey="manager" />
+              <ReportTable title="🌍 По странам" rows={reports?.byCountry ?? []} labelKey="country" />
+              <ReportTable title="🗣 По языкам" rows={reports?.byLanguage ?? []} labelKey="language" />
+              <ReportTable title="❌ По причинам отказа" rows={reports?.byCancelReason ?? []} labelKey="reason" countKey="count" />
+              <ReportTable title="⚡ Активность подписчиков (топ-20)" rows={reports?.byActivity ?? []} labelKey="subscriber" countKey="events" />
+            </div>
           </>
         )}
       </div>
 
       {showPricing && <PricingModal h={h} onClose={() => setShowPricing(false)} />}
+    </div>
+  );
+}
+
+function ReportTable({ title, rows, labelKey, countKey = 'count' }: { title: string; rows: any[]; labelKey: string; countKey?: string }) {
+  return (
+    <div style={{ background: 'white', borderRadius: 16, padding: 18, boxShadow: '0 4px 16px rgba(127,119,221,0.08)' }}>
+      <p style={{ fontSize: 13, fontWeight: 800, color: '#1a1040', margin: '0 0 12px' }}>{title}</p>
+      {rows.length === 0 ? (
+        <p style={{ fontSize: 12, color: '#C4C0E8', textAlign: 'center', padding: '16px 0' }}>Нет данных</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
+          {rows.map((r, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', background: '#F8F7FF', borderRadius: 8 }}>
+              <span style={{ fontSize: 12, color: '#1a1040' }}>{r[labelKey]}</span>
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: '#7F77DD', background: '#EDE9FE', padding: '1px 9px', borderRadius: 20 }}>{r[countKey]}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

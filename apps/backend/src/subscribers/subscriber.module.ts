@@ -6,11 +6,19 @@ import { SubscriberAutomationService } from './subscriber-automation.service';
 import { SubscriberAutomationController } from './subscriber-automation.controller';
 import { SubscriberDashboardService } from './subscriber-dashboard.service';
 import { SubscriberDashboardController } from './subscriber-dashboard.controller';
+import { SubscriberSettingsService } from './subscriber-settings.service';
+import { SubscriberSettingsController } from './subscriber-settings.controller';
 
 @Module({
   imports: [NotificationModule],
-  controllers: [SubscriberController, SubscriberAutomationController, SubscriberDashboardController],
-  providers: [SubscriberService, SubscriberAutomationService, SubscriberDashboardService],
-  exports: [SubscriberService, SubscriberAutomationService, SubscriberDashboardService],
+  controllers: [
+    SubscriberController, SubscriberAutomationController,
+    SubscriberDashboardController, SubscriberSettingsController,
+  ],
+  providers: [
+    SubscriberService, SubscriberAutomationService,
+    SubscriberDashboardService, SubscriberSettingsService,
+  ],
+  exports: [SubscriberService, SubscriberAutomationService, SubscriberDashboardService, SubscriberSettingsService],
 })
 export class SubscriberModule {}

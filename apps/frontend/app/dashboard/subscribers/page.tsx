@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import { SubscriberCard } from '@/components/subscribers/SubscriberCard';
 import { AutomationBuilder } from '@/components/subscribers/AutomationBuilder';
 import { RemindersCenter } from '@/components/subscribers/RemindersCenter';
+import { TrashModal } from '@/components/subscribers/TrashModal';
+import { CrmSettingsModal } from '@/components/subscribers/CrmSettingsModal';
 
 const API = 'https://employee-tracker.ru/api/v1';
 
@@ -68,6 +70,9 @@ export default function SubscribersPage() {
   const [showIntegration, setShowIntegration] = useState(false);
   const [showAutomation, setShowAutomation] = useState(false);
   const [showReminders, setShowReminders] = useState(false);
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const [showTrash, setShowTrash] = useState(false);
+  const [showCrmSettings, setShowCrmSettings] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -167,6 +172,14 @@ export default function SubscribersPage() {
           <p style={{ fontSize: '11px', color: '#9B97CC', margin: '2px 0 0' }}>{total} подписчиков</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => setShowTrash(true)}
+            style={{ background: '#F8F7FF', color: '#7F77DD', border: '1px solid #EDE9FE', borderRadius: '20px', padding: '8px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+            🗑 Корзина
+          </button>
+          <button onClick={() => setShowCrmSettings(true)}
+            style={{ background: '#F8F7FF', color: '#7F77DD', border: '1px solid #EDE9FE', borderRadius: '20px', padding: '8px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+            ⚙️ Настройки CRM
+          </button>
           <button onClick={() => router.push('/dashboard/subscribers/dashboard')}
             style={{ background: '#F8F7FF', color: '#7F77DD', border: '1px solid #EDE9FE', borderRadius: '20px', padding: '8px 16px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
             📊 Dashboard
@@ -282,18 +295,26 @@ export default function SubscribersPage() {
 
         {/* Bulk action bar */}
         {selected.size > 0 && (
-          <div style={{ ...cardStyle, padding: '10px 16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12, background: '#F0EDFF' }}>
+          <div style={{ ...cardStyle, padding: '10px 16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10, background: '#F0EDFF', flexWrap: 'wrap' }}>
             <span style={{ fontSize: 12.5, fontWeight: 700, color: '#7F77DD' }}>Выбрано: {selected.size}</span>
-            <select onChange={e => { if (e.target.value) { Array.from(selected).forEach(id => updateSubscriber(id, { crmStatus: e.target.value })); e.target.value = ''; } }}
+            <select onChange={async e => { if (e.target.value) { await fetch(`${API}/subscribers/bulk/status`, { method: 'POST', headers: h(), body: JSON.stringify({ ids: Array.from(selected), crmStatus: e.target.value }) }); e.target.value = ''; load(); } }}
               style={{ fontSize: 12, border: '1px solid #EDE9FE', borderRadius: 8, padding: '5px 10px', outline: 'none' }}>
               <option value="">Изменить статус...</option>
               {Object.entries(STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
-            <select onChange={e => { if (e.target.value) { Array.from(selected).forEach(id => updateSubscriber(id, { managerId: e.target.value })); e.target.value = ''; } }}
+            <select onChange={async e => { if (e.target.value) { await fetch(`${API}/subscribers/bulk/manager`, { method: 'POST', headers: h(), body: JSON.stringify({ ids: Array.from(selected), managerId: e.target.value }) }); e.target.value = ''; load(); } }}
               style={{ fontSize: 12, border: '1px solid #EDE9FE', borderRadius: 8, padding: '5px 10px', outline: 'none' }}>
               <option value="">Назначить менеджера...</option>
               {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
             </select>
+            <button onClick={async () => { const tag = prompt('Название тега:'); if (!tag) return; await fetch(`${API}/subscribers/bulk/tag/add`, { method: 'POST', headers: h(), body: JSON.stringify({ ids: Array.from(selected), tag }) }); load(); }}
+              style={{ fontSize: 11.5, background: 'white', border: '1px solid #EDE9FE', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', color: '#7F77DD', fontWeight: 600 }}>+ Тег</button>
+            <button onClick={async () => { if (!confirm(`Архивировать ${selected.size} подписчиков?`)) return; await fetch(`${API}/subscribers/bulk/archive`, { method: 'POST', headers: h(), body: JSON.stringify({ ids: Array.from(selected) }) }); load(); }}
+              style={{ fontSize: 11.5, background: 'white', border: '1px solid #EDE9FE', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', color: '#6B7280', fontWeight: 600 }}>📥 Архивировать</button>
+            <button onClick={async () => { const r = await fetch(`${API}/subscribers/export/csv`, { method: 'POST', headers: h(), body: JSON.stringify({ ids: Array.from(selected) }) }); const blob = await r.blob(); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'subscribers.csv'; a.click(); }}
+              style={{ fontSize: 11.5, background: 'white', border: '1px solid #EDE9FE', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', color: '#16A34A', fontWeight: 600 }}>📄 Экспорт CSV</button>
+            <button onClick={() => setBulkDeleteConfirm(true)}
+              style={{ fontSize: 11.5, background: 'white', border: '1px solid #FCA5A5', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', color: '#DC2626', fontWeight: 600 }}>🗑 Удалить</button>
             <button onClick={() => setSelected(new Set())} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#7F77DD', fontSize: 12, cursor: 'pointer', fontWeight: 700 }}>Снять выделение</button>
           </div>
         )}
@@ -393,6 +414,30 @@ export default function SubscribersPage() {
       {showReminders && (
         <RemindersCenter h={h} onClose={() => setShowReminders(false)}
           onSelectSubscriber={(s: any) => { setActiveSubscriber(s); setShowReminders(false); }} />
+      )}
+
+      {showTrash && (
+        <TrashModal h={h} onClose={() => setShowTrash(false)} onRestored={load} />
+      )}
+
+      {showCrmSettings && (
+        <CrmSettingsModal h={h} onClose={() => setShowCrmSettings(false)} />
+      )}
+
+      {bulkDeleteConfirm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,16,64,0.4)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'white', borderRadius: 20, padding: 24, width: 340, boxShadow: '0 24px 64px rgba(127,119,221,0.25)' }}>
+            <h3 style={{ fontSize: 15, fontWeight: 800, color: '#1a1040', margin: '0 0 8px' }}>Удалить {selected.size} подписчиков?</h3>
+            <p style={{ fontSize: 12.5, color: '#9B97CC', margin: '0 0 18px' }}>Они переместятся в корзину, откуда их можно восстановить.</p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={async () => {
+                for (const id of Array.from(selected)) await fetch(`${API}/subscribers/${id}`, { method: 'DELETE', headers: h() });
+                setBulkDeleteConfirm(false); setSelected(new Set()); load();
+              }} style={{ flex: 1, background: '#DC2626', color: 'white', border: 'none', borderRadius: 10, padding: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Удалить</button>
+              <button onClick={() => setBulkDeleteConfirm(false)} style={{ flex: 1, background: '#F8F7FF', color: '#6B7280', border: '1px solid #EDE9FE', borderRadius: 10, padding: 10, fontSize: 13, cursor: 'pointer' }}>Отмена</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
