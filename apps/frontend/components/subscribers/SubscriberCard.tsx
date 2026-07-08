@@ -15,6 +15,7 @@ const TABS = [
   { key: 'info', label: 'Основная информация', icon: '👤' },
   { key: 'subscription', label: 'Подписка', icon: '💳' },
   { key: 'crm', label: 'CRM', icon: '⚙️' },
+  { key: 'tasks', label: 'Задачи', icon: '📋' },
   { key: 'history', label: 'История', icon: '🕐' },
   { key: 'comments', label: 'Комментарии', icon: '💬' },
 ] as const;
@@ -36,6 +37,7 @@ export function SubscriberCard({ subscriberId, employees, h, onClose, onUpdate }
   const [full, setFull] = useState<any>(null);
   const [timeline, setTimeline] = useState<any[]>([]);
   const [comments, setComments] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<any[]>([]);
   const [newComment, setNewComment] = useState('');
   const [newTag, setNewTag] = useState('');
   const [loading, setLoading] = useState(true);
@@ -56,9 +58,13 @@ export function SubscriberCard({ subscriberId, employees, h, onClose, onUpdate }
     const r = await fetch(`${API}/subscribers/${subscriberId}/comments`, { headers: h() });
     setComments(await r.json().catch(() => []));
   };
+  const loadTasks = async () => {
+    const r = await fetch(`${API}/subscribers/${subscriberId}/tasks`, { headers: h() });
+    setTasks(await r.json().catch(() => []));
+  };
 
   useEffect(() => { load(); }, [subscriberId]);
-  useEffect(() => { if (tab === 'history') loadTimeline(); if (tab === 'comments') loadComments(); }, [tab]);
+  useEffect(() => { if (tab === 'history') loadTimeline(); if (tab === 'comments') loadComments(); if (tab === 'tasks') loadTasks(); }, [tab]);
 
   const patch = async (data: any) => {
     await fetch(`${API}/subscribers/${subscriberId}`, { method: 'PATCH', headers: h(), body: JSON.stringify(data) });
@@ -205,6 +211,31 @@ export function SubscriberCard({ subscriberId, employees, h, onClose, onUpdate }
               <p style={{ fontSize: 10.5, color: '#9B97CC', fontWeight: 700, textTransform: 'uppercase', margin: '0 0 8px' }}>Заметки</p>
               <textarea defaultValue={full.notes ?? ''} onBlur={e => patch({ notes: e.target.value })} rows={4} placeholder="Внутренние заметки о подписчике..."
                 style={{ width: '100%', background: '#F8F7FF', border: '1px solid #EDE9FE', borderRadius: 10, padding: '9px 12px', fontSize: 12.5, outline: 'none', boxSizing: 'border-box', resize: 'none' }} />
+            </div>
+          )}
+
+          {tab === 'tasks' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {tasks.length === 0 && (
+                <p style={{ fontSize: 12.5, color: '#C4C0E8', textAlign: 'center', padding: '20px 0' }}>Связанных задач пока нет</p>
+              )}
+              {tasks.map((t: any) => {
+                const STATUS_C: Record<string, { bg: string; c: string; l: string }> = {
+                  NEW: { bg: '#EDE9FE', c: '#7F77DD', l: 'Новая' }, IN_PROGRESS: { bg: '#DBEAFE', c: '#2563EB', l: 'В работе' },
+                  REVIEW: { bg: '#FEF3C7', c: '#D97706', l: 'На проверке' }, DONE: { bg: '#DCFCE7', c: '#16A34A', l: 'Готово' },
+                };
+                const sc = STATUS_C[t.status] ?? { bg: '#F3F4F6', c: '#6B7280', l: t.status };
+                return (
+                  <a key={t.id} href={`/dashboard/tasks/${t.id}`} target="_blank" rel="noopener noreferrer"
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#F8F7FF', borderRadius: 12, padding: '10px 14px', textDecoration: 'none' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 12.5, fontWeight: 700, color: '#1a1040', margin: 0 }}>{t.title}</p>
+                      <p style={{ fontSize: 11, color: '#9B97CC', margin: '2px 0 0' }}>{t.assignee?.name ?? 'Не назначен'} {t.dueDate && `· до ${new Date(t.dueDate).toLocaleDateString('ru')}`}</p>
+                    </div>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: sc.c, background: sc.bg, padding: '3px 10px', borderRadius: 20, flexShrink: 0 }}>{sc.l}</span>
+                  </a>
+                );
+              })}
             </div>
           )}
 

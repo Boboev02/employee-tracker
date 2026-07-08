@@ -114,4 +114,8 @@ export class SubscriberController {
   logCommunication(@CurrentUser() u: any, @Param('id') id: string, @Body() body: { channel: string; content?: string; templateId?: string }) {
     return this.subscribers.logCommunication(u.orgId, id, u.id ?? u.sub, body);
   }
+
+  @Get(':id/tasks')
+  @RequirePermissions('crm:read')
+  getTasks(@CurrentUser() u: any, @Param('id') id: string) { return this.subscribers.getLinkedTasks(u.orgId, id); }
 }

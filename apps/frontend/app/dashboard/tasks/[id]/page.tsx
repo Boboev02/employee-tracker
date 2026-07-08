@@ -290,7 +290,7 @@ export default function TaskDetailPage() {
         <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
 
           {/* Department / Project breadcrumb */}
-          {(task.department || task.project) && (
+          {(task.department || task.project || task.subscriber) && (
             <div style={{ ...card, padding:'12px 16px', display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
               {task.department && (
                 <span style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, fontWeight:600, color:'#1a1040', background:'#F8F7FF', padding:'5px 12px', borderRadius:20 }}>
@@ -306,6 +306,11 @@ export default function TaskDetailPage() {
               )}
               {!task.project && (
                 <span style={{ fontSize:11, color:'#D97706', background:'#FFFBEB', padding:'5px 12px', borderRadius:20 }}>⚠ Не привязана к проекту</span>
+              )}
+              {task.subscriber && (
+                <a href={`/dashboard/subscribers?open=${task.subscriber.id}`} style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, fontWeight:600, color:'#0891B2', background:'#CFFAFE', padding:'5px 12px', borderRadius:20, textDecoration:'none' }}>
+                  📊 {task.subscriber.firstName} {task.subscriber.lastName}
+                </a>
               )}
             </div>
           )}

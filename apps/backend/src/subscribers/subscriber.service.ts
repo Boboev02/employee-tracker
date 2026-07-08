@@ -287,6 +287,16 @@ export class SubscriberService {
     return [...historyEvents, ...commentEvents, ...commEvents].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 
+  // ─── Этап 6: Интеграция с задачами ──────────────────────────────────────────
+
+  async getLinkedTasks(orgId: string, subscriberId: string) {
+    return this.prisma.task.findMany({
+      where: { orgId, subscriberId, deletedAt: null },
+      orderBy: { createdAt: 'desc' },
+      include: { assignee: { select: { id: true, name: true, avatarUrl: true } } },
+    });
+  }
+
   // ─── Этап 5: Центр напоминаний ───────────────────────────────────────────────
 
   /** Группирует подписчиков по срокам до окончания триала/подписки */

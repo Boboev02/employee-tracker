@@ -88,6 +88,22 @@ export class SubscriberAutomationService {
         await this.tryRun(rule, subscriber, orgId);
       }
     }
+
+    // ─── Этап 6: "Если продлилась → закрыть задачу" (встроенное поведение, не зависит от пользовательских правил) ───
+    const isRenewal = (field === 'planStatus' && oldValue === 'expired' && newValue === 'active')
+      || (field === 'crmStatus' && newValue === 'RENEWED');
+    if (isRenewal) await this.autoCloseLinkedTasks(orgId, subscriber.id);
+  }
+
+  /** Закрывает все незавершённые задачи, связанные с подписчиком (Task.subscriberId) */
+  private async autoCloseLinkedTasks(orgId: string, subscriberId: string) {
+    const openTasks = await this.prisma.task.findMany({
+      where: { orgId, subscriberId, status: { notIn: ['DONE', 'CANCELLED'] }, deletedAt: null },
+    });
+    for (const task of openTasks) {
+      await this.prisma.task.update({ where: { id: task.id }, data: { status: 'DONE' } });
+    }
+    if (openTasks.length > 0) this.logger.log(`Auto-closed ${openTasks.length} tasks for subscriber ${subscriberId} (renewal)`);
   }
 
   /** Вызывается системным cron раз в день: DAYS_REMAINING + INACTIVE_DAYS */
@@ -161,6 +177,7 @@ export class SubscriberAutomationService {
             assigneeId: params.assigneeId, projectId: params.projectId, departmentId: params.departmentId,
             priority: params.priority ?? 'MEDIUM', status: 'NEW',
             dueDate: params.dueInDays ? new Date(Date.now() + params.dueInDays * 86400000) : undefined,
+            subscriberId: subscriber.id,
           },
         });
         break;

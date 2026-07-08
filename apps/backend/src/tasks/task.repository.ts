@@ -15,6 +15,7 @@ export class TaskRepository {
         project:    { select: { id: true, name: true, status: true, color: true } },
         department: { select: { id: true, name: true, color: true } },
         assignee:   { select: { id: true, name: true, avatarUrl: true } },
+        subscriber: { select: { id: true, firstName: true, lastName: true, plan: true, crmStatus: true } },
         participants: {
           where: { role: 'co_executor' },
           include: { user: { select: { id: true, name: true, avatarUrl: true } } },

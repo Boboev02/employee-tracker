@@ -197,7 +197,8 @@ model Task {
   productId     String?   // Привязка к карточке товара
   departmentId  String?   // Привязка к отделу
   projectId     String?   // Привязка к проекту
-  dealId        String?   // Привязка к сделке CRM
+  dealId        String?   // Привязка к сделке CRM (устаревшее поле, оставлено для истории)
+  subscriberId  String?   // Привязка к подписчику (Этап 6: связь CRM подписчиков ↔ Задачи)
   deletedAt     DateTime?
   taskTypeId    String?
   customFields  Json?
@@ -212,6 +213,7 @@ model Task {
   product       Product?    @relation(fields: [productId], references: [id])
   department    Department? @relation(fields: [departmentId], references: [id])
   project       Project?    @relation(fields: [projectId], references: [id])
+  subscriber    Subscriber? @relation(fields: [subscriberId], references: [id])
   taskType      TaskType?   @relation("TaskTypeRelation", fields: [taskTypeId], references: [id])
   fieldValues   CustomFieldValue[]
   attachments   TaskAttachment[]
@@ -221,6 +223,7 @@ model Task {
   @@index([departmentId])
   @@index([projectId])
   @@index([dealId])
+  @@index([subscriberId])
 }
 
 model TaskComment {
@@ -994,6 +997,7 @@ model Subscriber {
   history            SubscriberHistory[]
   comments           SubscriberComment[]
   communications     SubscriberCommunication[]
+  tasks              Task[]
 
   @@unique([orgId, externalSource, externalId])
   @@index([orgId])
