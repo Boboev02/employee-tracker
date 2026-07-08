@@ -71,7 +71,7 @@ export function AutomationBuilder({ h, employees, onClose }: any) {
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,16,64,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,16,64,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fadeIn 0.15s ease-out' }}>
       <div style={{ background: 'white', borderRadius: 20, width: 620, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(127,119,221,0.25)' }}>
         <div style={{ padding: '20px 24px', borderBottom: '1px solid #F3F0FF', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <div>
@@ -109,7 +109,7 @@ export function AutomationBuilder({ h, employees, onClose }: any) {
       </div>
 
       {showForm && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,16,64,0.5)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,16,64,0.5)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fadeIn 0.15s ease-out' }}>
           <div style={{ background: 'white', borderRadius: 20, padding: 24, width: 460, maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(127,119,221,0.25)' }}>
             <h3 style={{ fontSize: 15, fontWeight: 800, color: '#1a1040', margin: '0 0 16px' }}>Новое правило</h3>
 

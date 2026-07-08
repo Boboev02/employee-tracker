@@ -464,6 +464,10 @@ input:focus, select:focus, textarea:focus {
   flex-shrink: 0;
 }
 
+/* Skeleton loading shimmer (Этап 13 CRM UX) */
+@keyframes skeletonShimmer { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+.skeleton-pulse { animation: skeletonShimmer 1.4s ease-in-out infinite; }
+
 /* Animated gradient hero band — background-size 200% required inline alongside this class */
 .gradient-hero {
   background-size: 200% 200%;

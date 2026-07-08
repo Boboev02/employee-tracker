@@ -6,15 +6,10 @@ import { AutomationBuilder } from '@/components/subscribers/AutomationBuilder';
 import { RemindersCenter } from '@/components/subscribers/RemindersCenter';
 import { TrashModal } from '@/components/subscribers/TrashModal';
 import { CrmSettingsModal } from '@/components/subscribers/CrmSettingsModal';
+import { PLAN_LABELS, PLAN_COLORS, STATUS_LABELS, STATUS_COLORS } from '@/lib/subscriberConstants';
 
 const API = 'https://employee-tracker.ru/api/v1';
 
-const PLAN_LABELS: Record<string, string> = { TRIAL: 'Пробный', PRO: 'Профи', BUSINESS: 'Бизнес', NONE: 'Нет подписки' };
-const PLAN_COLORS: Record<string, { bg: string; c: string }> = {
-  TRIAL: { bg: '#FEF3C7', c: '#D97706' }, PRO: { bg: '#DBEAFE', c: '#2563EB' },
-  BUSINESS: { bg: '#DCFCE7', c: '#16A34A' }, NONE: { bg: '#F3F4F6', c: '#6B7280' },
-};
-const STATUS_LABELS: Record<string, string> = { NEW: 'Новый', IN_PROGRESS: 'В работе', CONTACTED: 'Связались', RENEWED: 'Продлил', LOST: 'Потерян', ARCHIVED: 'В архиве' };
 const STATUS_COLORS: Record<string, { bg: string; c: string }> = {
   NEW: { bg: '#EDE9FE', c: '#7F77DD' }, IN_PROGRESS: { bg: '#DBEAFE', c: '#2563EB' }, CONTACTED: { bg: '#FEF3C7', c: '#D97706' },
   RENEWED: { bg: '#DCFCE7', c: '#16A34A' }, LOST: { bg: '#FEE2E2', c: '#DC2626' }, ARCHIVED: { bg: '#F3F4F6', c: '#6B7280' },
@@ -57,7 +52,14 @@ export default function SubscribersPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [groupBy, setGroupBy] = useState<'none' | 'plan' | 'crmStatus' | 'managerId'>('none');
 
-  const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
+  const [hiddenCols, setHiddenColsState] = useState<Set<string>>(new Set());
+  const setHiddenCols = (updater: Set<string> | ((prev: Set<string>) => Set<string>)) => {
+    setHiddenColsState(prev => {
+      const next = typeof updater === 'function' ? (updater as any)(prev) : updater;
+      try { localStorage.setItem('subscribers_hidden_cols', JSON.stringify(Array.from(next))); } catch {}
+      return next;
+    });
+  };
   const [showColMenu, setShowColMenu] = useState(false);
   const colMenuRef = useRef<HTMLDivElement>(null);
   const [showPlanMenu, setShowPlanMenu] = useState(false);
@@ -73,8 +75,45 @@ export default function SubscribersPage() {
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
   const [showCrmSettings, setShowCrmSettings] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; subscriber: any } | null>(null);
 
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    setMounted(true);
+    try {
+      const saved = localStorage.getItem('subscribers_hidden_cols');
+      if (saved) setHiddenColsState(new Set(JSON.parse(saved)));
+    } catch {}
+  }, []);
+
+  // Этап 13: горячая клавиша Escape закрывает открытые модальные окна/панели
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        return;
+      }
+      if (e.key !== 'Escape') return;
+      if (contextMenu) setContextMenu(null);
+      if (activeSubscriber) setActiveSubscriber(null);
+      else if (showIntegration) setShowIntegration(false);
+      else if (showAutomation) setShowAutomation(false);
+      else if (showReminders) setShowReminders(false);
+      else if (showTrash) setShowTrash(false);
+      else if (showCrmSettings) setShowCrmSettings(false);
+      else if (bulkDeleteConfirm) setBulkDeleteConfirm(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [activeSubscriber, showIntegration, showAutomation, showReminders, showTrash, showCrmSettings, bulkDeleteConfirm, contextMenu]);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const closeMenu = () => setContextMenu(null);
+    document.addEventListener('click', closeMenu);
+    return () => document.removeEventListener('click', closeMenu);
+  }, [contextMenu]);
 
   useEffect(() => {
     const t = localStorage.getItem('access_token');
@@ -222,7 +261,7 @@ export default function SubscribersPage() {
 
         {/* Toolbar: search, filters, group, columns */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск по имени, email, телефону..."
+          <input ref={searchInputRef} value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск по имени, email, телефону... (Ctrl+K)"
             style={{ background: 'white', border: '1px solid #EDE9FE', borderRadius: '20px', padding: '8px 16px', fontSize: '12.5px', outline: 'none', width: 260 }} />
 
           {/* Plan filter */}
@@ -322,7 +361,18 @@ export default function SubscribersPage() {
         {/* Table */}
         <div style={{ ...cardStyle, overflow: 'hidden' }}>
           {loading ? (
-            <div style={{ padding: 40, textAlign: 'center' }}><p style={{ color: '#9B97CC', margin: 0 }}>Загрузка...</p></div>
+            <div style={{ padding: '16px 20px' }}>
+              {[...Array(6)].map((_, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 0', borderBottom: i < 5 ? '1px solid #F8F7FF' : 'none' }}>
+                  <div className="skeleton-pulse" style={{ width: 36, height: 36, borderRadius: '50%', background: '#EDE9FE' }} />
+                  <div style={{ flex: 1 }}>
+                    <div className="skeleton-pulse" style={{ width: '30%', height: 12, borderRadius: 6, background: '#EDE9FE', marginBottom: 8 }} />
+                    <div className="skeleton-pulse" style={{ width: '50%', height: 10, borderRadius: 6, background: '#F3F0FF' }} />
+                  </div>
+                  <div className="skeleton-pulse" style={{ width: 70, height: 20, borderRadius: 20, background: '#EDE9FE' }} />
+                </div>
+              ))}
+            </div>
           ) : subscribers.length === 0 ? (
             <div style={{ padding: 50, textAlign: 'center' }}>
               <p style={{ fontSize: 30, margin: '0 0 10px' }}>📊</p>
@@ -360,7 +410,8 @@ export default function SubscribersPage() {
                         return (
                           <tr key={s.id} style={{ borderTop: '1px solid #F3F0FF', cursor: 'pointer' }}
                             onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#FAFAFE'}
-                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'white'}>
+                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'white'}
+                            onContextMenu={e => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, subscriber: s }); }}>
                             <td style={{ padding: '10px 14px' }} onClick={e => e.stopPropagation()}>
                               <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggleSelectOne(s.id)} style={{ accentColor: '#7F77DD' }} />
                             </td>
@@ -425,7 +476,7 @@ export default function SubscribersPage() {
       )}
 
       {bulkDeleteConfirm && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,16,64,0.4)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,16,64,0.4)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fadeIn 0.15s ease-out' }}>
           <div style={{ background: 'white', borderRadius: 20, padding: 24, width: 340, boxShadow: '0 24px 64px rgba(127,119,221,0.25)' }}>
             <h3 style={{ fontSize: 15, fontWeight: 800, color: '#1a1040', margin: '0 0 8px' }}>Удалить {selected.size} подписчиков?</h3>
             <p style={{ fontSize: 12.5, color: '#9B97CC', margin: '0 0 18px' }}>Они переместятся в корзину, откуда их можно восстановить.</p>
@@ -437,6 +488,25 @@ export default function SubscribersPage() {
               <button onClick={() => setBulkDeleteConfirm(false)} style={{ flex: 1, background: '#F8F7FF', color: '#6B7280', border: '1px solid #EDE9FE', borderRadius: 10, padding: 10, fontSize: 13, cursor: 'pointer' }}>Отмена</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {contextMenu && (
+        <div onClick={e => e.stopPropagation()}
+          style={{ position: 'fixed', top: contextMenu.y, left: contextMenu.x, zIndex: 1200, background: 'white', borderRadius: 12, boxShadow: '0 8px 24px rgba(127,119,221,0.25)', border: '1px solid #EDE9FE', padding: 6, minWidth: 180, animation: 'fadeIn 0.1s ease-out' }}>
+          <button onClick={() => { setActiveSubscriber(contextMenu.subscriber); setContextMenu(null); }}
+            style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8, border: 'none', background: 'none', fontSize: 12.5, color: '#1a1040', cursor: 'pointer', textAlign: 'left' }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#F8F7FF'} onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'none'}>👤 Открыть карточку</button>
+          <button onClick={async () => { await fetch(`${API}/subscribers/bulk/archive`, { method: 'POST', headers: h(), body: JSON.stringify({ ids: [contextMenu.subscriber.id] }) }); setContextMenu(null); load(); }}
+            style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8, border: 'none', background: 'none', fontSize: 12.5, color: '#1a1040', cursor: 'pointer', textAlign: 'left' }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#F8F7FF'} onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'none'}>📥 Архивировать</button>
+          <button onClick={async () => { const text = [contextMenu.subscriber.firstName, contextMenu.subscriber.lastName, contextMenu.subscriber.email, contextMenu.subscriber.phone].filter(Boolean).join(' · '); navigator.clipboard?.writeText(text); setContextMenu(null); }}
+            style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8, border: 'none', background: 'none', fontSize: 12.5, color: '#1a1040', cursor: 'pointer', textAlign: 'left' }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#F8F7FF'} onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'none'}>📋 Копировать контакты</button>
+          <div style={{ height: 1, background: '#F3F0FF', margin: '4px 0' }} />
+          <button onClick={async () => { await fetch(`${API}/subscribers/${contextMenu.subscriber.id}`, { method: 'DELETE', headers: h() }); setContextMenu(null); load(); }}
+            style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8, border: 'none', background: 'none', fontSize: 12.5, color: '#DC2626', cursor: 'pointer', textAlign: 'left' }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#FEF2F2'} onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'none'}>🗑 Удалить</button>
         </div>
       )}
     </div>
@@ -470,7 +540,7 @@ function IntegrationModal({ h, onClose }: any) {
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,16,64,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,16,64,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fadeIn 0.15s ease-out' }}>
       <div style={{ background: 'white', borderRadius: 20, padding: 24, width: 400, boxShadow: '0 24px 64px rgba(127,119,221,0.2)' }}>
         <h3 style={{ fontSize: 16, fontWeight: 800, color: '#1a1040', margin: '0 0 4px' }}>👑 Интеграция KingStats</h3>
         <p style={{ fontSize: 11.5, color: '#9B97CC', margin: '0 0 16px' }}>Синхронизация подписчиков</p>

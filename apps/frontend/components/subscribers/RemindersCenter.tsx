@@ -1,9 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { PLAN_LABELS } from '@/lib/subscriberConstants';
 
 const API = 'https://employee-tracker.ru/api/v1';
 
-const PLAN_LABELS: Record<string, string> = { TRIAL: 'Пробный', PRO: 'Профи', BUSINESS: 'Бизнес', NONE: 'Нет подписки' };
 
 const BUCKETS = [
   { key: 'overdue', label: 'Просрочено', icon: '🔴', color: '#DC2626', bg: '#FEE2E2' },
@@ -52,7 +52,7 @@ export function RemindersCenter({ h, onClose, onSelectSubscriber }: any) {
   const items = data?.[activeBucket] ?? [];
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,16,64,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,16,64,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fadeIn 0.15s ease-out' }}>
       <div style={{ background: 'white', borderRadius: 20, width: 600, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(127,119,221,0.25)' }}>
         <div style={{ padding: '20px 24px', borderBottom: '1px solid #F3F0FF', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <div>

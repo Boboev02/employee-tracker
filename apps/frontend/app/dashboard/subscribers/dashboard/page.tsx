@@ -2,10 +2,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { PLAN_LABELS } from '@/lib/subscriberConstants';
 
 const API = 'https://employee-tracker.ru/api/v1';
 const COLORS = ['#7F77DD', '#2563EB', '#16A34A', '#D97706', '#DC2626', '#0891B2'];
-const PLAN_LABELS: Record<string, string> = { TRIAL: 'Пробный', PRO: 'Профи', BUSINESS: 'Бизнес', NONE: 'Нет подписки' };
 
 const WIDGET_DEFS: Record<string, { label: string; icon: string; format: 'number' | 'currency' | 'percent' }> = {
   total:            { label: 'Всего пользователей', icon: '👥', format: 'number' },
@@ -114,7 +114,7 @@ export default function SubscriberDashboardPage() {
         ) : (
           <>
             {/* Widgets grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12, marginBottom: 24 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 12, marginBottom: 24 }}>
               {order.map((key, idx) => {
                 const def = WIDGET_DEFS[key];
                 if (!def) return null;
@@ -133,7 +133,7 @@ export default function SubscriberDashboardPage() {
             </div>
 
             {/* Charts */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16 }}>
               <ChartCard title="📈 Регистрации (30 дней)">
                 <ResponsiveContainer width="100%" height={220}>
                   <LineChart data={charts?.registrations ?? []}>
@@ -209,7 +209,7 @@ export default function SubscriberDashboardPage() {
             </div>
 
             {/* Reports tables (Этап 9) */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, marginTop: 16 }}>
               <ReportTable title="👤 По менеджерам" rows={reports?.byManager ?? []} labelKey="manager" />
               <ReportTable title="🌍 По странам" rows={reports?.byCountry ?? []} labelKey="country" />
               <ReportTable title="🗣 По языкам" rows={reports?.byLanguage ?? []} labelKey="language" />
@@ -272,7 +272,7 @@ function PricingModal({ h, onClose }: any) {
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,16,64,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,16,64,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fadeIn 0.15s ease-out' }}>
       <div style={{ background: 'white', borderRadius: 20, padding: 24, width: 340, boxShadow: '0 24px 64px rgba(127,119,221,0.25)' }}>
         <h3 style={{ fontSize: 15, fontWeight: 800, color: '#1a1040', margin: '0 0 4px' }}>💲 Цены тарифов</h3>
         <p style={{ fontSize: 11.5, color: '#9B97CC', margin: '0 0 16px' }}>Нужны для расчёта MRR, ARR, LTV, среднего чека</p>

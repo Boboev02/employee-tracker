@@ -1,14 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { PLAN_LABELS, PLAN_COLORS, STATUS_LABELS } from '@/lib/subscriberConstants';
 
 const API = 'https://employee-tracker.ru/api/v1';
 
-const PLAN_LABELS: Record<string, string> = { TRIAL: 'Пробный', PRO: 'Профи', BUSINESS: 'Бизнес', NONE: 'Нет подписки' };
-const PLAN_COLORS: Record<string, { bg: string; c: string }> = {
-  TRIAL: { bg: '#FEF3C7', c: '#D97706' }, PRO: { bg: '#DBEAFE', c: '#2563EB' },
-  BUSINESS: { bg: '#DCFCE7', c: '#16A34A' }, NONE: { bg: '#F3F4F6', c: '#6B7280' },
-};
-const STATUS_LABELS: Record<string, string> = { NEW: 'Новый', IN_PROGRESS: 'В работе', CONTACTED: 'Связались', RENEWED: 'Продлил', LOST: 'Потерян', ARCHIVED: 'В архиве' };
 const FIELD_LABELS: Record<string, string> = { crmStatus: 'CRM статус', tags: 'Теги', managerId: 'Менеджер', plan: 'Тариф', planStatus: 'Статус подписки' };
 
 const TABS = [
@@ -98,7 +93,7 @@ export function SubscriberCard({ subscriberId, employees, h, onClose, onUpdate }
 
   if (loading || !full) {
     return (
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,16,64,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,16,64,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fadeIn 0.15s ease-out' }}>
         <div style={{ background: 'white', borderRadius: 20, padding: 40, color: '#9B97CC' }}>Загрузка...</div>
       </div>
     );
@@ -107,7 +102,7 @@ export function SubscriberCard({ subscriberId, employees, h, onClose, onUpdate }
   const pc = PLAN_COLORS[full.plan] ?? PLAN_COLORS.NONE;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,16,64,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,16,64,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fadeIn 0.15s ease-out' }}>
       <div style={{ background: 'white', borderRadius: 20, width: 560, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(127,119,221,0.25)' }}>
         {/* Header */}
         <div style={{ padding: '20px 24px', borderBottom: '1px solid #F3F0FF', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
@@ -403,7 +398,7 @@ function NewTemplateModal({ channel, h, onClose, onCreated }: any) {
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,16,64,0.4)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,16,64,0.4)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fadeIn 0.15s ease-out' }}>
       <div style={{ background: 'white', borderRadius: 16, padding: 20, width: 340, boxShadow: '0 24px 64px rgba(127,119,221,0.25)' }}>
         <p style={{ fontSize: 14, fontWeight: 800, color: '#1a1040', margin: '0 0 12px' }}>Новый шаблон</p>
         <input value={name} onChange={e => setName(e.target.value)} placeholder="Название шаблона"
