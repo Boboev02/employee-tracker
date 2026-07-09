@@ -79,6 +79,26 @@ export class SubscriberController {
     return { ok: true, orgsProcessed: orgs.length, results };
   }
 
+  // Системный cron (каждые 5 минут) — подтягивает новых/изменённых подписчиков из KingStats
+  // и тем самым запускает триггер ON_REGISTER для быстрого уведомления менеджера о новой регистрации
+  @Public()
+  @Post('cron/sync-all')
+  async syncAll(@Req() req: any) {
+    const ip = req.ip || req.connection?.remoteAddress || '';
+    const isLocal = ip.includes('127.0.0.1') || ip.includes('::1') || /^(::ffff:)?(172\.(1[6-9]|2\d|3[01])\.|10\.|192\.168\.)/.test(ip);
+    if (!isLocal) return { error: 'Forbidden' };
+    const integrations = await this.prisma.subscriberIntegration.findMany({ where: { isActive: true } });
+    const results = [];
+    for (const integration of integrations) {
+      try {
+        results.push({ orgId: integration.orgId, name: integration.name, ...(await this.subscribers.syncNow(integration.orgId, integration.name)) });
+      } catch (e: any) {
+        results.push({ orgId: integration.orgId, name: integration.name, ok: false, error: e.message });
+      }
+    }
+    return { ok: true, integrationsProcessed: integrations.length, results };
+  }
+
   // ─── Этап 8: Массовые операции ────────────────────────────────────────────
 
   @Post('bulk/status')
