@@ -30,6 +30,7 @@ model User {
   status    String    @default("ACTIVE")
   avatarUrl      String?
   telegramChatId String?
+  notificationEmail String? // куда слать внутренние email-уведомления (может отличаться от логина)
   birthDate      DateTime?
   gender         String?
   hiredAt        DateTime?

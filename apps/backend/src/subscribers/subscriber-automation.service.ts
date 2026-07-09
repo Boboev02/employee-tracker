@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notifications/notification.service';
 import { TelegramNotifyService } from './telegram-notify.service';
+import { EmailNotifyService } from './email-notify.service';
 
 const PLAN_RU: Record<string, string> = { TRIAL: 'Пробный', PRO: 'Профи', BUSINESS: 'Бизнес', NONE: 'Нет подписки' };
 
@@ -17,6 +18,7 @@ export class SubscriberAutomationService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationService,
     private readonly telegram: TelegramNotifyService,
+    private readonly email: EmailNotifyService,
   ) {}
 
   // ─── CRUD правил ─────────────────────────────────────────────────────────────
@@ -199,10 +201,21 @@ export class SubscriberAutomationService {
         }
         break;
       }
-      case 'SEND_EMAIL':
+      case 'SEND_EMAIL': {
+        const content = params.templateId
+          ? this.interpolate((await this.prisma.messageTemplate.findUnique({ where: { id: params.templateId } }))?.content ?? '', subscriber)
+          : this.interpolate(params.content ?? '', subscriber);
+        if (subscriber.email) {
+          await this.email.sendMail(subscriber.email, params.subject ?? 'KingStats', content).catch(() => {});
+        }
+        await this.prisma.subscriberCommunication.create({
+          data: { subscriberId: subscriber.id, orgId, channel: 'EMAIL', content, templateId: params.templateId, sentById: null },
+        });
+        break;
+      }
       case 'SEND_WHATSAPP':
       case 'SEND_TELEGRAM': {
-        const channel = type === 'SEND_EMAIL' ? 'EMAIL' : type === 'SEND_WHATSAPP' ? 'WHATSAPP' : 'TELEGRAM';
+        const channel = type === 'SEND_WHATSAPP' ? 'WHATSAPP' : 'TELEGRAM';
         const content = params.templateId
           ? this.interpolate((await this.prisma.messageTemplate.findUnique({ where: { id: params.templateId } }))?.content ?? '', subscriber)
           : this.interpolate(params.content ?? '', subscriber);
@@ -215,12 +228,17 @@ export class SubscriberAutomationService {
         const userId = params.userId ?? subscriber.managerId;
         if (!userId) return;
         const message = this.interpolate(params.message ?? '', subscriber);
-        await this.notifications.create(userId, orgId, 'subscriber_automation', params.title ?? '⚡ Автоматизация CRM', message).catch(() => {});
-        // Дублируем в Telegram, если у пользователя настроен chat_id (реальная доставка, не только внутри системы)
-        const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { telegramChatId: true } });
+        const title = params.title ?? '⚡ Автоматизация CRM';
+        await this.notifications.create(userId, orgId, 'subscriber_automation', title, message).catch(() => {});
+        // Дублируем в реальные каналы (Telegram/Email), если у пользователя они настроены — не только внутри системы
+        const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { telegramChatId: true, email: true, notificationEmail: true } });
         if (user?.telegramChatId) {
-          const tgText = `${params.title ?? '⚡ Автоматизация CRM'}\n\n${message}`;
+          const tgText = `${title}\n\n${message}`;
           await this.telegram.sendMessage(user.telegramChatId, tgText).catch(() => {});
+        }
+        const targetEmail = user?.notificationEmail ?? user?.email;
+        if (targetEmail) {
+          await this.email.sendMail(targetEmail, title, message).catch(() => {});
         }
         break;
       }
