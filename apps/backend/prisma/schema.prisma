@@ -25,6 +25,7 @@ model User {
   id        String    @id @default(uuid())
   email     String    @unique
   name      String
+  telegramChatId String? // для отправки внутренних уведомлений в Telegram (Бот KingStats и т.п.)
   password  String
   orgId     String
   status    String    @default("ACTIVE")

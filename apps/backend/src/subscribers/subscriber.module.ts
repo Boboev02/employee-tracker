@@ -8,6 +8,7 @@ import { SubscriberDashboardService } from './subscriber-dashboard.service';
 import { SubscriberDashboardController } from './subscriber-dashboard.controller';
 import { SubscriberSettingsService } from './subscriber-settings.service';
 import { SubscriberSettingsController } from './subscriber-settings.controller';
+import { TelegramNotifyService } from './telegram-notify.service';
 
 @Module({
   imports: [NotificationModule],
@@ -18,6 +19,7 @@ import { SubscriberSettingsController } from './subscriber-settings.controller';
   providers: [
     SubscriberService, SubscriberAutomationService,
     SubscriberDashboardService, SubscriberSettingsService,
+    TelegramNotifyService,
   ],
   exports: [SubscriberService, SubscriberAutomationService, SubscriberDashboardService, SubscriberSettingsService],
 })

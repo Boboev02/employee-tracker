@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notifications/notification.service';
+import { TelegramNotifyService } from './telegram-notify.service';
 
 const PLAN_RU: Record<string, string> = { TRIAL: 'Пробный', PRO: 'Профи', BUSINESS: 'Бизнес', NONE: 'Нет подписки' };
 
@@ -15,6 +16,7 @@ export class SubscriberAutomationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationService,
+    private readonly telegram: TelegramNotifyService,
   ) {}
 
   // ─── CRUD правил ─────────────────────────────────────────────────────────────
@@ -212,7 +214,14 @@ export class SubscriberAutomationService {
       case 'NOTIFY_USER': {
         const userId = params.userId ?? subscriber.managerId;
         if (!userId) return;
-        await this.notifications.create(userId, orgId, 'subscriber_automation', params.title ?? '⚡ Автоматизация CRM', this.interpolate(params.message ?? '', subscriber)).catch(() => {});
+        const message = this.interpolate(params.message ?? '', subscriber);
+        await this.notifications.create(userId, orgId, 'subscriber_automation', params.title ?? '⚡ Автоматизация CRM', message).catch(() => {});
+        // Дублируем в Telegram, если у пользователя настроен chat_id (реальная доставка, не только внутри системы)
+        const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { telegramChatId: true } });
+        if (user?.telegramChatId) {
+          const tgText = `${params.title ?? '⚡ Автоматизация CRM'}\n\n${message}`;
+          await this.telegram.sendMessage(user.telegramChatId, tgText).catch(() => {});
+        }
         break;
       }
       case 'ADD_COMMENT':
