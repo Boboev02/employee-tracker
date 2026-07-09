@@ -9,6 +9,7 @@ import { SubscriberDashboardController } from './subscriber-dashboard.controller
 import { SubscriberSettingsService } from './subscriber-settings.service';
 import { SubscriberSettingsController } from './subscriber-settings.controller';
 import { TelegramNotifyService } from './telegram-notify.service';
+import { EmailNotifyService } from './email-notify.service';
 
 @Module({
   imports: [NotificationModule],
@@ -19,7 +20,7 @@ import { TelegramNotifyService } from './telegram-notify.service';
   providers: [
     SubscriberService, SubscriberAutomationService,
     SubscriberDashboardService, SubscriberSettingsService,
-    TelegramNotifyService,
+    TelegramNotifyService, EmailNotifyService,
   ],
   exports: [SubscriberService, SubscriberAutomationService, SubscriberDashboardService, SubscriberSettingsService],
 })
