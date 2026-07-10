@@ -440,7 +440,7 @@ export function ChatPanel({ token, currentUserId, compact = false }: Props) {
                           )}
 
                           {m.attachmentUrl && m.attachmentType==='image' && (
-                            <img src={m.attachmentUrl} alt={m.attachmentName??''} onClick={() => setLightboxUrl(m.attachmentUrl)}
+                            <img src={m.attachmentUrl} alt={m.attachmentName??''} onClick={() => setLightboxUrl(m.attachmentUrl ?? null)}
                               style={{ maxWidth:220, borderRadius:12, border:'1px solid #EDE9FE', cursor:'pointer' }} />
                           )}
                           {m.attachmentUrl && m.attachmentType==='file' && (

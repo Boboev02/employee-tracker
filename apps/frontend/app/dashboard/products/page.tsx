@@ -16,6 +16,7 @@ export default function ProductsPage() {
   const [marketplace, setMarketplace] = useState('');
   const [search, setSearch] = useState('');
   const [syncResult, setSyncResult] = useState('');
+  const [showApiSettings, setShowApiSettings] = useState(false);
   const [user, setUser] = useState<any>(null);
 
   const h = () => ({ Authorization: 'Bearer ' + localStorage.getItem('access_token') });
@@ -70,6 +71,10 @@ export default function ProductsPage() {
         {isAdmin && (
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             {syncResult && <span style={{ fontSize: '12px', color: syncResult.startsWith('✅') ? '#16A34A' : '#DC2626' }}>{syncResult}</span>}
+            <button onClick={() => setShowApiSettings(true)}
+              style={{ background: '#F8F7FF', color: '#7F77DD', border: '1px solid #EDE9FE', borderRadius: '14px', padding: '9px 18px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+              ⚙️ API ключи
+            </button>
             <button onClick={() => sync('WB')} disabled={!!syncing}
               style={{ background: 'linear-gradient(135deg,#8B2FC9,#5D0FA3)', color: 'white', border: 'none', borderRadius: '14px', padding: '9px 18px', fontSize: '12px', fontWeight: 700, cursor: syncing ? 'not-allowed' : 'pointer', opacity: syncing === 'WB' ? 0.7 : 1 }}>
               {syncing === 'WB' ? '⏳ Загрузка...' : '🔄 Синхр. WB'}
@@ -147,6 +152,71 @@ export default function ProductsPage() {
             )}
           </>
         )}
+      </div>
+
+      {showApiSettings && <ApiSettingsModal h={h} onClose={() => setShowApiSettings(false)} />}
+    </div>
+  );
+}
+
+function ApiSettingsModal({ h, onClose }: { h: () => any; onClose: () => void }) {
+  const [wbToken, setWbToken] = useState('');
+  const [wbStatus, setWbStatus] = useState<{ hasToken: boolean; tokenPreview: string | null } | null>(null);
+  const [ozonToken, setOzonToken] = useState('');
+  const [ozonClientId, setOzonClientId] = useState('');
+  const [savingWb, setSavingWb] = useState(false);
+  const [savingOzon, setSavingOzon] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  useEffect(() => {
+    fetch(`${API}/settings/wb-token`, { headers: h() }).then(r => r.json()).then(setWbStatus).catch(() => {});
+  }, []);
+
+  const saveWb = async () => {
+    if (!wbToken.trim()) return;
+    setSavingWb(true);
+    const res = await fetch(`${API}/settings/wb-token`, { method: 'POST', headers: { ...h(), 'Content-Type': 'application/json' }, body: JSON.stringify({ token: wbToken.trim() }) });
+    const data = await res.json();
+    setMsg(data.success ? '✅ WB-токен сохранён' : `⚠️ ${data.error ?? 'Ошибка'}`);
+    if (data.success) { setWbToken(''); fetch(`${API}/settings/wb-token`, { headers: h() }).then(r => r.json()).then(setWbStatus).catch(() => {}); }
+    setSavingWb(false);
+  };
+
+  const saveOzon = async () => {
+    if (!ozonToken.trim() || !ozonClientId.trim()) return;
+    setSavingOzon(true);
+    const res = await fetch(`${API}/products/settings/ozon-token`, { method: 'POST', headers: { ...h(), 'Content-Type': 'application/json' }, body: JSON.stringify({ token: ozonToken.trim(), clientId: ozonClientId.trim() }) });
+    const data = await res.json().catch(() => ({}));
+    setMsg(res.ok ? '✅ Ozon-ключи сохранены' : `⚠️ ${data.error ?? 'Ошибка сохранения'}`);
+    if (res.ok) { setOzonToken(''); setOzonClientId(''); }
+    setSavingOzon(false);
+  };
+
+  const inp: React.CSSProperties = { width: '100%', background: '#F8F7FF', border: '1px solid #EDE9FE', borderRadius: 10, padding: '9px 12px', fontSize: 13, outline: 'none', boxSizing: 'border-box' };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,16,64,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fadeIn 0.15s ease-out' }}>
+      <div style={{ background: 'white', borderRadius: 20, padding: 24, width: 420, boxShadow: '0 24px 64px rgba(127,119,221,0.2)' }}>
+        <h3 style={{ fontSize: 16, fontWeight: 800, color: '#1a1040', margin: '0 0 4px' }}>⚙️ API-ключи маркетплейсов</h3>
+        <p style={{ fontSize: 11.5, color: '#9B97CC', margin: '0 0 18px' }}>Нужны для синхронизации карточек товаров</p>
+
+        <p style={{ fontSize: 12, fontWeight: 700, color: '#8B2FC9', margin: '0 0 8px' }}>Wildberries</p>
+        {wbStatus?.hasToken && <p style={{ fontSize: 11, color: '#16A34A', margin: '0 0 8px' }}>✓ Токен уже сохранён ({wbStatus.tokenPreview})</p>}
+        <input type="password" value={wbToken} onChange={e => setWbToken(e.target.value)} placeholder="Токен из личного кабинета WB (Настройки → Доступ к API)" style={{ ...inp, marginBottom: 8 }} />
+        <button onClick={saveWb} disabled={savingWb || !wbToken.trim()} style={{ background: wbToken.trim() ? 'linear-gradient(135deg,#8B2FC9,#5D0FA3)' : '#EDE9FE', color: wbToken.trim() ? 'white' : '#C4C0E8', border: 'none', borderRadius: 10, padding: '8px 16px', fontSize: 12.5, fontWeight: 700, cursor: wbToken.trim() ? 'pointer' : 'not-allowed', marginBottom: 20 }}>
+          {savingWb ? 'Сохраняю...' : 'Сохранить WB-токен'}
+        </button>
+
+        <p style={{ fontSize: 12, fontWeight: 700, color: '#005BFF', margin: '0 0 8px' }}>Ozon</p>
+        <input value={ozonClientId} onChange={e => setOzonClientId(e.target.value)} placeholder="Client-Id" style={{ ...inp, marginBottom: 8 }} />
+        <input type="password" value={ozonToken} onChange={e => setOzonToken(e.target.value)} placeholder="Api-Key из личного кабинета Ozon Seller" style={{ ...inp, marginBottom: 8 }} />
+        <button onClick={saveOzon} disabled={savingOzon || !ozonToken.trim() || !ozonClientId.trim()} style={{ background: (ozonToken.trim() && ozonClientId.trim()) ? 'linear-gradient(135deg,#005BFF,#0040CC)' : '#EDE9FE', color: (ozonToken.trim() && ozonClientId.trim()) ? 'white' : '#C4C0E8', border: 'none', borderRadius: 10, padding: '8px 16px', fontSize: 12.5, fontWeight: 700, cursor: (ozonToken.trim() && ozonClientId.trim()) ? 'pointer' : 'not-allowed' }}>
+          {savingOzon ? 'Сохраняю...' : 'Сохранить Ozon-ключи'}
+        </button>
+
+        {msg && <p style={{ fontSize: 12, color: msg.startsWith('✅') ? '#16A34A' : '#D97706', background: msg.startsWith('✅') ? '#DCFCE7' : '#FFFBEB', padding: '8px 12px', borderRadius: 8, margin: '20px 0 0' }}>{msg}</p>}
+
+        <button onClick={onClose} style={{ width: '100%', background: 'none', border: 'none', color: '#9B97CC', fontSize: 12, cursor: 'pointer', padding: '14px 0 0' }}>Закрыть</button>
       </div>
     </div>
   );
