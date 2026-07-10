@@ -17,8 +17,23 @@ const NAV: NavEntry[] = [
   { href: '/dashboard/command-center', icon: 'ti-topology-star-3', label: '⚡ Command Center', admin: false },
   { href: '/dashboard',              icon: 'ti-layout-dashboard', label: 'Дашборд',        admin: false },
   { href: '/dashboard/chat',         icon: 'ti-message-circle',   label: 'Чат',            admin: false },
-  { href: '/dashboard/subscribers',  icon: 'ti-users-group',      label: 'CRM · Подписчики', admin: false },
-  { href: '/dashboard/employees',    icon: 'ti-users',            label: 'Сотрудники',     admin: false },
+
+  {
+    id: 'crm', label: 'CRM и клиенты', icon: 'ti-users-group',
+    items: [
+      { href: '/dashboard/subscribers', icon: 'ti-users-group', label: 'CRM · Подписчики', admin: false },
+    ],
+  },
+
+  {
+    id: 'people', label: 'Люди', icon: 'ti-users',
+    items: [
+      { href: '/dashboard/employees',    icon: 'ti-users',    label: 'Сотрудники',     admin: false },
+      { href: '/dashboard/productivity', icon: 'ti-star',     label: 'Продуктивность', admin: true  },
+      { href: '/dashboard/timesheet',    icon: 'ti-calendar', label: 'Табель',         admin: false },
+      { href: '/dashboard/kpi',          icon: 'ti-target',   label: 'KPI',            admin: true  },
+    ],
+  },
 
   {
     id: 'pm', label: 'Управление проектами и задачами', icon: 'ti-briefcase',
@@ -29,23 +44,43 @@ const NAV: NavEntry[] = [
       { href: '/dashboard/teams',        icon: 'ti-tag',              label: 'Команды',        admin: true  },
       { href: '/dashboard/dictionaries', icon: 'ti-list-details',     label: 'Справочники',    admin: true  },
       { href: '/dashboard/settings/custom-fields', icon: 'ti-adjustments-horizontal', label: 'Поля задач', admin: true },
+      { href: '/dashboard/routines',     icon: 'ti-repeat',           label: 'Рутины',         admin: false },
     ],
   },
 
-  { href: '/dashboard/analytics',    icon: 'ti-chart-bar',        label: 'Аналитика',      admin: false },
-  { href: '/dashboard/productivity', icon: 'ti-star',             label: 'Продуктивность', admin: true  },
-  { href: '/dashboard/timesheet',    icon: 'ti-calendar',         label: 'Табель',         admin: false },
-  { href: '/dashboard/reports',      icon: 'ti-file-report',      label: 'Отчёты и экспорт', admin: true  },
-  { href: '/dashboard/knowledge',    icon: 'ti-book',             label: 'База знаний',    admin: false },
-  { href: '/dashboard/routines',     icon: 'ti-repeat',           label: 'Рутины',         admin: false },
-  { href: '/dashboard/kpi',          icon: 'ti-target',           label: 'KPI',            admin: true  },
-  { href: '/dashboard/products',     icon: 'ti-package',          label: 'Карточки товаров', admin: false },
-  { href: '/dashboard/sales',        icon: 'ti-chart-arrows',     label: 'Продажи WB',     admin: true  },
-  { href: '/dashboard/reviews',      icon: 'ti-star',             label: 'Отзывы WB',      admin: true  },
-  { href: '/dashboard/calls',        icon: 'ti-video',            label: 'Видеозвонки',    admin: false },
-  { href: '/dashboard/notebook', icon: 'ti-notebook', label: 'Мой блокнот', admin: false },
-  { href: '/dashboard/settings',     icon: 'ti-settings',         label: 'Настройки',      admin: true  },
-  { href: '/dashboard/audit',        icon: 'ti-shield-lock',      label: 'Журнал действий', admin: true  },
+  {
+    id: 'commerce', label: 'Товары и продажи', icon: 'ti-package',
+    items: [
+      { href: '/dashboard/products', icon: 'ti-package',      label: 'Карточки товаров', admin: false },
+      { href: '/dashboard/sales',    icon: 'ti-chart-arrows', label: 'Продажи WB',       admin: true  },
+      { href: '/dashboard/reviews',  icon: 'ti-star',         label: 'Отзывы WB',        admin: true  },
+    ],
+  },
+
+  {
+    id: 'analytics', label: 'Аналитика и отчётность', icon: 'ti-chart-bar',
+    items: [
+      { href: '/dashboard/analytics', icon: 'ti-chart-bar',   label: 'Аналитика',       admin: false },
+      { href: '/dashboard/reports',   icon: 'ti-file-report', label: 'Отчёты и экспорт', admin: true  },
+    ],
+  },
+
+  {
+    id: 'tools', label: 'Инструменты', icon: 'ti-tool',
+    items: [
+      { href: '/dashboard/calls',     icon: 'ti-video',    label: 'Видеозвонки', admin: false },
+      { href: '/dashboard/notebook',  icon: 'ti-notebook', label: 'Мой блокнот', admin: false },
+      { href: '/dashboard/knowledge', icon: 'ti-book',     label: 'База знаний', admin: false },
+    ],
+  },
+
+  {
+    id: 'system', label: 'Система', icon: 'ti-settings',
+    items: [
+      { href: '/dashboard/settings', icon: 'ti-settings',    label: 'Настройки',       admin: true },
+      { href: '/dashboard/audit',    icon: 'ti-shield-lock', label: 'Журнал действий', admin: true },
+    ],
+  },
 ];
 
 function timeAgo(dateStr: string) {
