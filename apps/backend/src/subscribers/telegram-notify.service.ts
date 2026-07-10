@@ -11,7 +11,10 @@ export class TelegramNotifyService {
       return { ok: false, error: 'TELEGRAM_BOT_TOKEN не настроен' };
     }
     try {
-      const res = await fetch(`https://api.telegram.org/bot${this.botToken}/sendMessage`, {
+      // Прямой доступ к Telegram API заблокирован на уровне сети сервера — идём через Cloudflare Worker-релей.
+      // Relay просто перенаправляет запрос на api.telegram.org, сохраняя путь/метод/тело без изменений.
+      const relayBase = process.env.TELEGRAM_RELAY_URL ?? 'https://api.telegram.org';
+      const res = await fetch(`${relayBase}/bot${this.botToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
