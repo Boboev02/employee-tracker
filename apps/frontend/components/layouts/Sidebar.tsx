@@ -144,6 +144,11 @@ export function Sidebar() {
     const u = localStorage.getItem('user');
     if (!t || !u) { router.push('/login'); return; }
     setToken(t); setUser(JSON.parse(u));
+    // Подтягиваем свежие данные (в т.ч. недавно загруженный аватар) — localStorage хранит снимок со времени входа
+    fetch('https://employee-tracker.ru/api/v1/auth/me', { headers: { Authorization: 'Bearer ' + t } })
+      .then(r => r.ok ? r.json() : null)
+      .then(fresh => { if (fresh) { setUser(fresh); localStorage.setItem('user', JSON.stringify(fresh)); } })
+      .catch(() => {});
     loadNotifs(t);
     const iv = setInterval(() => loadNotifs(t), 30000);
     return () => clearInterval(iv);
