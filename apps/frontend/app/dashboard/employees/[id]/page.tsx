@@ -18,6 +18,7 @@ export default function EmployeeProfilePage() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
   const [form, setForm] = useState<any>({});
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -80,21 +81,30 @@ export default function EmployeeProfilePage() {
 
   const uploadAvatar = async (file: File) => {
     setUploadingAvatar(true);
+    setAvatarError(null);
     try {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const base64 = (e.target?.result as string).split(',')[1];
-        const ext = file.name.split('.').pop();
-        const fileName = id + '_avatar.' + ext;
-        await fetch(API+'/employees/'+id+'/profile', {
-          method: 'PATCH', headers: h(token),
-          body: JSON.stringify({ avatarUrl: 'data:'+file.type+';base64,'+base64 }),
-        });
-        load(token);
-        setUploadingAvatar(false);
-      };
-      reader.readAsDataURL(file);
-    } catch { setUploadingAvatar(false); }
+      const formData = new FormData();
+      formData.append('file', file);
+      const uploadRes = await fetch(API + '/upload/file', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token }, // без Content-Type — браузер сам проставит multipart boundary
+        body: formData,
+      });
+      if (!uploadRes.ok) throw new Error('Не удалось загрузить файл (код ' + uploadRes.status + ')');
+      const { url } = await uploadRes.json();
+
+      const patchRes = await fetch(API + '/employees/' + id + '/profile', {
+        method: 'PATCH', headers: h(token),
+        body: JSON.stringify({ avatarUrl: url }),
+      });
+      if (!patchRes.ok) throw new Error('Не удалось сохранить фото (код ' + patchRes.status + ')');
+
+      await load(token);
+    } catch (e: any) {
+      setAvatarError(e.message ?? 'Ошибка загрузки фото');
+    } finally {
+      setUploadingAvatar(false);
+    }
   };
 
   if (loading) return <div style={{padding:'40px',textAlign:'center',color:'#9B97CC'}}>Загрузка...</div>;
@@ -149,6 +159,7 @@ export default function EmployeeProfilePage() {
                 </label>
               )}
             </div>
+            {avatarError && <p style={{fontSize:'11px',color:'#DC2626',background:'#FEF2F2',borderRadius:'8px',padding:'6px 10px',margin:'0 0 10px'}}>{avatarError}</p>}
             <h2 style={{fontSize:'16px',fontWeight:800,color:'#1a1040',margin:'0 0 4px'}}>{emp.name}</h2>
             {emp.position && <p style={{fontSize:'12px',color:'#7F77DD',margin:'0 0 4px',fontWeight:600}}>{emp.position}</p>}
             <p style={{fontSize:'12px',color:'#9B97CC',margin:'0 0 12px'}}>{emp.email}</p>
