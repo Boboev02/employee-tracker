@@ -67,7 +67,7 @@ export default function DashboardPage() {
   const [sections, setSections]     = useState<any[]>([]);
   const [totalClicks, setTotalClicks] = useState(0);
   const [loading, setLoading]       = useState(true);
-  const [now, setNow]               = useState(new Date());
+  const [now, setNow]               = useState<Date | null>(null);
 
   // Section open/close state
   const [openKpi, setOpenKpi]         = useState(true);
@@ -77,6 +77,8 @@ export default function DashboardPage() {
   const [products, setProducts]       = useState<any[]>([]);
   const [openProjects, setOpenProjects] = useState(true);
   const [openProducts, setOpenProducts] = useState(true);
+
+  useEffect(() => { setNow(new Date()); }, []);
 
   useEffect(() => {
     const t = localStorage.getItem('access_token');
@@ -157,7 +159,7 @@ export default function DashboardPage() {
   const onlineCount  = presence.filter(p => p.isOnline).length;
   const overdueTasks = tasks.filter(t => t.dueDate && new Date(t.dueDate)<new Date() && t.status!=='DONE');
   const maxClicks    = Math.max(...sections.map(s=>s.clicks), 1);
-  const greeting     = now.getHours()<12?'Доброе утро':now.getHours()<18?'Добрый день':'Добрый вечер';
+  const greeting     = !now ? '\u00A0' : now.getHours()<12?'Доброе утро':now.getHours()<18?'Добрый день':'Добрый вечер';
   const userName     = employees.find((e:any)=>e.email===JSON.parse(localStorage.getItem('user')||'{}')?.email)?.name?.split(' ')[0] ?? 'Admin';
 
   // Shared styles
@@ -172,9 +174,9 @@ export default function DashboardPage() {
         <div>
           <h1 style={{ fontSize: isMobile ? '16px' : '18px', fontWeight:800, color:'#1a1040', margin:0, letterSpacing:'-0.5px' }}>{greeting}, {userName}!</h1>
           <p style={{ fontSize:'11px', color:'#9B97CC', margin:'2px 0 0', display:'flex', alignItems:'center', gap:'6px' }}>
-            {now.toLocaleDateString('ru',{weekday:'long',day:'numeric',month:'long'})}
+            {now ? now.toLocaleDateString('ru',{weekday:'long',day:'numeric',month:'long'}) : '\u00A0'}
             <span style={{ width:'3px', height:'3px', borderRadius:'50%', background:'#D4D0F0', display:'inline-block' }} />
-            обновлено {now.toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'})}
+            {now ? 'обновлено ' + now.toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'}) : '\u00A0'}
           </p>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
