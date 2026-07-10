@@ -254,8 +254,10 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
   );
 }
 
+const PAID_PLAN_KEYS = ['START', 'PRO', 'BUSINESS', 'EXPERT'] as const;
+
 function PricingModal({ h, onClose }: any) {
-  const [pricing, setPricing] = useState<Record<string, number>>({ PRO: 0, BUSINESS: 0 });
+  const [pricing, setPricing] = useState<Record<string, number>>({ START: 0, PRO: 0, BUSINESS: 0, EXPERT: 0 });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -264,7 +266,7 @@ function PricingModal({ h, onClose }: any) {
 
   const save = async () => {
     setSaving(true);
-    await Promise.all(['PRO', 'BUSINESS'].map(plan =>
+    await Promise.all(PAID_PLAN_KEYS.map(plan =>
       fetch(`${API}/subscriber-dashboard/pricing/${plan}`, { method: 'POST', headers: h(), body: JSON.stringify({ monthlyPrice: pricing[plan] ?? 0 }) })
     ));
     setSaving(false);
@@ -277,15 +279,15 @@ function PricingModal({ h, onClose }: any) {
         <h3 style={{ fontSize: 15, fontWeight: 800, color: '#1a1040', margin: '0 0 4px' }}>💲 Цены тарифов</h3>
         <p style={{ fontSize: 11.5, color: '#9B97CC', margin: '0 0 16px' }}>Нужны для расчёта MRR, ARR, LTV, среднего чека</p>
 
-        <p style={{ fontSize: 11, color: '#9B97CC', margin: '0 0 4px' }}>Тариф «Профи», ₽/мес</p>
-        <input type="number" value={pricing.PRO ?? 0} onChange={e => setPricing({ ...pricing, PRO: parseFloat(e.target.value) || 0 })}
-          style={{ width: '100%', background: '#F8F7FF', border: '1px solid #EDE9FE', borderRadius: 10, padding: '9px 12px', fontSize: 13, marginBottom: 12, outline: 'none', boxSizing: 'border-box' }} />
+        {PAID_PLAN_KEYS.map(plan => (
+          <div key={plan}>
+            <p style={{ fontSize: 11, color: '#9B97CC', margin: '0 0 4px' }}>Тариф «{PLAN_LABELS[plan]}», ₽/мес</p>
+            <input type="number" value={pricing[plan] ?? 0} onChange={e => setPricing({ ...pricing, [plan]: parseFloat(e.target.value) || 0 })}
+              style={{ width: '100%', background: '#F8F7FF', border: '1px solid #EDE9FE', borderRadius: 10, padding: '9px 12px', fontSize: 13, marginBottom: 12, outline: 'none', boxSizing: 'border-box' }} />
+          </div>
+        ))}
 
-        <p style={{ fontSize: 11, color: '#9B97CC', margin: '0 0 4px' }}>Тариф «Бизнес», ₽/мес</p>
-        <input type="number" value={pricing.BUSINESS ?? 0} onChange={e => setPricing({ ...pricing, BUSINESS: parseFloat(e.target.value) || 0 })}
-          style={{ width: '100%', background: '#F8F7FF', border: '1px solid #EDE9FE', borderRadius: 10, padding: '9px 12px', fontSize: 13, marginBottom: 18, outline: 'none', boxSizing: 'border-box' }} />
-
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
           <button onClick={save} disabled={saving} style={{ flex: 1, background: 'linear-gradient(135deg,#7F77DD,#5248C5)', color: 'white', border: 'none', borderRadius: 10, padding: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{saving ? 'Сохраняю...' : 'Сохранить'}</button>
           <button onClick={onClose} style={{ flex: 1, background: '#F8F7FF', color: '#6B7280', border: '1px solid #EDE9FE', borderRadius: 10, padding: 10, fontSize: 13, cursor: 'pointer' }}>Отмена</button>
         </div>

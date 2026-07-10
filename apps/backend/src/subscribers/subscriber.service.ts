@@ -10,7 +10,7 @@ const CRM_STATUS_LABELS: Record<string, string> = {
   RENEWED: 'Продлил', LOST: 'Потерян', ARCHIVED: 'В архиве',
 };
 
-const PLAN_RU: Record<string, string> = { TRIAL: 'Пробный', PRO: 'Профи', BUSINESS: 'Бизнес', NONE: 'Нет подписки' };
+const PLAN_RU: Record<string, string> = { TRIAL: 'Пробный', START: 'Старт', PRO: 'Профи', BUSINESS: 'Бизнес', EXPERT: 'Эксперт', NONE: 'Нет подписки' };
 
 const FIELD_LABELS: Record<string, string> = {
   crmStatus: 'CRM статус', tags: 'Теги', managerId: 'Менеджер', plan: 'Тариф',
@@ -610,13 +610,14 @@ export class SubscriberService {
   }
 
   /** Приводит код тарифа KingStats к нашей внутренней системе (TRIAL|PRO|BUSINESS|NONE) */
+  /** Точное сопоставление по реальным plan_code из БД KingStats (проверено напрямую в БД 10.07.2026) */
   private mapPlanCode(planCode: string | null, isTrial: boolean): string {
     if (isTrial) return 'TRIAL';
     if (!planCode) return 'NONE';
-    const code = planCode.toUpperCase();
-    if (code.includes('BUSINESS') || code.includes('БИЗНЕС')) return 'BUSINESS';
-    if (code.includes('PRO') || code.includes('ПРОФИ')) return 'PRO';
-    return 'NONE';
+    const map: Record<string, string> = {
+      trial: 'TRIAL', basic: 'START', pro: 'PRO', standart: 'BUSINESS', premium: 'EXPERT',
+    };
+    return map[planCode.toLowerCase().trim()] ?? 'NONE';
   }
 
   /**

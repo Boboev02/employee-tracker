@@ -2,11 +2,13 @@
 // Вынесены в отдельный файл в рамках Этапа 14 (устранение дублирования кода) —
 // раньше PLAN_LABELS/STATUS_LABELS/цвета были продублированы в 4 разных компонентах.
 
-export const PLAN_LABELS: Record<string, string> = { TRIAL: 'Пробный', PRO: 'Профи', BUSINESS: 'Бизнес', NONE: 'Нет подписки' };
+// Точные коды тарифов сверены напрямую с БД KingStats (reporting.users_overview) 10.07.2026:
+// trial→TRIAL, basic→START(«Старт»), pro→PRO(«Профи»), standart→BUSINESS(«Бизнес»), premium→EXPERT(«Эксперт»)
+export const PLAN_LABELS: Record<string, string> = { TRIAL: 'Пробный', START: 'Старт', PRO: 'Профи', BUSINESS: 'Бизнес', EXPERT: 'Эксперт', NONE: 'Нет подписки' };
 
 export const PLAN_COLORS: Record<string, { bg: string; c: string }> = {
-  TRIAL: { bg: '#FEF3C7', c: '#D97706' }, PRO: { bg: '#DBEAFE', c: '#2563EB' },
-  BUSINESS: { bg: '#DCFCE7', c: '#16A34A' }, NONE: { bg: '#F3F4F6', c: '#6B7280' },
+  TRIAL: { bg: '#FEF3C7', c: '#D97706' }, START: { bg: '#E0E7FF', c: '#4F46E5' }, PRO: { bg: '#DBEAFE', c: '#2563EB' },
+  BUSINESS: { bg: '#DCFCE7', c: '#16A34A' }, EXPERT: { bg: '#FCE7F3', c: '#DB2777' }, NONE: { bg: '#F3F4F6', c: '#6B7280' },
 };
 
 export const STATUS_LABELS: Record<string, string> = {

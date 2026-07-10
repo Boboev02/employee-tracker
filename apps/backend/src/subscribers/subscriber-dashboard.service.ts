@@ -4,7 +4,7 @@ import * as ExcelJS from 'exceljs';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 
-const PAID_PLANS = ['PRO', 'BUSINESS'];
+const PAID_PLANS = ['START', 'PRO', 'BUSINESS', 'EXPERT'];
 const CACHE_TTL_SECONDS = 60; // виджеты/графики кэшируются на минуту — снижает нагрузку на БД при частых открытиях Dashboard
 
 @Injectable()
@@ -28,7 +28,7 @@ export class SubscriberDashboardService {
 
   async getPricing(orgId: string) {
     const rows = await this.prisma.subscriberPlanPricing.findMany({ where: { orgId } });
-    const map: Record<string, number> = { TRIAL: 0, NONE: 0, PRO: 0, BUSINESS: 0 };
+    const map: Record<string, number> = { TRIAL: 0, NONE: 0, START: 0, PRO: 0, BUSINESS: 0, EXPERT: 0 };
     for (const r of rows) map[r.plan] = r.monthlyPrice;
     return map;
   }

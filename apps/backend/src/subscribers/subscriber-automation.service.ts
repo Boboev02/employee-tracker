@@ -4,7 +4,7 @@ import { NotificationService } from '../notifications/notification.service';
 import { TelegramNotifyService } from './telegram-notify.service';
 import { EmailNotifyService } from './email-notify.service';
 
-const PLAN_RU: Record<string, string> = { TRIAL: 'Пробный', PRO: 'Профи', BUSINESS: 'Бизнес', NONE: 'Нет подписки' };
+const PLAN_RU: Record<string, string> = { TRIAL: 'Пробный', START: 'Старт', PRO: 'Профи', BUSINESS: 'Бизнес', EXPERT: 'Эксперт', NONE: 'Нет подписки' };
 
 /**
  * Визуальный конструктор автоматизаций для подписчиков (Этап 4).
@@ -67,7 +67,7 @@ export class SubscriberAutomationService {
     if (field === 'plan') {
       candidateTriggers.push('PLAN_CHANGED');
       const wasFree = !oldValue || oldValue === 'NONE' || oldValue === 'TRIAL';
-      const isPaid = newValue === 'PRO' || newValue === 'BUSINESS';
+      const isPaid = ['START', 'PRO', 'BUSINESS', 'EXPERT'].includes(newValue);
       if (wasFree && isPaid) candidateTriggers.push('PLAN_PURCHASED');
     }
     if (field === 'planStatus' && newValue === 'expired') candidateTriggers.push('SUBSCRIPTION_EXPIRED');
