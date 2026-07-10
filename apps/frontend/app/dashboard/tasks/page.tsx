@@ -621,12 +621,16 @@ export default function TasksPage() {
                           {task.assignee && (
                             <div style={{ display:'flex', alignItems:'center', gap:'4px', marginLeft:'auto' }}>
                               <div style={{ display:'flex', marginLeft: (task.participants?.length>0) ? '10px' : 0 }}>
-                                <div title={task.assignee.name} style={{ width:'20px', height:'20px', borderRadius:'50%', background:avatarColor(task.assignee.name), display:'flex', alignItems:'center', justifyContent:'center', border:'1.5px solid white', zIndex:2 }}>
-                                  <span style={{ color:'white', fontSize:'8px', fontWeight:700 }}>{task.assignee.name?.charAt(0)}</span>
+                                <div title={task.assignee.name} style={{ width:'20px', height:'20px', borderRadius:'50%', background: task.assignee.avatarUrl ? 'transparent' : avatarColor(task.assignee.name), display:'flex', alignItems:'center', justifyContent:'center', border:'1.5px solid white', zIndex:2, overflow:'hidden' }}>
+                                  {task.assignee.avatarUrl
+                                    ? <img src={task.assignee.avatarUrl} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                                    : <span style={{ color:'white', fontSize:'8px', fontWeight:700 }}>{task.assignee.name?.charAt(0)}</span>}
                                 </div>
                                 {(task.participants??[]).slice(0,2).map((p:any, pi:number) => (
-                                  <div key={p.id} title={p.user?.name} style={{ width:'20px', height:'20px', borderRadius:'50%', background:avatarColor(p.user?.name??''), display:'flex', alignItems:'center', justifyContent:'center', border:'1.5px solid white', marginLeft:'-8px', zIndex:1-pi }}>
-                                    <span style={{ color:'white', fontSize:'8px', fontWeight:700 }}>{p.user?.name?.charAt(0)}</span>
+                                  <div key={p.id} title={p.user?.name} style={{ width:'20px', height:'20px', borderRadius:'50%', background: p.user?.avatarUrl ? 'transparent' : avatarColor(p.user?.name??''), display:'flex', alignItems:'center', justifyContent:'center', border:'1.5px solid white', marginLeft:'-8px', zIndex:1-pi, overflow:'hidden' }}>
+                                    {p.user?.avatarUrl
+                                      ? <img src={p.user.avatarUrl} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                                      : <span style={{ color:'white', fontSize:'8px', fontWeight:700 }}>{p.user?.name?.charAt(0)}</span>}
                                   </div>
                                 ))}
                                 {(task.participants??[]).length>2 && (
@@ -1138,8 +1142,10 @@ function ListViewWithCustomFields({
                   <td style={{ padding:'10px 14px' }}>
                     {task.assignee ? (
                       <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
-                        <div style={{ width:24, height:24, borderRadius:'50%', background:ac(task.assignee.name), display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:'white', fontWeight:700, flexShrink:0 }}>
-                          {task.assignee.name?.charAt(0)?.toUpperCase()}
+                        <div style={{ width:24, height:24, borderRadius:'50%', background: task.assignee.avatarUrl ? 'transparent' : ac(task.assignee.name), display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:'white', fontWeight:700, flexShrink:0, overflow:'hidden' }}>
+                          {task.assignee.avatarUrl
+                            ? <img src={task.assignee.avatarUrl} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                            : task.assignee.name?.charAt(0)?.toUpperCase()}
                         </div>
                         <span style={{ fontSize:'12px', color:'#1a1040', whiteSpace:'nowrap' }}>{task.assignee.name}</span>
                       </div>

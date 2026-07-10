@@ -52,6 +52,7 @@ export function ChatPanel({ token, currentUserId, compact = false }: Props) {
   const chat = useChat(token, onIncomingMessage);
   const { getStatus } = useSocket(token);
   const [mounted, setMounted] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [activeChannel, setActiveChannel] = useState<ChatChannel | null>(null);
   const [messageText, setMessageText] = useState('');
   const [showNewChat, setShowNewChat] = useState(false);
@@ -439,7 +440,8 @@ export function ChatPanel({ token, currentUserId, compact = false }: Props) {
                           )}
 
                           {m.attachmentUrl && m.attachmentType==='image' && (
-                            <img src={m.attachmentUrl} alt={m.attachmentName??''} style={{ maxWidth:220, borderRadius:12, border:'1px solid #EDE9FE' }} />
+                            <img src={m.attachmentUrl} alt={m.attachmentName??''} onClick={() => setLightboxUrl(m.attachmentUrl)}
+                              style={{ maxWidth:220, borderRadius:12, border:'1px solid #EDE9FE', cursor:'pointer' }} />
                           )}
                           {m.attachmentUrl && m.attachmentType==='file' && (
                             <a href={m.attachmentUrl} target="_blank" rel="noopener noreferrer" style={{ display:'flex', alignItems:'center', gap:8, background: isMe?'#EDE9FE':'#F8F7FF', padding:'8px 12px', borderRadius:12, textDecoration:'none' }}>
@@ -557,6 +559,16 @@ export function ChatPanel({ token, currentUserId, compact = false }: Props) {
       {forwardMsg && (
         <ForwardModal chat={chat} onClose={()=>setForwardMsg(null)}
           onForward={async (targetId: string)=>{ await chat.forwardMessage(forwardMsg.id, targetId); setForwardMsg(null); }} />
+      )}
+
+      {lightboxUrl && (
+        <div onClick={() => setLightboxUrl(null)}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:2000, display:'flex', alignItems:'center', justifyContent:'center', cursor:'zoom-out', animation:'fadeIn 0.15s ease-out' }}>
+          <img src={lightboxUrl} alt="" onClick={e => e.stopPropagation()}
+            style={{ maxWidth:'90vw', maxHeight:'90vh', borderRadius:12, boxShadow:'0 24px 64px rgba(0,0,0,0.4)' }} />
+          <button onClick={() => setLightboxUrl(null)}
+            style={{ position:'absolute', top:20, right:20, background:'rgba(255,255,255,0.15)', border:'none', borderRadius:'50%', width:40, height:40, color:'white', fontSize:20, cursor:'pointer' }}>✕</button>
+        </div>
       )}
     </div>
   );

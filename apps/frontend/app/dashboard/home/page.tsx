@@ -33,7 +33,7 @@ export default function HomePage() {
     setLoading(true);
     try {
       const [tRes, pRes] = await Promise.all([
-        fetch(API+'/tasks', { headers: h() }),
+        fetch(API+'/tasks?meMode=true', { headers: h() }),
         fetch(API+'/projects', { headers: h() }),
       ]);
       const tData = await tRes.json();

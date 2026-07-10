@@ -423,8 +423,10 @@ export function Sidebar() {
             onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
             onClick={() => router.push('/dashboard/profile')}
             title="Мой профиль">
-            <div style={{ width:'30px', height:'30px', borderRadius:'50%', background:'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, position:'relative' }}>
-              <span style={{ color:'white', fontSize:'12px', fontWeight:600 }}>{user.name?.charAt(0)}</span>
+            <div style={{ width:'30px', height:'30px', borderRadius:'50%', background: user.avatarUrl ? 'transparent' : 'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, position:'relative', overflow:'hidden' }}>
+              {user.avatarUrl
+                ? <img src={user.avatarUrl} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                : <span style={{ color:'white', fontSize:'12px', fontWeight:600 }}>{user.name?.charAt(0)}</span>}
               <span style={{ position:'absolute', bottom:'0', right:'0', width:'8px', height:'8px', borderRadius:'50%', background: connected ? '#4ade80' : '#4a4d5e', border:'1.5px solid var(--bg-primary)' }} />
             </div>
             <div style={{ flex:1, minWidth:0 }}>
