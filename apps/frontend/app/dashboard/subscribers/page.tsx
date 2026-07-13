@@ -36,6 +36,8 @@ export default function SubscribersPage() {
   const [token, setToken] = useState('');
   const [subscribers, setSubscribers] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(50);
   const [stats, setStats] = useState<any>(null);
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -130,7 +132,8 @@ export default function SubscribersPage() {
     if (filterManager) params.set('managerId', filterManager);
     params.set('sortBy', sortBy);
     params.set('sortDir', sortDir);
-    params.set('limit', '100');
+    params.set('limit', String(pageSize));
+    params.set('offset', String((page - 1) * pageSize));
 
     const [sRes, statsRes, eRes, scRes] = await Promise.all([
       fetch(`${API}/subscribers?${params}`, { headers: h() }),
@@ -147,9 +150,10 @@ export default function SubscribersPage() {
     setStatusCounts(await scRes.json().catch(() => null));
     setLoading(false);
     setSelected(new Set());
-  }, [token, search, filterPlan, filterStatus, filterManager, sortBy, sortDir, h]);
+  }, [token, search, filterPlan, filterStatus, filterManager, sortBy, sortDir, page, pageSize, h]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { setPage(1); }, [search, filterPlan, filterStatus, filterManager]);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -451,6 +455,18 @@ export default function SubscribersPage() {
             </div>
           )}
         </div>
+
+        {total > pageSize && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 16 }}>
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+              style={{ padding: '7px 14px', borderRadius: 10, border: '1px solid #EDE9FE', background: 'white', color: page === 1 ? '#C4C0E8' : '#7F77DD', fontSize: 12.5, fontWeight: 700, cursor: page === 1 ? 'not-allowed' : 'pointer' }}>← Назад</button>
+            <span style={{ fontSize: 12.5, color: '#9B97CC', padding: '0 8px' }}>
+              Стр. {page} из {Math.ceil(total / pageSize)} · показано {Math.min((page - 1) * pageSize + 1, total)}–{Math.min(page * pageSize, total)} из {total}
+            </span>
+            <button onClick={() => setPage(p => (p * pageSize < total ? p + 1 : p))} disabled={page * pageSize >= total}
+              style={{ padding: '7px 14px', borderRadius: 10, border: '1px solid #EDE9FE', background: 'white', color: page * pageSize >= total ? '#C4C0E8' : '#7F77DD', fontSize: 12.5, fontWeight: 700, cursor: page * pageSize >= total ? 'not-allowed' : 'pointer' }}>Вперёд →</button>
+          </div>
+        )}
       </div>
 
       {activeSubscriber && (

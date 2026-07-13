@@ -673,11 +673,14 @@ export default function TaskDetailPage() {
               <div style={{ display:'flex', flexDirection:'column', gap:'12px', marginBottom:'16px' }}>
                 {comments.map((c:any,i:number) => {
                   const authorName = userMap[c.authorId] ?? c.author?.name ?? 'Пользователь';
+                  const authorAvatar = employees.find((e:any)=>e.id===c.authorId)?.avatarUrl;
                   const isMe = c.authorId === user?.id;
                   return (
                     <div key={c.id??i} style={{ display:'flex', gap:'10px', alignItems:'flex-start' }}>
-                      <div style={{ width:'28px', height:'28px', borderRadius:'50%', background:avatarColor(authorName), display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                        <span style={{ color:'white', fontSize:'11px', fontWeight:700 }}>{authorName.charAt(0)}</span>
+                      <div style={{ width:'28px', height:'28px', borderRadius:'50%', background: authorAvatar ? 'transparent' : avatarColor(authorName), display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, overflow:'hidden' }}>
+                        {authorAvatar
+                          ? <img src={authorAvatar} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                          : <span style={{ color:'white', fontSize:'11px', fontWeight:700 }}>{authorName.charAt(0)}</span>}
                       </div>
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ display:'flex', alignItems:'center', gap:'6px', marginBottom:'4px', flexWrap:'wrap' }}>
@@ -704,8 +707,10 @@ export default function TaskDetailPage() {
 
             {/* New comment — sticky at bottom of this panel */}
             <div style={{ display:'flex', gap:'8px', alignItems:'flex-start', paddingTop:'8px', borderTop: comments.length>0 ? '1px solid #F3F0FF' : 'none' }}>
-              <div style={{ width:'28px', height:'28px', borderRadius:'50%', background:avatarColor(user?.name??''), display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:'1px' }}>
-                <span style={{ color:'white', fontSize:'11px', fontWeight:700 }}>{user?.name?.charAt(0)??'U'}</span>
+              <div style={{ width:'28px', height:'28px', borderRadius:'50%', background: user?.avatarUrl ? 'transparent' : avatarColor(user?.name??''), display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:'1px', overflow:'hidden' }}>
+                {user?.avatarUrl
+                  ? <img src={user.avatarUrl} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                  : <span style={{ color:'white', fontSize:'11px', fontWeight:700 }}>{user?.name?.charAt(0)??'U'}</span>}
               </div>
               <div style={{ flex:1, minWidth:0 }}>
                 <textarea value={comment} onChange={e=>setComment(e.target.value)}

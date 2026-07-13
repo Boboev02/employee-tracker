@@ -227,7 +227,9 @@ export default function EmployeesPage() {
                   {/* Name */}
                   <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
                     <div style={{ position:'relative', flexShrink:0 }}>
-                      <div style={{ width:'36px', height:'36px', borderRadius:'50%', background:avatarColor(emp.name), display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:'13px', color:'white', opacity:isSuspended?0.5:1 }}>{emp.name?.charAt(0)}</div>
+                      <div style={{ width:'36px', height:'36px', borderRadius:'50%', background: emp.avatarUrl ? 'transparent' : avatarColor(emp.name), display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:'13px', color:'white', opacity:isSuspended?0.5:1, overflow:'hidden' }}>
+                        {emp.avatarUrl ? <img src={emp.avatarUrl} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} /> : emp.name?.charAt(0)}
+                      </div>
                       {isOnline ? (
                         <span className="pulse-dot" style={{ position:'absolute', bottom:0, right:0, border:'2px solid white' }} />
                       ) : (
