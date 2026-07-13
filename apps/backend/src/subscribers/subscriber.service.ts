@@ -42,7 +42,12 @@ export class SubscriberService {
       ];
     }
     if (query.plan) where.plan = Array.isArray(query.plan) ? { in: query.plan } : query.plan;
-    if (query.crmStatus) where.crmStatus = Array.isArray(query.crmStatus) ? { in: query.crmStatus } : query.crmStatus;
+    if (query.crmStatus) {
+      where.crmStatus = Array.isArray(query.crmStatus) ? { in: query.crmStatus } : query.crmStatus;
+    } else if (query.includeArchived !== 'true') {
+      // По умолчанию архивные подписчики скрыты из основного списка — доступны через отдельный эндпоинт /subscribers/archived
+      where.crmStatus = { not: 'ARCHIVED' };
+    }
     if (query.managerId) where.managerId = query.managerId === 'unassigned' ? null : query.managerId;
     if (query.tag) where.tags = { has: query.tag };
 
@@ -61,6 +66,28 @@ export class SubscriberService {
     ]);
 
     return { data, total, take, skip };
+  }
+
+  /** Счётчики по CRM-статусам для вкладок-фильтров (архивные считаются отдельно) */
+  async getStatusCounts(orgId: string) {
+    const baseWhere = { orgId, deletedAt: null };
+    const [total, ...statusCounts] = await Promise.all([
+      this.prisma.subscriber.count({ where: { ...baseWhere, crmStatus: { not: 'ARCHIVED' } } }),
+      ...Object.keys(CRM_STATUS_LABELS).filter(s => s !== 'ARCHIVED').map(status =>
+        this.prisma.subscriber.count({ where: { ...baseWhere, crmStatus: status } }).then(count => ({ status, count })),
+      ),
+    ]);
+    const archived = await this.prisma.subscriber.count({ where: { ...baseWhere, crmStatus: 'ARCHIVED' } });
+    return { total, byStatus: statusCounts, archived };
+  }
+
+  /** Список архивных подписчиков — отдельное окно, по аналогии с Корзиной */
+  async getArchived(orgId: string) {
+    return this.prisma.subscriber.findMany({
+      where: { orgId, deletedAt: null, crmStatus: 'ARCHIVED' },
+      orderBy: { updatedAt: 'desc' },
+      include: { manager: { select: { id: true, name: true, avatarUrl: true } } },
+    });
   }
 
   /** Группировка (для UI) — считает количество по выбранному полю */

@@ -26,6 +26,14 @@ export class SubscriberController {
     return this.subscribers.getGroupCounts(u.orgId, by ?? 'plan');
   }
 
+  @Get('status-counts')
+  @RequirePermissions('crm:read')
+  getStatusCounts(@CurrentUser() u: any) { return this.subscribers.getStatusCounts(u.orgId); }
+
+  @Get('archived')
+  @RequirePermissions('crm:read')
+  getArchived(@CurrentUser() u: any) { return this.subscribers.getArchived(u.orgId); }
+
   @Get('templates')
   @RequirePermissions('crm:read')
   getTemplates(@CurrentUser() u: any, @Query('channel') channel?: string) { return this.subscribers.getTemplates(u.orgId, channel); }

@@ -5,6 +5,7 @@ import { SubscriberCard } from '@/components/subscribers/SubscriberCard';
 import { AutomationBuilder } from '@/components/subscribers/AutomationBuilder';
 import { RemindersCenter } from '@/components/subscribers/RemindersCenter';
 import { TrashModal } from '@/components/subscribers/TrashModal';
+import { ArchiveModal } from '@/components/subscribers/ArchiveModal';
 import { CrmSettingsModal } from '@/components/subscribers/CrmSettingsModal';
 import { PLAN_LABELS, PLAN_COLORS, STATUS_LABELS, STATUS_COLORS } from '@/lib/subscriberConstants';
 
@@ -59,8 +60,6 @@ export default function SubscribersPage() {
   const colMenuRef = useRef<HTMLDivElement>(null);
   const [showPlanMenu, setShowPlanMenu] = useState(false);
   const planMenuRef = useRef<HTMLDivElement>(null);
-  const [showStatusMenu, setShowStatusMenu] = useState(false);
-  const statusMenuRef = useRef<HTMLDivElement>(null);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [activeSubscriber, setActiveSubscriber] = useState<any>(null);
@@ -69,6 +68,8 @@ export default function SubscribersPage() {
   const [showReminders, setShowReminders] = useState(false);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
+  const [showArchive, setShowArchive] = useState(false);
+  const [statusCounts, setStatusCounts] = useState<any>(null);
   const [showCrmSettings, setShowCrmSettings] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; subscriber: any } | null>(null);
@@ -96,12 +97,13 @@ export default function SubscribersPage() {
       else if (showAutomation) setShowAutomation(false);
       else if (showReminders) setShowReminders(false);
       else if (showTrash) setShowTrash(false);
+      else if (showArchive) setShowArchive(false);
       else if (showCrmSettings) setShowCrmSettings(false);
       else if (bulkDeleteConfirm) setBulkDeleteConfirm(false);
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [activeSubscriber, showIntegration, showAutomation, showReminders, showTrash, showCrmSettings, bulkDeleteConfirm, contextMenu]);
+  }, [activeSubscriber, showIntegration, showAutomation, showReminders, showTrash, showArchive, showCrmSettings, bulkDeleteConfirm, contextMenu]);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -130,10 +132,11 @@ export default function SubscribersPage() {
     params.set('sortDir', sortDir);
     params.set('limit', '100');
 
-    const [sRes, statsRes, eRes] = await Promise.all([
+    const [sRes, statsRes, eRes, scRes] = await Promise.all([
       fetch(`${API}/subscribers?${params}`, { headers: h() }),
       fetch(`${API}/subscribers/stats`, { headers: h() }),
       fetch(`${API}/employees?limit=200`, { headers: h() }),
+      fetch(`${API}/subscribers/status-counts`, { headers: h() }),
     ]);
     const sData = await sRes.json().catch(() => ({ data: [], total: 0 }));
     setSubscribers(sData.data ?? []);
@@ -141,6 +144,7 @@ export default function SubscribersPage() {
     setStats(await statsRes.json().catch(() => null));
     const eData = await eRes.json().catch(() => ({}));
     setEmployees(eData.employees ?? (Array.isArray(eData) ? eData : []));
+    setStatusCounts(await scRes.json().catch(() => null));
     setLoading(false);
     setSelected(new Set());
   }, [token, search, filterPlan, filterStatus, filterManager, sortBy, sortDir, h]);
@@ -152,7 +156,6 @@ export default function SubscribersPage() {
     const onClick = (e: MouseEvent) => {
       if (colMenuRef.current && !colMenuRef.current.contains(e.target as Node)) setShowColMenu(false);
       if (planMenuRef.current && !planMenuRef.current.contains(e.target as Node)) setShowPlanMenu(false);
-      if (statusMenuRef.current && !statusMenuRef.current.contains(e.target as Node)) setShowStatusMenu(false);
     };
     document.addEventListener('mousedown', onClick);
     return () => document.removeEventListener('mousedown', onClick);
@@ -276,22 +279,28 @@ export default function SubscribersPage() {
             )}
           </div>
 
-          {/* Status filter */}
-          <div ref={statusMenuRef} style={{ position: 'relative' }}>
-            <button onClick={() => setShowStatusMenu(v => !v)} style={{ padding: '8px 14px', borderRadius: 20, border: '1px solid #EDE9FE', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: filterStatus.length ? '#EDE9FE' : 'white', color: filterStatus.length ? '#7F77DD' : '#6B7280' }}>
-              CRM статус {filterStatus.length > 0 && `(${filterStatus.length})`}
+          {/* Status tabs — «Все» исключает архивных по умолчанию (это делает backend) */}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <button onClick={() => setFilterStatus([])}
+              style={{ padding: '8px 14px', borderRadius: 20, border: filterStatus.length === 0 ? '2px solid #7F77DD' : '1px solid #EDE9FE', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: filterStatus.length === 0 ? '#EDE9FE' : 'white', color: filterStatus.length === 0 ? '#7F77DD' : '#6B7280' }}>
+              Все {statusCounts?.total !== undefined && `(${statusCounts.total})`}
             </button>
-            {showStatusMenu && (
-              <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 100, background: 'white', border: '1px solid #EDE9FE', borderRadius: 14, boxShadow: '0 8px 24px rgba(127,119,221,0.18)', width: 200, padding: 8 }}>
-                {Object.entries(STATUS_LABELS).map(([v, l]) => (
-                  <label key={v} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 8px', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>
-                    <input type="checkbox" checked={filterStatus.includes(v)} onChange={() => setFilterStatus(p => p.includes(v) ? p.filter(x => x !== v) : [...p, v])} style={{ accentColor: '#7F77DD' }} />
-                    {l}
-                  </label>
-                ))}
-              </div>
-            )}
+            {Object.entries(STATUS_LABELS).filter(([v]) => v !== 'ARCHIVED').map(([v, l]) => {
+              const active = filterStatus.length === 1 && filterStatus[0] === v;
+              const count = statusCounts?.byStatus?.find((s: any) => s.status === v)?.count;
+              return (
+                <button key={v} onClick={() => setFilterStatus(active ? [] : [v])}
+                  style={{ padding: '8px 14px', borderRadius: 20, border: active ? '2px solid #7F77DD' : '1px solid #EDE9FE', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: active ? '#EDE9FE' : 'white', color: active ? '#7F77DD' : '#6B7280' }}>
+                  {l} {count !== undefined && `(${count})`}
+                </button>
+              );
+            })}
           </div>
+
+          <button onClick={() => setShowArchive(true)}
+            style={{ padding: '8px 14px', borderRadius: 20, border: '1px solid #EDE9FE', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: 'white', color: '#D97706', display: 'flex', alignItems: 'center', gap: 6 }}>
+            📥 Архив {statusCounts?.archived !== undefined && <span style={{ background: '#FEF3C7', color: '#D97706', padding: '1px 8px', borderRadius: 20, fontSize: 11 }}>{statusCounts.archived}</span>}
+          </button>
 
           <select value={filterManager} onChange={e => setFilterManager(e.target.value)}
             style={{ background: 'white', border: '1px solid #EDE9FE', borderRadius: 20, padding: '8px 14px', fontSize: 12, outline: 'none', color: filterManager ? '#7F77DD' : '#6B7280', fontWeight: 700 }}>
@@ -464,6 +473,11 @@ export default function SubscribersPage() {
 
       {showTrash && (
         <TrashModal h={h} onClose={() => setShowTrash(false)} onRestored={load} />
+      )}
+
+      {showArchive && (
+        <ArchiveModal h={h} onClose={() => setShowArchive(false)} onRestored={load}
+          onSelectSubscriber={(s: any) => { setActiveSubscriber(s); setShowArchive(false); }} />
       )}
 
       {showCrmSettings && (
