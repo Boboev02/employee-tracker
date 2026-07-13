@@ -6,6 +6,7 @@ import { AutomationBuilder } from '@/components/subscribers/AutomationBuilder';
 import { RemindersCenter } from '@/components/subscribers/RemindersCenter';
 import { TrashModal } from '@/components/subscribers/TrashModal';
 import { ArchiveModal } from '@/components/subscribers/ArchiveModal';
+import { SubscriberBoard } from '@/components/subscribers/SubscriberBoard';
 import { CrmSettingsModal } from '@/components/subscribers/CrmSettingsModal';
 import { PLAN_LABELS, PLAN_COLORS, STATUS_LABELS, STATUS_COLORS } from '@/lib/subscriberConstants';
 
@@ -49,6 +50,7 @@ export default function SubscribersPage() {
   const [sortBy, setSortBy] = useState('createdAt');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [groupBy, setGroupBy] = useState<'none' | 'plan' | 'crmStatus' | 'managerId'>('none');
+  const [view, setView] = useState<'table' | 'board'>('table');
 
   const [hiddenCols, setHiddenColsState] = useState<Set<string>>(new Set());
   const setHiddenCols = (updater: Set<string> | ((prev: Set<string>) => Set<string>)) => {
@@ -132,8 +134,8 @@ export default function SubscribersPage() {
     if (filterManager) params.set('managerId', filterManager);
     params.set('sortBy', sortBy);
     params.set('sortDir', sortDir);
-    params.set('limit', String(pageSize));
-    params.set('offset', String((page - 1) * pageSize));
+    params.set('limit', view === 'board' ? '500' : String(pageSize));
+    params.set('offset', view === 'board' ? '0' : String((page - 1) * pageSize));
 
     const [sRes, statsRes, eRes, scRes] = await Promise.all([
       fetch(`${API}/subscribers?${params}`, { headers: h() }),
@@ -150,7 +152,7 @@ export default function SubscribersPage() {
     setStatusCounts(await scRes.json().catch(() => null));
     setLoading(false);
     setSelected(new Set());
-  }, [token, search, filterPlan, filterStatus, filterManager, sortBy, sortDir, page, pageSize, h]);
+  }, [token, search, filterPlan, filterStatus, filterManager, sortBy, sortDir, page, pageSize, view, h]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setPage(1); }, [search, filterPlan, filterStatus, filterManager]);
@@ -322,9 +324,15 @@ export default function SubscribersPage() {
             <option value="managerId">По менеджеру</option>
           </select>
 
+          {/* View switcher */}
+          <div style={{ display: 'flex', gap: 4, background: '#F8F7FF', borderRadius: 20, padding: 3 }}>
+            <button onClick={() => setView('table')} style={{ padding: '6px 12px', borderRadius: 16, border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: view === 'table' ? 'white' : 'transparent', color: view === 'table' ? '#7F77DD' : '#9B97CC', boxShadow: view === 'table' ? '0 2px 6px rgba(127,119,221,0.15)' : 'none' }}>📋 Таблица</button>
+            <button onClick={() => setView('board')} style={{ padding: '6px 12px', borderRadius: 16, border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: view === 'board' ? 'white' : 'transparent', color: view === 'board' ? '#7F77DD' : '#9B97CC', boxShadow: view === 'board' ? '0 2px 6px rgba(127,119,221,0.15)' : 'none' }}>🗂 Доска</button>
+          </div>
+
           {/* Columns */}
-          <div ref={colMenuRef} style={{ position: 'relative', marginLeft: 'auto' }}>
-            <button onClick={() => setShowColMenu(v => !v)} style={{ padding: '8px 14px', borderRadius: 20, border: '1px solid #EDE9FE', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: 'white', color: '#6B7280' }}>
+          <div ref={colMenuRef} style={{ position: 'relative', marginLeft: view === 'table' ? 'auto' : 0 }}>
+            <button onClick={() => setShowColMenu(v => !v)} style={{ padding: '8px 14px', borderRadius: 20, border: '1px solid #EDE9FE', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: 'white', color: '#6B7280', display: view === 'table' ? 'inline-flex' : 'none' }}>
               ⚙️ Столбцы
             </button>
             {showColMenu && (
@@ -367,6 +375,7 @@ export default function SubscribersPage() {
         )}
 
         {/* Table */}
+        {view === 'table' ? (
         <div style={{ ...cardStyle, overflow: 'hidden' }}>
           {loading ? (
             <div style={{ padding: '16px 20px' }}>
@@ -455,8 +464,11 @@ export default function SubscribersPage() {
             </div>
           )}
         </div>
+        ) : (
+          <SubscriberBoard subscribers={subscribers} loading={loading} onSelect={(s: any) => setActiveSubscriber(s)} />
+        )}
 
-        {total > pageSize && (
+        {view === 'table' && total > pageSize && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 16 }}>
             <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
               style={{ padding: '7px 14px', borderRadius: 10, border: '1px solid #EDE9FE', background: 'white', color: page === 1 ? '#C4C0E8' : '#7F77DD', fontSize: 12.5, fontWeight: 700, cursor: page === 1 ? 'not-allowed' : 'pointer' }}>← Назад</button>

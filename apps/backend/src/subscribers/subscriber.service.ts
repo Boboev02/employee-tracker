@@ -60,7 +60,10 @@ export class SubscriberService {
     const [data, total] = await Promise.all([
       this.prisma.subscriber.findMany({
         where, orderBy: { [sortField]: sortDir }, take, skip,
-        include: { manager: { select: { id: true, name: true, avatarUrl: true } } },
+        include: {
+          manager: { select: { id: true, name: true, avatarUrl: true } },
+          _count: { select: { comments: true, history: true } },
+        },
       }),
       this.prisma.subscriber.count({ where }),
     ]);
