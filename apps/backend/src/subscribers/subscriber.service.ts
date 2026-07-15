@@ -477,19 +477,21 @@ export class SubscriberService {
   async sendDailySummary(orgId: string) {
     const reminders = await this.getReminders(orgId);
     const allRelevant = [...reminders.today, ...reminders.tomorrow, ...reminders.overdue];
-    const managerCounts = new Map<string, number>();
-    for (const s of allRelevant) {
-      if (!s.managerId) continue;
-      managerCounts.set(s.managerId, (managerCounts.get(s.managerId) ?? 0) + 1);
-    }
-    for (const [managerId, count] of managerCounts) {
+    const withManager = allRelevant.filter(s => s.managerId);
+    for (const s of withManager) {
+      const name = `${s.firstName ?? ''} ${s.lastName ?? ''}`.trim() || s.email || 'Подписчик';
+      const dateField = s.trialEndsAt ?? s.subscriptionEndsAt;
+      const isOverdue = dateField && new Date(dateField) < new Date();
+      const reason = isOverdue ? 'просрочен срок подписки' : 'истекает срок сегодня/завтра';
       await this.notifications.create(
-        managerId, orgId, 'subscriber_daily_summary',
-        '📊 Ежедневная сводка по подписчикам',
-        `У вас ${count} подписчик(ов), требующих внимания сегодня (истекает срок или уже просрочено)`,
+        s.managerId!, orgId, 'subscriber_daily_summary',
+        `📊 ${name} — требует внимания`,
+        `Причина: ${reason}. Тариф: ${s.plan ?? '—'}. Свяжитесь для уточнения продления.`,
+        undefined, s.id,
       ).catch(() => {});
     }
-    return { ok: true, notifiedManagers: managerCounts.size, totalUrgent: allRelevant.length };
+    const managerIds = new Set(withManager.map(s => s.managerId));
+    return { ok: true, notifiedManagers: managerIds.size, totalUrgent: allRelevant.length };
   }
 
   async getIntegration(orgId: string, name = 'kingstats') {

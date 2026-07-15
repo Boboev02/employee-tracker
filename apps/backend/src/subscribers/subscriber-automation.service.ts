@@ -228,8 +228,9 @@ export class SubscriberAutomationService {
         const userId = params.userId ?? subscriber.managerId;
         if (!userId) return;
         const message = this.interpolate(params.message ?? '', subscriber);
-        const title = params.title ?? '⚡ Автоматизация CRM';
-        await this.notifications.create(userId, orgId, 'subscriber_automation', title, message).catch(() => {});
+        const subscriberName = `${subscriber.firstName ?? ''} ${subscriber.lastName ?? ''}`.trim() || subscriber.email || subscriber.username || 'подписчик';
+        const title = params.title ? `${params.title} — ${subscriberName}` : `⚡ ${subscriberName}`;
+        await this.notifications.create(userId, orgId, 'subscriber_automation', title, message, undefined, subscriber.id).catch(() => {});
         // Дублируем в реальные каналы (Telegram/Email), если у пользователя они настроены — не только внутри системы
         const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { telegramChatId: true, email: true, notificationEmail: true } });
         if (user?.telegramChatId) {

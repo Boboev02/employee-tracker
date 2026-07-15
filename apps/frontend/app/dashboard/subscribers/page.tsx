@@ -155,6 +155,23 @@ export default function SubscribersPage() {
   }, [token, search, filterPlan, filterStatus, filterManager, sortBy, sortDir, page, pageSize, view, h]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Автооткрытие карточки подписчика по ссылке из уведомления (?open=<id>)
+  useEffect(() => {
+    if (subscribers.length === 0) return;
+    const openId = new URLSearchParams(window.location.search).get('open');
+    if (!openId) return;
+    const target = subscribers.find(s => s.id === openId);
+    if (target) {
+      setActiveSubscriber(target);
+      window.history.replaceState({}, '', '/dashboard/subscribers');
+    } else {
+      // Может быть не в текущем фильтре/странице — подтягиваем карточку напрямую по ID
+      fetch(`${API}/subscribers/${openId}`, { headers: h() }).then(r => r.ok ? r.json() : null).then(full => {
+        if (full) { setActiveSubscriber(full); window.history.replaceState({}, '', '/dashboard/subscribers'); }
+      }).catch(() => {});
+    }
+  }, [subscribers]);
   useEffect(() => { setPage(1); }, [search, filterPlan, filterStatus, filterManager]);
 
   // Close dropdowns on outside click

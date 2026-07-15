@@ -279,8 +279,8 @@ export function Sidebar() {
                     </div>
                   ) : notifs.map(n => (
                     <div key={n.id}
-                      onClick={()=>{ markRead(n.id); if (n.taskId) { setShowNotifs(false); router.push('/dashboard/tasks/'+n.taskId); } }}
-                      style={{ padding:'10px 14px', borderBottom:'0.5px solid rgba(255,255,255,0.05)', cursor:n.taskId?'pointer':'default', background:n.isRead?'transparent':'rgba(139,124,246,0.06)', transition:'background 0.1s', display:'flex', gap:'10px', alignItems:'flex-start' }}
+                      onClick={()=>{ markRead(n.id); if (n.taskId) { setShowNotifs(false); router.push('/dashboard/tasks/'+n.taskId); } else if (n.subscriberId) { setShowNotifs(false); router.push('/dashboard/subscribers?open='+n.subscriberId); } }}
+                      style={{ padding:'10px 14px', borderBottom:'0.5px solid rgba(255,255,255,0.05)', cursor:(n.taskId||n.subscriberId)?'pointer':'default', background:n.isRead?'transparent':'rgba(139,124,246,0.06)', transition:'background 0.1s', display:'flex', gap:'10px', alignItems:'flex-start' }}
                       onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background='rgba(255,255,255,0.04)'}
                       onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background=n.isRead?'transparent':'rgba(139,124,246,0.06)'}>
                       <div style={{ width:'28px', height:'28px', borderRadius:'8px', background:n.isRead?'rgba(255,255,255,0.06)':'rgba(139,124,246,0.2)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:'1px' }}>

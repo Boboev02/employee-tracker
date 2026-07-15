@@ -259,6 +259,7 @@ model Notification {
   body      String
   isRead    Boolean  @default(false)
   taskId    String?
+  subscriberId String? // для уведомлений о подписчиках CRM — открывает карточку по клику
   createdAt DateTime @default(now())
 
   @@index([userId, isRead])
