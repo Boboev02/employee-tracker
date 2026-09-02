@@ -77,8 +77,8 @@ export default function EmployeesPage() {
   const loadData = async (t: string) => {
     try {
       const [emps, pres] = await Promise.all([
-        fetch('https://employee-tracker.ru/api/v1/employees', { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
-        fetch('https://employee-tracker.ru/api/v1/presence',  { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
+        fetch('/api/v1/employees', { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
+        fetch('/api/v1/presence',  { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
       ]);
       if (Array.isArray(emps)) setEmployees(emps);
       if (pres && !pres.error) {
@@ -100,7 +100,7 @@ export default function EmployeesPage() {
     const t = localStorage.getItem('access_token');
     if (!t) return;
     try {
-      const res = await fetch('https://employee-tracker.ru/api/v1/employees/invite', {
+      const res = await fetch('/api/v1/employees/invite', {
         method:'POST', headers:{ Authorization:'Bearer '+t, 'Content-Type':'application/json' },
         body: JSON.stringify(invite),
       });
@@ -115,7 +115,7 @@ export default function EmployeesPage() {
     const t = localStorage.getItem('access_token');
     if (!t) return;
     try {
-      const res = await fetch('https://employee-tracker.ru/api/v1/employees/' + resetPassId + '/reset-password', {
+      const res = await fetch('/api/v1/employees/' + resetPassId + '/reset-password', {
         method: 'PATCH', headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: newPassword }),
       });
@@ -125,18 +125,18 @@ export default function EmployeesPage() {
   };
 
   const handleRoleChange = async (empId: string, role: string) => {
-    await apiCall(`https://employee-tracker.ru/api/v1/employees/${empId}/role`, 'PATCH', { role });
+    await apiCall(`/api/v1/employees/${empId}/role`, 'PATCH', { role });
     setEditingRole(null);
   };
 
   const handleDelete = async (empId: string, name: string) => {
     if (!confirm(`Удалить сотрудника "${name}"? Это действие необратимо.`)) return;
-    await apiCall(`https://employee-tracker.ru/api/v1/employees/${empId}`, 'DELETE');
+    await apiCall(`/api/v1/employees/${empId}`, 'DELETE');
   };
 
   const handleSuspend = async (empId: string, isSuspended: boolean) => {
     const endpoint = isSuspended ? 'activate' : 'suspend';
-    await apiCall(`https://employee-tracker.ru/api/v1/employees/${empId}/${endpoint}`, 'PATCH');
+    await apiCall(`/api/v1/employees/${empId}/${endpoint}`, 'PATCH');
   };
 
   const filtered = employees.filter(e =>

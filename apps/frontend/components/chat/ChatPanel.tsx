@@ -175,7 +175,7 @@ export function ChatPanel({ token, currentUserId, compact = false }: Props) {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const r = await fetch('https://employee-tracker.ru/api/v1/upload/file', {
+      const r = await fetch('/api/v1/upload/file', {
         method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: formData,
       });
       if (r.ok) {
@@ -246,13 +246,13 @@ export function ChatPanel({ token, currentUserId, compact = false }: Props) {
     if (!activeChannel) return;
     setCreatingCall(true);
     try {
-      const r = await fetch('https://employee-tracker.ru/api/v1/calls/create', {
+      const r = await fetch('/api/v1/calls/create', {
         method: 'POST', headers: { 'Content-Type':'application/json', Authorization:'Bearer '+token },
         body: JSON.stringify({ title: activeChannel.name ?? 'Звонок' }),
       });
       if (r.ok) {
         const data = await r.json();
-        const url = `https://employee-tracker.ru${data.url}`;
+        const url = `/api/v1${data.url}`;
         await chat.sendMessage(activeChannel.id, { content: `📞 Видеозвонок: ${url}` });
         window.open(data.url, '_blank');
       }
@@ -269,7 +269,7 @@ export function ChatPanel({ token, currentUserId, compact = false }: Props) {
     if (!activeChannel) return;
     const formData = new FormData();
     formData.append('file', file);
-    const r = await fetch('https://employee-tracker.ru/api/v1/upload/file', { method:'POST', headers:{ Authorization:'Bearer '+token }, body: formData });
+    const r = await fetch('/api/v1/upload/file', { method:'POST', headers:{ Authorization:'Bearer '+token }, body: formData });
     if (r.ok) {
       const data = await r.json();
       await chat.updateChannelAvatar(activeChannel.id, data.url);

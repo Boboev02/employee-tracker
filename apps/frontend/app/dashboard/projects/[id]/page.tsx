@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { RelationsBlock } from '@/components/relations/RelationsBlock';
 import { ActivityLogBlock } from '@/components/relations/ActivityLogBlock';
 
-const API = 'https://employee-tracker.ru/api/v1';
+const API = '/api/v1';
 const STATUS_LABELS: Record<string,string> = { ACTIVE:'Активный', COMPLETED:'Завершён', ARCHIVED:'В архиве', ON_HOLD:'На паузе' };
 const TASK_STATUS_LABELS: Record<string,string> = { NEW:'Новая', IN_PROGRESS:'В работе', REVIEW:'Проверка', BLOCKED:'Заблокировано', DONE:'Готово', OVERDUE:'Просрочена' };
 const TASK_STATUS_COLORS: Record<string,string> = { NEW:'#9B97CC', IN_PROGRESS:'#7F77DD', REVIEW:'#D97706', BLOCKED:'#DC2626', DONE:'#16A34A', OVERDUE:'#DC2626' };

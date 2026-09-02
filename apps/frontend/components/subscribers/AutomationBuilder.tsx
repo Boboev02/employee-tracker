@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 
-const API = 'https://employee-tracker.ru/api/v1';
+const API = '/api/v1';
 
 const TRIGGER_LABELS: Record<string, string> = {
   ON_REGISTER: 'Пользователь зарегистрировался',

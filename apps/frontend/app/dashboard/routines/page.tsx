@@ -56,9 +56,9 @@ export default function RoutinesPage() {
     setLoading(true);
     try {
       const [tpl, emps, st] = await Promise.all([
-        fetch('https://employee-tracker.ru/api/v1/routine-tasks',        { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
-        fetch('https://employee-tracker.ru/api/v1/employees',            { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
-        fetch('https://employee-tracker.ru/api/v1/routine-tasks/stats',  { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
+        fetch('/api/v1/routine-tasks',        { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
+        fetch('/api/v1/employees',            { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
+        fetch('/api/v1/routine-tasks/stats',  { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
       ]);
       if (Array.isArray(tpl)) setTemplates(tpl);
       if (Array.isArray(emps)) setEmployees(emps);
@@ -71,7 +71,7 @@ export default function RoutinesPage() {
     setSaving(true);
     const t = token();
     try {
-      const url = editId ? `https://employee-tracker.ru/api/v1/routine-tasks/${editId}` : 'https://employee-tracker.ru/api/v1/routine-tasks';
+      const url = editId ? `/api/v1/routine-tasks/${editId}` : '/api/v1/routine-tasks';
       const method = editId ? 'PUT' : 'POST';
       await fetch(url, { method, headers:{ Authorization:'Bearer '+t, 'Content-Type':'application/json' }, body:JSON.stringify({ ...form, assigneeId:form.assigneeId||undefined, dueTime:form.dueTime||undefined, startDate:form.startDate||undefined, endDate:form.endDate||undefined }) });
       setShowForm(false); setForm({...emptyForm}); setEditId(null); loadAll(t);
@@ -80,18 +80,18 @@ export default function RoutinesPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Удалить шаблон?')) return;
-    await fetch(`https://employee-tracker.ru/api/v1/routine-tasks/${id}`, { method:'DELETE', headers:{ Authorization:'Bearer '+token() } });
+    await fetch(`/api/v1/routine-tasks/${id}`, { method:'DELETE', headers:{ Authorization:'Bearer '+token() } });
     loadAll(token());
   };
 
   const handleToggle = async (id: string) => {
-    await fetch(`https://employee-tracker.ru/api/v1/routine-tasks/${id}/toggle`, { method:'PATCH', headers:{ Authorization:'Bearer '+token() } });
+    await fetch(`/api/v1/routine-tasks/${id}/toggle`, { method:'PATCH', headers:{ Authorization:'Bearer '+token() } });
     loadAll(token());
   };
 
   const handleSpawn = async () => {
     setSpawning(true); setSpawnResult(null);
-    const res = await fetch('https://employee-tracker.ru/api/v1/routine-tasks/spawn', { method:'POST', headers:{ Authorization:'Bearer '+token() } });
+    const res = await fetch('/api/v1/routine-tasks/spawn', { method:'POST', headers:{ Authorization:'Bearer '+token() } });
     const data = await res.json();
     setSpawnResult(data); setSpawning(false); loadAll(token());
   };

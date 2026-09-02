@@ -130,7 +130,7 @@ export default function CallRoomPage() {
   }, [myUserId]);
 
   const connectSocket = (token: string, userId: string, userName: string) => {
-    const socket = io('https://employee-tracker.ru/realtime', {
+    const socket = io('http://localhost:3001/realtime', {
       auth: { token },
       transports: ['websocket', 'polling'],
     });
@@ -279,7 +279,7 @@ export default function CallRoomPage() {
   };
 
   const copyLink = () => {
-    navigator.clipboard.writeText(`https://employee-tracker.ru/dashboard/calls/${roomId}`);
+    navigator.clipboard.writeText(`/api/v1/dashboard/calls/${roomId}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

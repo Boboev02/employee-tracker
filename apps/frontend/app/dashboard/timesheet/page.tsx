@@ -34,7 +34,7 @@ export default function TimesheetPage() {
   useEffect(() => {
     const t = localStorage.getItem('access_token');
     if (!t) { router.push('/login'); return; }
-    fetch('https://employee-tracker.ru/api/v1/employees', { headers:{ Authorization:'Bearer '+t } })
+    fetch('/api/v1/employees', { headers:{ Authorization:'Bearer '+t } })
       .then(r=>r.json()).then(d=>{ if(Array.isArray(d)) setEmployees(d); });
     load(t, 14, '');
   }, []);
@@ -42,7 +42,7 @@ export default function TimesheetPage() {
   const load = async (token: string, d: number, uid: string) => {
     setLoading(true);
     try {
-      let url = `https://employee-tracker.ru/api/v1/timesheet?days=${d}`;
+      let url = `/api/v1/timesheet?days=${d}`;
       if (uid) url += `&userId=${uid}`;
       const res = await fetch(url, { headers:{ Authorization:'Bearer '+token } });
       const json = await res.json();

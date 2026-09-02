@@ -39,7 +39,7 @@ export default function ProfilePage() {
 
   const loadMe = async (t: string) => {
     try {
-      const res = await fetch('https://employee-tracker.ru/api/v1/auth/me', { headers:{ Authorization:'Bearer '+t } });
+      const res = await fetch('/api/v1/auth/me', { headers:{ Authorization:'Bearer '+t } });
       const data = await res.json();
       if (data && !data.error) {
         setUser((prev: any) => ({ ...prev, ...data }));
@@ -50,7 +50,7 @@ export default function ProfilePage() {
 
   const loadStats = async (t: string, userId: string) => {
     try {
-      const res = await fetch(`https://employee-tracker.ru/api/v1/analytics/activity/summary?days=30&userId=${userId}`, { headers:{ Authorization:'Bearer '+t } });
+      const res = await fetch(`/api/v1/analytics/activity/summary?days=30&userId=${userId}`, { headers:{ Authorization:'Bearer '+t } });
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0) setStats(data[0]);
     } catch {}
@@ -64,14 +64,14 @@ export default function ProfilePage() {
     setSaving(true);
     try {
       // Проверяем текущий пароль через логин
-      const check = await fetch('https://employee-tracker.ru/api/v1/auth/login', {
+      const check = await fetch('/api/v1/auth/login', {
         method:'POST', headers:{ 'Content-Type':'application/json' },
         body: JSON.stringify({ email: user.email, password: curPass }),
       });
       if (!check.ok) { setPassErr('Неверный текущий пароль'); return; }
 
       // Меняем пароль через reset (admin endpoint) — используем свой токен
-      const res = await fetch(`https://employee-tracker.ru/api/v1/employees/${user.id}/reset-password`, {
+      const res = await fetch(`/api/v1/employees/${user.id}/reset-password`, {
         method:'PATCH', headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
         body: JSON.stringify({ password: newPass }),
       });

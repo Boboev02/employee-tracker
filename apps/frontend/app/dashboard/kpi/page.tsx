@@ -50,7 +50,7 @@ export default function KpiPage() {
   const load = async (t: string, p: string) => {
     setLoading(true);
     try {
-      const res = await fetch('https://employee-tracker.ru/api/v1/kpi?period='+p, { headers:{ Authorization:'Bearer '+t } });
+      const res = await fetch('/api/v1/kpi?period='+p, { headers:{ Authorization:'Bearer '+t } });
       const data = await res.json();
       if (Array.isArray(data)) setKpis(data);
     } finally { setLoading(false); }
@@ -64,7 +64,7 @@ export default function KpiPage() {
   const saveKpi = async (userId: string) => {
     setSaving(true);
     try {
-      await fetch('https://employee-tracker.ru/api/v1/kpi', {
+      await fetch('/api/v1/kpi', {
         method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token },
         body: JSON.stringify({ userId, period, ...form }),
       });
@@ -74,7 +74,7 @@ export default function KpiPage() {
 
   const clearKpi = async (kpiId: string) => {
     if (!confirm('Очистить KPI цели?')) return;
-    await fetch('https://employee-tracker.ru/api/v1/kpi/'+kpiId, { method:'DELETE', headers:{ Authorization:'Bearer '+token } });
+    await fetch('/api/v1/kpi/'+kpiId, { method:'DELETE', headers:{ Authorization:'Bearer '+token } });
     load(token, period);
   };
 

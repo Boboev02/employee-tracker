@@ -124,7 +124,7 @@ export default function CallRoomClient() {
 
     (async () => {
       try {
-        const checkRes = await fetch(`https://employee-tracker.ru/api/v1/calls/${roomId}/check`, {
+        const checkRes = await fetch(`/api/v1/calls/${roomId}/check`, {
           headers: { Authorization: 'Bearer ' + token },
         });
         if (!checkRes.ok) {
@@ -371,7 +371,7 @@ export default function CallRoomClient() {
   };
 
   const connectSocket = (token: string, userId: string, userName: string) => {
-    const socket = io('https://employee-tracker.ru/realtime', {
+    const socket = io('http://localhost:3001/realtime', {
       auth: { token },
       transports: ['websocket', 'polling'],
     });
@@ -823,7 +823,7 @@ export default function CallRoomClient() {
   };
 
   const copyLink = () => {
-    navigator.clipboard.writeText(`https://employee-tracker.ru/dashboard/calls/${roomId}`);
+    navigator.clipboard.writeText(`/api/v1/dashboard/calls/${roomId}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

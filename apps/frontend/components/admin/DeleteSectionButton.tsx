@@ -36,7 +36,7 @@ export function DeleteSectionButton({ section, label, token, userRoles = [], onD
   const handleDelete = async () => {
     setLoading(true);
     try {
-      const r = await fetch(`https://employee-tracker.ru/api/v1/reset/${section}`, {
+      const r = await fetch(`/api/v1/reset/${section}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

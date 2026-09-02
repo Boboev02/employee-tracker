@@ -10,7 +10,7 @@ import { SubscriberBoard } from '@/components/subscribers/SubscriberBoard';
 import { CrmSettingsModal } from '@/components/subscribers/CrmSettingsModal';
 import { PLAN_LABELS, PLAN_COLORS, STATUS_LABELS, STATUS_COLORS } from '@/lib/subscriberConstants';
 
-const API = 'https://employee-tracker.ru/api/v1';
+const API = '/api/v1';
 
 const ALL_COLUMNS = [
   { key: 'name', label: 'Имя', pinned: true },

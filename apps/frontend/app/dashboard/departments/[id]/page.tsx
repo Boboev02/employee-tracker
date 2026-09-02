@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 
-const API = 'https://employee-tracker.ru/api/v1';
+const API = '/api/v1';
 
 const STATUS_LABELS: Record<string,string> = { ACTIVE:'Активный', COMPLETED:'Завершён', ARCHIVED:'В архиве', ON_HOLD:'На паузе' };
 const STATUS_COLORS: Record<string,string> = { ACTIVE:'#10B981', COMPLETED:'#7F77DD', ARCHIVED:'#9B97CC', ON_HOLD:'#F59E0B' };

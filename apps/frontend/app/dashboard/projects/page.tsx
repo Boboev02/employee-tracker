@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { DeleteSectionButton } from '@/components/admin/DeleteSectionButton';
 
-const API = 'https://employee-tracker.ru/api/v1';
+const API = '/api/v1';
 const COLORS = ['#7F77DD','#8B5CF6','#3B82F6','#10B981','#F59E0B','#EF4444','#EC4899','#06B6D4'];
 const STATUS_LABELS: Record<string,string> = { ACTIVE:'Активный', COMPLETED:'Завершён', ARCHIVED:'В архиве', ON_HOLD:'На паузе' };
 const STATUS_COLORS: Record<string,string> = { ACTIVE:'#10B981', COMPLETED:'#7F77DD', ARCHIVED:'#9B97CC', ON_HOLD:'#F59E0B' };

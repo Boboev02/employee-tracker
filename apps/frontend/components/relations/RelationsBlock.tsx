@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 
-const API = 'https://employee-tracker.ru';
+const API = '/api/v1';
 
 const ENTITY_TYPES = [
   { value: 'TASK',              label: 'Задача',    icon: '✅' },
@@ -56,7 +56,7 @@ export function RelationsBlock({ entityType, entityId, token, compact = false }:
     if (!entityId || !token) return;
     setLoading(true);
     try {
-      const r = await fetch(`${API}/api/v1/relations/${entityType}/${entityId}`, { headers });
+      const r = await fetch(`${API}/relations/${entityType}/${entityId}`, { headers });
       if (r.ok) {
         const d = await r.json();
         setRelations(d.relations ?? []);
@@ -71,7 +71,7 @@ export function RelationsBlock({ entityType, entityId, token, compact = false }:
     setSearchQuery(q);
     if (q.length < 1) { setSearchResults([]); return; }
     try {
-      const r = await fetch(`${API}/api/v1/relations/search/${targetEntityType}?q=${encodeURIComponent(q)}`, { headers });
+      const r = await fetch(`${API}/relations/search/${targetEntityType}?q=${encodeURIComponent(q)}`, { headers });
       if (r.ok) setSearchResults(await r.json());
     } catch {}
   };
@@ -80,7 +80,7 @@ export function RelationsBlock({ entityType, entityId, token, compact = false }:
     if (!selectedEntity) return;
     setAdding(true);
     try {
-      const r = await fetch(`${API}/api/v1/relations`, {
+      const r = await fetch(`${API}/relations`, {
         method: 'POST', headers,
         body: JSON.stringify({
           sourceType: entityType, sourceId: entityId,
@@ -100,7 +100,7 @@ export function RelationsBlock({ entityType, entityId, token, compact = false }:
   };
 
   const deleteRelation = async (id: string) => {
-    await fetch(`${API}/api/v1/relations/${id}`, { method: 'DELETE', headers });
+    await fetch(`${API}/relations/${id}`, { method: 'DELETE', headers });
     await load();
   };
 

@@ -22,6 +22,12 @@ async function bootstrap() {
     origin: [
       'http://localhost:3000',
       'https://employee-tracker.ru',
+      'https://employeetracker.ru',
+      'https://www.employeetracker.ru',
+      'http://186.246.8.133',
+      'https://employeetracker.ru',
+      'https://www.employeetracker.ru',
+      'http://186.246.8.133',
       'https://www.employee-tracker.ru',
       'https://seller.wildberries.ru',
       'https://cmp.wildberries.ru',

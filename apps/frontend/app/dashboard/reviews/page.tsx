@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 
-const API = 'https://employee-tracker.ru/api/v1';
+const API = '/api/v1';
 
 export default function ReviewsPage() {
   const router = useRouter();

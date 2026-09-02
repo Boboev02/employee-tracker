@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 
-const API = 'https://employee-tracker.ru';
+const API = '/api/v1';
 type NoteStatus   = 'ACTIVE' | 'DONE' | 'DEFERRED' | 'ARCHIVED';
 type NotePriority = 'LOW' | 'MEDIUM' | 'HIGH';
 interface Note {
@@ -59,7 +59,7 @@ export default function NotebookPage() {
     try {
       const params = tab === 'done' ? '?status=DONE' : tab === 'archived' ? '?status=ARCHIVED' : '';
       const q = search ? (params ? '&' : '?') + `search=${encodeURIComponent(search)}` : '';
-      const res = await fetch(`${API}/api/v1/notes${params}${q}`, { headers:{ Authorization:`Bearer ${tk}` }});
+      const res = await fetch(`${API}/notes${params}${q}`, { headers:{ Authorization:`Bearer ${tk}` }});
       if (res.ok) setNotes(await res.json());
     } catch {}
   };
@@ -67,7 +67,7 @@ export default function NotebookPage() {
   const create = async () => {
     if (!newNote.title.trim()) return;
     try {
-      const res = await fetch(`${API}/api/v1/notes`, {
+      const res = await fetch(`${API}/notes`, {
         method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${token}`},
         body: JSON.stringify({ title:newNote.title, content:newNote.content, priority:newNote.priority,
           status:'ACTIVE', isPinned:false, color:newNote.color,
@@ -79,7 +79,7 @@ export default function NotebookPage() {
 
   const update = async (id: string, data: Partial<Note>) => {
     try {
-      const res = await fetch(`${API}/api/v1/notes/${id}`, {
+      const res = await fetch(`${API}/notes/${id}`, {
         method:'PATCH', headers:{'Content-Type':'application/json', Authorization:`Bearer ${token}`},
         body: JSON.stringify(data),
       });
@@ -89,7 +89,7 @@ export default function NotebookPage() {
 
   const del = async (id: string) => {
     if (!confirm('Удалить заметку?')) return;
-    try { await fetch(`${API}/api/v1/notes/${id}`, { method:'DELETE', headers:{ Authorization:`Bearer ${token}` }}); load(); } catch {}
+    try { await fetch(`${API}/notes/${id}`, { method:'DELETE', headers:{ Authorization:`Bearer ${token}` }}); load(); } catch {}
   };
 
   const saveEdit = async () => {

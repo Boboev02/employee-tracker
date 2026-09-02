@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 
-const API = 'https://employee-tracker.ru';
+const API = '/api/v1';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface GNode {
@@ -183,10 +183,10 @@ export default function CommandCenterPage() {
     try {
       // Fetch all data
       const [deptD, projD, empD, taskD] = await Promise.all([
-        apiFetch(`${API}/api/v1/dictionaries/departments`),
-        apiFetch(`${API}/api/v1/projects?limit=50`),
-        apiFetch(`${API}/api/v1/employees?limit=100`),
-        apiFetch(`${API}/api/v1/tasks?limit=100&parentId=null`),
+        apiFetch(`${API}/dictionaries/departments`),
+        apiFetch(`${API}/projects?limit=50`),
+        apiFetch(`${API}/employees?limit=100`),
+        apiFetch(`${API}/tasks?limit=100&parentId=null`),
       ]);
 
       const depts = Array.isArray(deptD) ? deptD : [];
@@ -241,7 +241,7 @@ export default function CommandCenterPage() {
 
         // Project members → associative edges to project (not new tree nodes, just links)
         try {
-          const pd = await apiFetch(`${API}/api/v1/projects/${p.id}`);
+          const pd = await apiFetch(`${API}/projects/${p.id}`);
           const members = pd.members ?? [];
           members.slice(0, 5).forEach((m: any) => {
             const mId = m.userId ?? m.id;
@@ -320,7 +320,7 @@ export default function CommandCenterPage() {
 
         // Load subtasks + attachments
         try {
-          const subtasksD = await apiFetch(`${API}/api/v1/tasks?parentId=${t.id}&limit=10`);
+          const subtasksD = await apiFetch(`${API}/tasks?parentId=${t.id}&limit=10`);
           const subtasks = Array.isArray(subtasksD) ? subtasksD : (subtasksD.data ?? []);
           subtasks.forEach((st: any) => {
             const stid = `task_${st.id}`;
@@ -338,7 +338,7 @@ export default function CommandCenterPage() {
           });
 
           // Attachments
-          const attD = await apiFetch(`${API}/api/v1/tasks/${t.id}/attachments`);
+          const attD = await apiFetch(`${API}/tasks/${t.id}/attachments`);
           const atts = Array.isArray(attD) ? attD : [];
           atts.slice(0, 3).forEach((a: any) => {
             const aid = `att_${a.id}`;

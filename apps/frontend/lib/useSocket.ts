@@ -21,7 +21,7 @@ export function useSocket(token: string | null) {
   useEffect(() => {
     if (!token) return;
 
-    const socket = io('https://employee-tracker.ru/realtime', {
+    const socket = io('http://localhost:3001/realtime', {
       auth:       { token },
       transports: ['websocket', 'polling'],
     });

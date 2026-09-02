@@ -23,7 +23,7 @@ export function NotificationBell() {
     const t = localStorage.getItem('access_token');
     if (!t) return;
     try {
-      const res = await fetch('https://employee-tracker.ru/api/v1/notifications', {
+      const res = await fetch('/api/v1/notifications', {
         headers: { Authorization: 'Bearer ' + t }
       });
       const data = await res.json();
@@ -51,7 +51,7 @@ export function NotificationBell() {
   const markAllRead = async () => {
     const t = localStorage.getItem('access_token');
     if (!t) return;
-    await fetch('https://employee-tracker.ru/api/v1/notifications/read-all', {
+    await fetch('/api/v1/notifications/read-all', {
       method: 'PATCH',
       headers: { Authorization: 'Bearer ' + t }
     });
@@ -62,7 +62,7 @@ export function NotificationBell() {
   const markRead = async (id: string, taskId?: string) => {
     const t = localStorage.getItem('access_token');
     if (!t) return;
-    await fetch(`https://employee-tracker.ru/api/v1/notifications/${id}/read`, {
+    await fetch(`/api/v1/notifications/${id}/read`, {
       method: 'PATCH',
       headers: { Authorization: 'Bearer ' + t }
     });

@@ -11,7 +11,7 @@ function fmtDuration(ms: number): string {
   return m + 'м';
 }
 
-const API = 'https://employee-tracker.ru';
+const API = '/api/v1';
 
 export function WorkSessionWidget({ token, compact = false }: Props) {
   const [session, setSession]   = useState<any>(null);

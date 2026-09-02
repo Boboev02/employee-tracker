@@ -17,7 +17,7 @@ export default function SettingsPage() {
   useEffect(() => {
     const t = localStorage.getItem('access_token');
     if (!t) { router.push('/login'); return; }
-    fetch('https://employee-tracker.ru/api/v1/settings/work-hours', { headers:{ Authorization:'Bearer '+t } })
+    fetch('/api/v1/settings/work-hours', { headers:{ Authorization:'Bearer '+t } })
       .then(r=>r.json()).then(d=>{ if(d&&!d.error) setSettings((prev:any)=>({...prev,...d})); });
   }, []);
 
@@ -25,7 +25,7 @@ export default function SettingsPage() {
     const t = localStorage.getItem('access_token');
     if (!t) return;
     setSaving(true);
-    await fetch('https://employee-tracker.ru/api/v1/settings/work-hours', {
+    await fetch('/api/v1/settings/work-hours', {
       method:'PUT', headers:{ Authorization:'Bearer '+t, 'Content-Type':'application/json' },
       body: JSON.stringify(settings),
     });
@@ -36,7 +36,7 @@ export default function SettingsPage() {
     if (!confirm('Удалить все данные активности? Это необратимо!')) return;
     const t = localStorage.getItem('access_token');
     if (!t) return;
-    await fetch('https://employee-tracker.ru/api/v1/analytics/reset', { method:'POST', headers:{ Authorization:'Bearer '+t } });
+    await fetch('/api/v1/analytics/reset', { method:'POST', headers:{ Authorization:'Bearer '+t } });
     alert('Данные очищены');
   };
 

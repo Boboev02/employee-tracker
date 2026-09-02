@@ -42,7 +42,7 @@ export default function ReportsPage() {
   const generate = async (days: string) => {
     setLoading(true); setPeriod(days);
     try {
-      const res = await fetch('https://employee-tracker.ru/api/v1/analytics/full-report?days='+days, { headers:{ Authorization:'Bearer '+token } });
+      const res = await fetch('/api/v1/analytics/full-report?days='+days, { headers:{ Authorization:'Bearer '+token } });
       setReport(await res.json());
     } finally { setLoading(false); }
   };
@@ -50,7 +50,7 @@ export default function ReportsPage() {
   const download = async (id: string) => {
     setDlLoading(id); setDlSuccess(null);
     try {
-      const res = await fetch('https://employee-tracker.ru/api/v1/export/'+id+'?days='+period, { headers:{ Authorization:'Bearer '+token } });
+      const res = await fetch('/api/v1/export/'+id+'?days='+period, { headers:{ Authorization:'Bearer '+token } });
       if (!res.ok) { alert('Ошибка '+res.status); return; }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);

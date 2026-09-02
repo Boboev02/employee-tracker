@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 
-const API = 'https://employee-tracker.ru/api/v1/chat';
+const API = '/api/v1/chat';
 
 export interface ChatUser { id: string; name: string; avatarUrl?: string | null; email?: string; }
 export interface ChatMessage {
@@ -41,7 +41,7 @@ export function useChat(token: string | null, onIncomingMessage?: (channelId: st
   // ── Socket connection ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!token) return;
-    const socket = io('https://employee-tracker.ru/chat', {
+    const socket = io('/api/v1/chat', {
       auth: { token }, transports: ['websocket', 'polling'],
     });
     socketRef.current = socket;

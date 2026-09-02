@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-const API = 'https://employee-tracker.ru/api/v1';
+const API = '/api/v1';
 
 export default function ProductsPage() {
   const router = useRouter();

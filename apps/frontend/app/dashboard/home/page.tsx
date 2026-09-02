@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AnimatedNumber } from '@/components/AnimatedNumber';
 
-const API = 'https://employee-tracker.ru/api/v1';
+const API = '/api/v1';
 const STATUS_COLORS: Record<string,string> = { NEW:'#9B97CC', IN_PROGRESS:'#2563EB', REVIEW:'#D97706', BLOCKED:'#DC2626', DONE:'#16A34A', OVERDUE:'#DC2626' };
 const STATUS_LABELS: Record<string,string> = { NEW:'Новая', IN_PROGRESS:'В работе', REVIEW:'Проверка', BLOCKED:'Заблокировано', DONE:'Готово', OVERDUE:'Просрочена' };
 const PRIORITY_COLORS: Record<string,string> = { LOW:'#6B7280', MEDIUM:'#2563EB', HIGH:'#D97706', CRITICAL:'#DC2626' };

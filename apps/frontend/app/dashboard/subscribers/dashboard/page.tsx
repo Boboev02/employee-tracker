@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { PLAN_LABELS } from '@/lib/subscriberConstants';
 
-const API = 'https://employee-tracker.ru/api/v1';
+const API = '/api/v1';
 const COLORS = ['#7F77DD', '#2563EB', '#16A34A', '#D97706', '#DC2626', '#0891B2'];
 
 const WIDGET_DEFS: Record<string, { label: string; icon: string; format: 'number' | 'currency' | 'percent' }> = {

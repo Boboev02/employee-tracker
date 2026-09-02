@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnimatedNumber } from '@/components/AnimatedNumber';
 
-const API = 'https://employee-tracker.ru/api/v1';
+const API = '/api/v1';
 
 const CATEGORY_LABELS: Record<string, { label: string; icon: string; color: string }> = {
   auth: { label: 'Авторизация', icon: 'ti-login', color: '#7F77DD' },

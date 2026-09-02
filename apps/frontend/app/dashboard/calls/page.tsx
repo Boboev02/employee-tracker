@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-const API = 'https://employee-tracker.ru/api/v1';
+const API = '/api/v1';
 
 export default function CallsLobbyPage() {
   const router = useRouter();

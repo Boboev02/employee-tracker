@@ -63,7 +63,7 @@ export default function AnalyticsPage() {
     const t = localStorage.getItem('access_token');
     if (!t) { router.push('/login'); return; }
     setToken(t);
-    fetch('https://employee-tracker.ru/api/v1/employees', { headers:{ Authorization:'Bearer '+t } })
+    fetch('/api/v1/employees', { headers:{ Authorization:'Bearer '+t } })
       .then(r=>r.json()).then(d=>setAllEmployees(Array.isArray(d)?d:[]));
     loadAll(t,'7','','');
     const interval = setInterval(() => { const ct=localStorage.getItem('access_token'); if(ct) loadAll(ct,period,selectedEmployee,selectedPlatform); }, 60000);
@@ -73,7 +73,7 @@ export default function AnalyticsPage() {
   const loadAll = useCallback(async (t: string, days: string, empId: string, platform: string) => {
     setLoading(true);
     const h = { Authorization:'Bearer '+t };
-    const base = 'https://employee-tracker.ru/api/v1/analytics';
+    const base = '/api/v1/analytics';
     const params = new URLSearchParams({ days });
     if (empId) params.set('userId', empId);
     if (platform) params.set('platform', platform);
@@ -104,7 +104,7 @@ export default function AnalyticsPage() {
 
   const loadComparePeriod = async (t: string, days: string, empId: string, platform: string) => {
     const h = { Authorization:'Bearer '+t };
-    const base = 'https://employee-tracker.ru/api/v1/analytics';
+    const base = '/api/v1/analytics';
     const daysNum = parseInt(days);
     const toDate = new Date(); toDate.setDate(toDate.getDate() - daysNum);
     const fromDate = new Date(); fromDate.setDate(fromDate.getDate() - daysNum * 2);
@@ -126,7 +126,7 @@ export default function AnalyticsPage() {
   const loadFeed = async (t: string) => {
     setFeedLoading(true);
     try {
-      const res = await fetch('https://employee-tracker.ru/api/v1/analytics/activity/feed?limit=100', { headers:{ Authorization:'Bearer '+t } });
+      const res = await fetch('/api/v1/analytics/activity/feed?limit=100', { headers:{ Authorization:'Bearer '+t } });
       const data = await res.json();
       if (Array.isArray(data)) setFeed(data);
     } catch(e) {} finally { setFeedLoading(false); }

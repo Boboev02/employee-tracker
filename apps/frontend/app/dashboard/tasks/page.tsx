@@ -51,8 +51,8 @@ export default function TasksPage() {
     setProductsLoading(true);
     try {
       const url = search.length >= 1
-        ? `https://employee-tracker.ru/api/v1/products?search=${encodeURIComponent(search)}&limit=50`
-        : `https://employee-tracker.ru/api/v1/products?limit=50`;
+        ? `/api/v1/products?search=${encodeURIComponent(search)}&limit=50`
+        : `/api/v1/products?limit=50`;
       const r = await fetch(url, { headers:{ Authorization:'Bearer '+token } });
       const d = await r.json();
       setProducts(Array.isArray(d) ? d : d.products ?? d.data ?? []);
@@ -93,18 +93,18 @@ export default function TasksPage() {
     setToken(t); loadKanban(t);
     const u = JSON.parse(localStorage.getItem('user') ?? '{}');
     setCurrentUserId(u.id ?? u.sub ?? '');
-    fetch('https://employee-tracker.ru/api/v1/employees', { headers:{ Authorization:'Bearer '+t } })
+    fetch('/api/v1/employees', { headers:{ Authorization:'Bearer '+t } })
       .then(r=>r.json()).then(d=>setEmployees(Array.isArray(d)?d:[])).catch(()=>{});
-    fetch('https://employee-tracker.ru/api/v1/dictionaries/departments', { headers:{ Authorization:'Bearer '+t } })
+    fetch('/api/v1/dictionaries/departments', { headers:{ Authorization:'Bearer '+t } })
       .then(r=>r.json()).then(d=>setDepartments(Array.isArray(d)?d:[])).catch(()=>{});
-    fetch('https://employee-tracker.ru/api/v1/projects?limit=50', { headers:{ Authorization:'Bearer '+t } })
+    fetch('/api/v1/projects?limit=50', { headers:{ Authorization:'Bearer '+t } })
       .then(r=>r.json()).then(d=>setProjects(Array.isArray(d)?d:(d.data??[]))).catch(()=>{});
   }, []);
 
   const loadList = async (t: string) => {
     setLoading(true);
     try {
-      const res = await fetch('https://employee-tracker.ru/api/v1/tasks', { headers:{ Authorization:'Bearer '+t } });
+      const res = await fetch('/api/v1/tasks', { headers:{ Authorization:'Bearer '+t } });
       const data = await res.json();
       setListTasks(Array.isArray(data) ? data : data.tasks ?? []);
     } catch {}
@@ -114,7 +114,7 @@ export default function TasksPage() {
   const loadKanban = async (t: string) => {
     setLoading(true);
     try {
-      const res = await fetch('https://employee-tracker.ru/api/v1/tasks/kanban', { headers:{ Authorization:'Bearer '+t } });
+      const res = await fetch('/api/v1/tasks/kanban', { headers:{ Authorization:'Bearer '+t } });
       const data = await res.json(); setColumns(data);
     } finally { setLoading(false); }
   };
@@ -125,7 +125,7 @@ export default function TasksPage() {
     if (!title.trim() || title.length < 5 || departments.length === 0) { setAiDept(null); return; }
     setAiLoading(true);
     try {
-      const res = await fetch('https://employee-tracker.ru/api/v1/ai/classify-department', {
+      const res = await fetch('/api/v1/ai/classify-department', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
         body: JSON.stringify({ title }),
@@ -160,7 +160,7 @@ export default function TasksPage() {
 
     const [primaryAssignee, ...coAssignees] = newTask.assigneeIds;
 
-    const res = await fetch('https://employee-tracker.ru/api/v1/tasks', {
+    const res = await fetch('/api/v1/tasks', {
       method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token },
       body: JSON.stringify({
         ...newTask,
@@ -198,7 +198,7 @@ export default function TasksPage() {
       return updated;
     });
     try {
-      await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/move', {
+      await fetch('/api/v1/tasks/'+id+'/move', {
         method:'PATCH', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token },
         body: JSON.stringify({ status }),
       });

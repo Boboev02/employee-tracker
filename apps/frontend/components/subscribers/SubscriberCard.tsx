@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { PLAN_LABELS, PLAN_COLORS, STATUS_LABELS } from '@/lib/subscriberConstants';
 
-const API = 'https://employee-tracker.ru/api/v1';
+const API = '/api/v1';
 
 const FIELD_LABELS: Record<string, string> = { crmStatus: 'CRM статус', tags: 'Теги', managerId: 'Менеджер', plan: 'Тариф', planStatus: 'Статус подписки' };
 

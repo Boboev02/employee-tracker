@@ -82,7 +82,7 @@ export default function TaskDetailPage() {
     if (!t) { router.push('/login'); return; }
     setToken(t); if (u) setUser(JSON.parse(u));
     loadTask(t);
-    fetch('https://employee-tracker.ru/api/v1/employees', { headers:{ Authorization:'Bearer '+t } })
+    fetch('/api/v1/employees', { headers:{ Authorization:'Bearer '+t } })
       .then(r=>r.json()).then(data => {
         if (Array.isArray(data)) {
           const map: Record<string,string> = {};
@@ -95,21 +95,21 @@ export default function TaskDetailPage() {
   const loadTask = async (t: string) => {
     setLoading(true);
     try {
-      const res  = await fetch('https://employee-tracker.ru/api/v1/tasks/'+id, { headers:{ Authorization:'Bearer '+t } });
+      const res  = await fetch('/api/v1/tasks/'+id, { headers:{ Authorization:'Bearer '+t } });
       const data = await res.json();
       // Загружаем участников (RACI: соисполнители, наблюдатели, проверяющие, согласующие)
       let participants: any[] = [];
       try {
-        const pRes = await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/participants', { headers:{ Authorization:'Bearer '+t } });
+        const pRes = await fetch('/api/v1/tasks/'+id+'/participants', { headers:{ Authorization:'Bearer '+t } });
         if (pRes.ok) participants = await pRes.json();
       } catch {}
       setTask({ ...data, participants }); setTitleVal(data.title ?? '');
       setComments(Array.isArray(data.comments)?data.comments:[]);
       // Загружаем чеклисты
-      const clRes = await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/checklists', { headers:{ Authorization:'Bearer '+t } });
+      const clRes = await fetch('/api/v1/tasks/'+id+'/checklists', { headers:{ Authorization:'Bearer '+t } });
       if (clRes.ok) setChecklists(await clRes.json());
       // Загружаем подзадачи
-      const stRes = await fetch('https://employee-tracker.ru/api/v1/tasks?parentId='+id, { headers:{ Authorization:'Bearer '+t } });
+      const stRes = await fetch('/api/v1/tasks?parentId='+id, { headers:{ Authorization:'Bearer '+t } });
       if (stRes.ok) { const stData = await stRes.json(); setSubtasks(Array.isArray(stData) ? stData : stData.tasks ?? []); }
     } finally { setLoading(false); }
   };
@@ -117,7 +117,7 @@ export default function TaskDetailPage() {
   const updateField = async (field: string, value: any) => {
     setSaving(true);
     try {
-      await fetch('https://employee-tracker.ru/api/v1/tasks/'+id, {
+      await fetch('/api/v1/tasks/'+id, {
         method:'PATCH', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token },
         body: JSON.stringify({ [field]: value||null }),
       });
@@ -126,7 +126,7 @@ export default function TaskDetailPage() {
   };
 
   const moveTask = async (status: string) => {
-    await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/move', {
+    await fetch('/api/v1/tasks/'+id+'/move', {
       method:'PATCH', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token },
       body: JSON.stringify({ status }),
     });
@@ -135,7 +135,7 @@ export default function TaskDetailPage() {
 
   const addParticipant = async () => {
     if (!newParticipant.userId) return;
-    await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/participants', {
+    await fetch('/api/v1/tasks/'+id+'/participants', {
       method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token },
       body: JSON.stringify(newParticipant),
     });
@@ -145,7 +145,7 @@ export default function TaskDetailPage() {
   };
 
   const removeParticipant = async (participantUserId: string) => {
-    await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/participants/'+participantUserId, {
+    await fetch('/api/v1/tasks/'+id+'/participants/'+participantUserId, {
       method:'DELETE', headers:{ Authorization:'Bearer '+token },
     });
     loadTask(token);
@@ -154,12 +154,12 @@ export default function TaskDetailPage() {
   const addChecklist = async () => {
     if (!newCheckText.trim()) return;
     setAddingCheck(true);
-    await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/checklists', {
+    await fetch('/api/v1/tasks/'+id+'/checklists', {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer '+token },
       body: JSON.stringify({ text: newCheckText.trim() }),
     });
     setNewCheckText('');
-    const res = await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/checklists', { headers: { Authorization: 'Bearer '+token } });
+    const res = await fetch('/api/v1/tasks/'+id+'/checklists', { headers: { Authorization: 'Bearer '+token } });
     if (res.ok) setChecklists(await res.json());
     setAddingCheck(false);
   };
@@ -167,7 +167,7 @@ export default function TaskDetailPage() {
   const toggleCheck = async (checkId: string, isDone: boolean) => {
     // Optimistic update
     setChecklists(prev => prev.map(c => c.id === checkId ? { ...c, isDone } : c));
-    await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/checklists/'+checkId, {
+    await fetch('/api/v1/tasks/'+id+'/checklists/'+checkId, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer '+token },
       body: JSON.stringify({ isDone }),
     });
@@ -175,7 +175,7 @@ export default function TaskDetailPage() {
 
   const deleteCheck = async (checkId: string) => {
     setChecklists(prev => prev.filter(c => c.id !== checkId));
-    await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/checklists/'+checkId, {
+    await fetch('/api/v1/tasks/'+id+'/checklists/'+checkId, {
       method: 'DELETE', headers: { Authorization: 'Bearer '+token },
     });
   };
@@ -185,7 +185,7 @@ export default function TaskDetailPage() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const res = await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/attachments', {
+      const res = await fetch('/api/v1/tasks/'+id+'/attachments', {
         method: 'POST',
         headers: { Authorization: 'Bearer '+token },
         body: formData,
@@ -199,7 +199,7 @@ export default function TaskDetailPage() {
   };
 
   const deleteAttachment = async (attId: string) => {
-    await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/attachments/'+attId, {
+    await fetch('/api/v1/tasks/'+id+'/attachments/'+attId, {
       method: 'DELETE', headers: { Authorization: 'Bearer '+token },
     });
     setAttachments(prev => prev.filter(a => a.id !== attId));
@@ -209,7 +209,7 @@ export default function TaskDetailPage() {
     if (!subtaskTitle.trim()) return;
     setAddingSubtask(true);
     try {
-      await fetch('https://employee-tracker.ru/api/v1/tasks', {
+      await fetch('/api/v1/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer '+token },
         body: JSON.stringify({ title: subtaskTitle.trim(), parentId: id, priority: task.priority ?? 'MEDIUM', orgId: task.orgId }),
@@ -217,7 +217,7 @@ export default function TaskDetailPage() {
       setSubtaskTitle('');
       setShowSubtaskForm(false);
       // Перезагружаем подзадачи
-      const stRes = await fetch('https://employee-tracker.ru/api/v1/tasks?parentId='+id, { headers:{ Authorization:'Bearer '+token } });
+      const stRes = await fetch('/api/v1/tasks?parentId='+id, { headers:{ Authorization:'Bearer '+token } });
       if (stRes.ok) { const stData = await stRes.json(); setSubtasks(Array.isArray(stData) ? stData : stData.tasks ?? []); }
     } catch {}
     setAddingSubtask(false);
@@ -227,7 +227,7 @@ export default function TaskDetailPage() {
     if (!comment.trim()) return;
     setPosting(true);
     try {
-      await fetch('https://employee-tracker.ru/api/v1/tasks/'+id+'/comments', {
+      await fetch('/api/v1/tasks/'+id+'/comments', {
         method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token },
         body: JSON.stringify({ content: comment.trim() }),
       });
@@ -429,7 +429,7 @@ export default function TaskDetailPage() {
                     <div key={att.id} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', background:'#F8F7FF', borderRadius:'10px' }}>
                       <span style={{ fontSize:'20px' }}>{icon}</span>
                       <div style={{ flex:1, minWidth:0 }}>
-                        <a href={'https://employee-tracker.ru'+att.url} target="_blank" rel="noopener noreferrer"
+                        <a href={'/api/v1'+att.url} target="_blank" rel="noopener noreferrer"
                           style={{ fontSize:'13px', fontWeight:600, color:'#7F77DD', textDecoration:'none', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', display:'block' }}>
                           {att.fileName}
                         </a>

@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 
-const API = 'https://employee-tracker.ru';
+const API = '/api/v1';
 
 const ACTION_LABELS: Record<string, string> = {
   CREATED:          'Создано',
@@ -78,7 +78,7 @@ export function ActivityLogBlock({ entityType, entityId, token, limit = 30 }: Pr
     setLoading(true);
     try {
       const r = await fetch(
-        `${API}/api/v1/relations/activity/${entityType}/${entityId}?limit=${limit}&offset=${off}`,
+        `${API}/relations/activity/${entityType}/${entityId}?limit=${limit}&offset=${off}`,
         { headers }
       );
       if (r.ok) {

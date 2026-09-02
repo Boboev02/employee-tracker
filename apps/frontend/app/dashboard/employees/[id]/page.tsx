@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 
-const API = 'https://employee-tracker.ru/api/v1';
+const API = '/api/v1';
 
 const ROLES = ['ADMIN','MANAGER','EMPLOYEE','HR','VIEWER'];
 const ROLE_COLORS: Record<string,string> = { ADMIN:'#7F77DD', MANAGER:'#3B82F6', EMPLOYEE:'#10B981', HR:'#F59E0B', VIEWER:'#9B97CC' };

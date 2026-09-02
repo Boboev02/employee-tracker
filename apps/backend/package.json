@@ -10,9 +10,6 @@
     "prisma:deploy": "prisma migrate deploy"
   },
   "dependencies": {
-    "pg": "*",
-    "exceljs": "*",
-    "nodemailer": "*",
     "@nestjs-modules/ioredis": "*",
     "@nestjs/bullmq": "*",
     "@nestjs/common": "*",
@@ -35,7 +32,9 @@
     "class-transformer": "*",
     "class-validator": "*",
     "dotenv": "^17.4.2",
+    "exceljs": "^4.4.0",
     "ioredis": "*",
+    "nodemailer": "*",
     "passport": "*",
     "passport-jwt": "^4.0.1",
     "pg": "^8.21.0",
@@ -43,11 +42,11 @@
     "uuid": "*"
   },
   "devDependencies": {
-    "@types/pg": "*",
     "@nestjs/cli": "*",
     "@types/bcrypt": "*",
     "@types/node": "*",
     "@types/passport-jwt": "^4.0.1",
+    "@types/pg": "*",
     "@types/uuid": "*",
     "nodemon": "*",
     "prisma": "^7.8.0",

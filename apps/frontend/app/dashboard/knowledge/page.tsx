@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePermissions } from '@/lib/usePermissions';
 
-const API = 'https://employee-tracker.ru/api/v1/knowledge';
+const API = '/api/v1/knowledge';
 const ICONS = ['📁','📋','📄','📚','📝','🗂️','📌','💡','🔧','⚙️','🎯','📊'];
 const COLORS = ['#7F77DD','#2563EB','#16A34A','#D97706','#DC2626','#0891B2','#7C3AED','#D97706'];
 
@@ -85,7 +85,7 @@ export default function KnowledgePage() {
     const t = localStorage.getItem('access_token')||token;
     const fd=new FormData(); fd.append('file',file);
     try {
-      const r=await fetch('https://employee-tracker.ru/api/v1/upload/file',{method:'POST',headers:{Authorization:'Bearer '+t},body:fd});
+      const r=await fetch('/api/v1/upload/file',{method:'POST',headers:{Authorization:'Bearer '+t},body:fd});
       const d=await r.json();
       if(d.url) setEditArticle((prev:any)=>({...prev,fileUrl:d.url,fileName:d.fileName,fileType:d.fileType}));
     } catch(e){}

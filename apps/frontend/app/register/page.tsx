@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-const API = 'https://employee-tracker.ru';
+const API = '/api/v1';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -20,13 +20,13 @@ export default function RegisterPage() {
     if (form.password.length < 6) { setError('Пароль минимум 6 символов'); return; }
     setLoading(true);
     try {
-      const res = await fetch(`${API}/api/v1/auth/register`, {
+      const res = await fetch(`${API}/auth/register`, {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ name:form.name, email:form.email, password:form.password, orgName:form.orgName }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.message ?? 'Ошибка регистрации'); return; }
-      const loginRes = await fetch(`${API}/api/v1/auth/login`, {
+      const loginRes = await fetch(`${API}/auth/login`, {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ email:form.email, password:form.password }),
       });

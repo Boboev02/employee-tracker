@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-const API = 'https://employee-tracker.ru';
+const API = '/api/v1';
 
 const STEPS = [
   { id:'welcome',   title:'Добро пожаловать', icon:'👋' },
@@ -38,7 +38,7 @@ export default function OnboardingPage() {
     if (!inviteEmail.trim()) return;
     setInviting(true); setInviteError(''); setInviteSuccess('');
     try {
-      const res = await fetch(`${API}/api/v1/employees/invite`, {
+      const res = await fetch(`${API}/employees/invite`, {
         method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${token}`},
         body: JSON.stringify({ email:inviteEmail.trim(), role:inviteRole, name:inviteEmail.split('@')[0] }),
       });

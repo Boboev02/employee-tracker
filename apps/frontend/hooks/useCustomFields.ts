@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 
-const API = 'https://employee-tracker.ru';
+const API = '/api/v1';
 
 export type FieldType =
   | 'TEXT' | 'TEXTAREA' | 'NUMBER' | 'MONEY' | 'PERCENT'
@@ -78,10 +78,10 @@ export function useCustomFields(token: string) {
     setLoading(true);
     try {
       const [fRes, gRes, ttRes, cRes] = await Promise.all([
-        fetch(`${API}/api/v1/custom-fields`, { headers }),
-        fetch(`${API}/api/v1/custom-fields/groups`, { headers }),
-        fetch(`${API}/api/v1/custom-fields/task-types`, { headers }),
-        fetch(`${API}/api/v1/custom-fields/conditions`, { headers }),
+        fetch(`${API}/custom-fields`, { headers }),
+        fetch(`${API}/custom-fields/groups`, { headers }),
+        fetch(`${API}/custom-fields/task-types`, { headers }),
+        fetch(`${API}/custom-fields/conditions`, { headers }),
       ]);
       const [f, g, tt, c] = await Promise.all([fRes.json(), gRes.json(), ttRes.json(), cRes.json()]);
       setFields(Array.isArray(f) ? f : []);
@@ -95,7 +95,7 @@ export function useCustomFields(token: string) {
   useEffect(() => { load(); }, [load]);
 
   const createField = async (data: Partial<CustomField>) => {
-    const r = await fetch(`${API}/api/v1/custom-fields`, {
+    const r = await fetch(`${API}/custom-fields`, {
       method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
@@ -105,7 +105,7 @@ export function useCustomFields(token: string) {
   };
 
   const updateField = async (id: string, data: Partial<CustomField>) => {
-    const r = await fetch(`${API}/api/v1/custom-fields/${id}`, {
+    const r = await fetch(`${API}/custom-fields/${id}`, {
       method: 'PATCH', headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
@@ -114,12 +114,12 @@ export function useCustomFields(token: string) {
   };
 
   const deleteField = async (id: string) => {
-    await fetch(`${API}/api/v1/custom-fields/${id}`, { method: 'DELETE', headers });
+    await fetch(`${API}/custom-fields/${id}`, { method: 'DELETE', headers });
     await load();
   };
 
   const reorderFields = async (orders: { id: string; sortOrder: number }[]) => {
-    await fetch(`${API}/api/v1/custom-fields/reorder`, {
+    await fetch(`${API}/custom-fields/reorder`, {
       method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ orders }),
     });
@@ -127,7 +127,7 @@ export function useCustomFields(token: string) {
   };
 
   const createGroup = async (data: any) => {
-    const r = await fetch(`${API}/api/v1/custom-fields/groups`, {
+    const r = await fetch(`${API}/custom-fields/groups`, {
       method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
@@ -136,7 +136,7 @@ export function useCustomFields(token: string) {
   };
 
   const updateGroup = async (id: string, data: any) => {
-    await fetch(`${API}/api/v1/custom-fields/groups/${id}`, {
+    await fetch(`${API}/custom-fields/groups/${id}`, {
       method: 'PATCH', headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
@@ -144,12 +144,12 @@ export function useCustomFields(token: string) {
   };
 
   const deleteGroup = async (id: string) => {
-    await fetch(`${API}/api/v1/custom-fields/groups/${id}`, { method: 'DELETE', headers });
+    await fetch(`${API}/custom-fields/groups/${id}`, { method: 'DELETE', headers });
     await load();
   };
 
   const setTaskFieldValues = async (taskId: string, values: Record<string, any>) => {
-    const r = await fetch(`${API}/api/v1/custom-fields/values/${taskId}`, {
+    const r = await fetch(`${API}/custom-fields/values/${taskId}`, {
       method: 'PATCH', headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify(values),
     });
@@ -158,13 +158,13 @@ export function useCustomFields(token: string) {
   };
 
   const getTaskFieldValues = async (taskId: string): Promise<Record<string, any>> => {
-    const r = await fetch(`${API}/api/v1/custom-fields/values/${taskId}`, { headers });
+    const r = await fetch(`${API}/custom-fields/values/${taskId}`, { headers });
     if (!r.ok) return {};
     return r.json();
   };
 
   const createCondition = async (data: any) => {
-    await fetch(`${API}/api/v1/custom-fields/conditions`, {
+    await fetch(`${API}/custom-fields/conditions`, {
       method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
@@ -172,12 +172,12 @@ export function useCustomFields(token: string) {
   };
 
   const deleteCondition = async (id: string) => {
-    await fetch(`${API}/api/v1/custom-fields/conditions/${id}`, { method: 'DELETE', headers });
+    await fetch(`${API}/custom-fields/conditions/${id}`, { method: 'DELETE', headers });
     await load();
   };
 
   const createTaskType = async (data: any) => {
-    await fetch(`${API}/api/v1/custom-fields/task-types`, {
+    await fetch(`${API}/custom-fields/task-types`, {
       method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });

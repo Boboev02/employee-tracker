@@ -120,7 +120,7 @@ export function Sidebar() {
     const t = localStorage.getItem('access_token');
     if (!t) return;
     try {
-      const res = await fetch('https://employee-tracker.ru/api/v1/search?q=' + encodeURIComponent(q), { headers: { Authorization: 'Bearer ' + t } });
+      const res = await fetch('/api/v1/search?q=' + encodeURIComponent(q), { headers: { Authorization: 'Bearer ' + t } });
       setSearchRes(await res.json());
     } catch {} finally { setSearching(false); }
   };
@@ -145,7 +145,7 @@ export function Sidebar() {
     if (!t || !u) { router.push('/login'); return; }
     setToken(t); setUser(JSON.parse(u));
     // Подтягиваем свежие данные (в т.ч. недавно загруженный аватар) — localStorage хранит снимок со времени входа
-    fetch('https://employee-tracker.ru/api/v1/auth/me', { headers: { Authorization: 'Bearer ' + t } })
+    fetch('/api/v1/auth/me', { headers: { Authorization: 'Bearer ' + t } })
       .then(r => r.ok ? r.json() : null)
       .then(fresh => { if (fresh) { setUser(fresh); localStorage.setItem('user', JSON.stringify(fresh)); } })
       .catch(() => {});
@@ -157,8 +157,8 @@ export function Sidebar() {
   const loadNotifs = async (t: string) => {
     try {
       const [all, cnt] = await Promise.all([
-        fetch('https://employee-tracker.ru/api/v1/notifications',             { headers: { Authorization: 'Bearer ' + t } }).then(r => r.json()),
-        fetch('https://employee-tracker.ru/api/v1/notifications/unread-count',{ headers: { Authorization: 'Bearer ' + t } }).then(r => r.json()),
+        fetch('/api/v1/notifications',             { headers: { Authorization: 'Bearer ' + t } }).then(r => r.json()),
+        fetch('/api/v1/notifications/unread-count',{ headers: { Authorization: 'Bearer ' + t } }).then(r => r.json()),
       ]);
       if (Array.isArray(all)) setNotifs(all.slice(0, 20));
       if (typeof cnt === 'number') setUnread(cnt);
@@ -168,7 +168,7 @@ export function Sidebar() {
   const markAllRead = async () => {
     const t = localStorage.getItem('access_token');
     if (!t) return;
-    await fetch('https://employee-tracker.ru/api/v1/notifications/read-all', { method: 'PATCH', headers: { Authorization: 'Bearer ' + t } });
+    await fetch('/api/v1/notifications/read-all', { method: 'PATCH', headers: { Authorization: 'Bearer ' + t } });
     setUnread(0);
     setNotifs(prev => prev.map(n => ({ ...n, isRead: true })));
   };
@@ -176,7 +176,7 @@ export function Sidebar() {
   const markRead = async (id: string) => {
     const t = localStorage.getItem('access_token');
     if (!t) return;
-    await fetch(`https://employee-tracker.ru/api/v1/notifications/${id}/read`, { method: 'PATCH', headers: { Authorization: 'Bearer ' + t } });
+    await fetch(`/api/v1/notifications/${id}/read`, { method: 'PATCH', headers: { Authorization: 'Bearer ' + t } });
     setNotifs(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
     setUnread(prev => Math.max(0, prev - 1));
   };
