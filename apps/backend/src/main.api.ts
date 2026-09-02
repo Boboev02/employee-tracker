@@ -13,7 +13,7 @@ async function bootstrap() {
   // Global validation pipe
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,        // strip unknown fields
-    forbidNonWhitelisted: false, // don't throw on extra fields (backward compat)
+    forbidNonWhitelisted: true, // don't throw on extra fields (backward compat)
     transform: true,        // auto-transform types
     skipMissingProperties: true,
   }));

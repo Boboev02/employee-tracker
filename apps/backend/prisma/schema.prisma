@@ -1199,3 +1199,11 @@ model SubscriberIntegration {
 
   @@unique([orgId, name])
 }
+
+model RateLimit {
+  key       String   @id
+  count     Int      @default(1)
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}

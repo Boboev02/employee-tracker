@@ -9,35 +9,32 @@ import { randomUUID } from 'crypto';
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
-  // Simple in-memory rate limiter: ip/email → { count, firstAttempt }
-  private readonly loginAttempts = new Map<string, { count: number; firstAttempt: number }>();
+  private readonly loginAttempts = new Map();
   private readonly MAX_ATTEMPTS = 10;
-  private readonly WINDOW_MS    = 15 * 60 * 1000; // 15 минут
+  private readonly WINDOW_MS = 15 * 60 * 1000;
 
-  private checkRateLimit(key: string): void {
-    const now  = Date.now();
+  private checkRateLimit(key) {
+    const now = Date.now();
     const entry = this.loginAttempts.get(key);
     if (entry) {
       if (now - entry.firstAttempt > this.WINDOW_MS) {
         this.loginAttempts.delete(key);
       } else if (entry.count >= this.MAX_ATTEMPTS) {
-        const remaining = Math.ceil((this.WINDOW_MS - (now - entry.firstAttempt)) / 60000);
-        throw new UnauthorizedException(`Слишком много попыток входа. Подождите ${remaining} мин.`);
+        const rem = Math.ceil((this.WINDOW_MS - (now - entry.firstAttempt)) / 60000);
+        throw new UnauthorizedException('Слишком много попыток. Подождите ' + rem + ' мин.');
       }
     }
   }
 
-  private recordFailedAttempt(key: string): void {
-    const now   = Date.now();
+  private recordFailedAttempt(key) {
+    const now = Date.now();
     const entry = this.loginAttempts.get(key);
-    if (!entry || Date.now() - entry.firstAttempt > this.WINDOW_MS) {
+    if (!entry || now - entry.firstAttempt > this.WINDOW_MS) {
       this.loginAttempts.set(key, { count: 1, firstAttempt: now });
-    } else {
-      entry.count++;
-    }
+    } else { entry.count++; }
   }
 
-  private clearAttempts(key: string): void {
+  private clearAttempts(key) {
     this.loginAttempts.delete(key);
   }
 
@@ -48,6 +45,21 @@ export class AuthService {
   ) {}
 
   async register(dto: { email: string; password: string; name: string; orgName?: string }) {
+    // Валидация пароля
+    if (!dto.password || dto.password.length < 8) {
+      throw new BadRequestException('Пароль должен содержать минимум 8 символов');
+    }
+    if (!/[A-Z]/.test(dto.password) && !/[a-z]/.test(dto.password)) {
+      throw new BadRequestException('Пароль должен содержать буквы');
+    }
+    // Валидация email
+    if (!dto.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(dto.email)) {
+      throw new BadRequestException('Некорректный email адрес');
+    }
+    // Валидация имени
+    if (!dto.name || dto.name.trim().length < 2) {
+      throw new BadRequestException('Имя должно содержать минимум 2 символа');
+    }
     const exists = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (exists) throw new ConflictException('Email already registered');
 
