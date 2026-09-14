@@ -92,6 +92,27 @@ export class TaskService {
       departmentId = project.departmentId;
     }
 
+    // Проверяем, принадлежат ли исполнители этой организации.
+    // Без этого задачу можно назначить сотруднику чужой компании — он получит
+    // уведомление с заголовком чужой задачи (межтенантная утечка).
+    if (assigneeIds.length) {
+      const valid = await this.prisma.user.findMany({
+        where: { id: { in: assigneeIds }, orgId, deletedAt: null },
+        select: { id: true },
+      });
+      if (valid.length !== assigneeIds.length) {
+        throw new BadRequestException('Один из исполнителей не найден в вашей организации');
+      }
+    }
+
+    // Карточка товара — тоже только своя
+    if (dto.productId) {
+      const product = await this.prisma.product.findFirst({
+        where: { id: dto.productId, orgId }, select: { id: true },
+      });
+      if (!product) throw new BadRequestException('Карточка товара не найдена');
+    }
+
     // Primary assigneeId = первый в списке (для обратной совместимости с уведомлениями/фильтрами)
     assigneeId = assigneeIds[0] ?? null;
 

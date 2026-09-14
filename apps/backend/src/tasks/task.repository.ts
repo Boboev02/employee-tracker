@@ -126,12 +126,16 @@ export class TaskRepository {
   }
 
   async create(data: any) {
-    const maxOrder = await this.prisma.task.aggregate({
-      where:  { orgId: data.orgId, status: 'NEW', deletedAt: null },
-      _max:   { sortOrder: true },
-    });
-    return this.prisma.task.create({
-      data: { ...data, sortOrder: (maxOrder._max.sortOrder ?? 0) + 1 },
+    // Чтение max(sortOrder) и вставка — в одной транзакции: иначе два
+    // одновременных создания получают одинаковый sortOrder и порядок в канбане ломается.
+    return this.prisma.$transaction(async (tx) => {
+      const maxOrder = await tx.task.aggregate({
+        where: { orgId: data.orgId, status: 'NEW', deletedAt: null },
+        _max:  { sortOrder: true },
+      });
+      return tx.task.create({
+        data: { ...data, sortOrder: (maxOrder._max.sortOrder ?? 0) + 1 },
+      });
     });
   }
 

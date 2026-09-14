@@ -58,6 +58,8 @@ model User {
   taskParticipations  TaskParticipant[]
   chatChannels        ChatChannelMember[]
   managedSubscribers  Subscriber[] @relation("SubscriberManager")
+
+  @@index([orgId, status])
 }
 
 model Role {
@@ -83,6 +85,8 @@ model Team {
   createdAt DateTime @default(now())
   org       Organisation @relation(fields: [orgId], references: [id])
   members   TeamMember[]
+
+  @@index([orgId])
 }
 
 model TeamMember {
@@ -157,6 +161,8 @@ model RealtimeStatus {
   wentOnlineAt    DateTime?
   wentOfflineAt   DateTime?
   updatedAt       DateTime  @updatedAt
+
+  @@index([orgId])
 }
 
 model WebsocketSession {
@@ -264,6 +270,8 @@ model Notification {
 
   @@index([userId, isRead])
   @@index([userId, createdAt])
+
+  @@index([orgId])
 }
 
 model KnowledgeCategory {
@@ -277,6 +285,8 @@ model KnowledgeCategory {
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
   articles    KnowledgeArticle[]
+
+  @@index([orgId])
 }
 
 model KnowledgeArticle {
@@ -296,6 +306,8 @@ model KnowledgeArticle {
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
   category    KnowledgeCategory   @relation(fields: [categoryId], references: [id])
+
+  @@index([orgId, categoryId])
 }
 
 model RoutineTask {
@@ -362,6 +374,8 @@ model Note {
   org        Organisation @relation("OrgNotes",  fields: [orgId],  references: [id])
   @@index([userId, status])
   @@index([userId, isPinned])
+
+  @@index([orgId])
 }
 
 model AuditLog {
@@ -781,6 +795,8 @@ model UserSidebarConfig {
   sections  Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([orgId])
 }
 
 model TaskAttachment {
