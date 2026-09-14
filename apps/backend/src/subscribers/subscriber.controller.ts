@@ -1,9 +1,11 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, Res } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, Res, UseGuards} from '@nestjs/common';
 import { CurrentUser, RequirePermissions, Public } from '../auth/decorators/index';
+import { RbacGuard } from '../auth/guards/index';
 import { SubscriberService } from './subscriber.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Controller('api/v1/subscribers')
+@UseGuards(RbacGuard)
 export class SubscriberController {
   constructor(
     private readonly subscribers: SubscriberService,

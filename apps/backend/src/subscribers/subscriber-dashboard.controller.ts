@@ -1,8 +1,10 @@
-import { Controller, Get, Post, Body, Param, Query, Res } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, Res, UseGuards} from '@nestjs/common';
 import { CurrentUser, RequirePermissions } from '../auth/decorators/index';
+import { RbacGuard } from '../auth/guards/index';
 import { SubscriberDashboardService } from './subscriber-dashboard.service';
 
 @Controller('api/v1/subscriber-dashboard')
+@UseGuards(RbacGuard)
 export class SubscriberDashboardController {
   constructor(private readonly dashboard: SubscriberDashboardService) {}
 

@@ -4,10 +4,14 @@ import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './audit/global-exception.filter';
 import { PrismaService } from './prisma/prisma.service';
+import helmet from 'helmet';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const prismaService = app.get(PrismaService);
+  // Security-заголовки. crossOriginResourcePolicy отключён —
+  // иначе браузер заблокирует картинки товаров с CDN маркетплейсов.
+  app.use(helmet({ crossOriginResourcePolicy: false }));
   app.useGlobalFilters(new GlobalExceptionFilter(prismaService));
 
   // Global validation pipe

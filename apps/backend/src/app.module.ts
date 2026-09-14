@@ -7,7 +7,7 @@ import { SubscriberModule } from './subscribers/subscriber.module';
 import 'dotenv/config';
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule, ThrottlerGuard} from '@nestjs/throttler';
 import { SearchModule } from './search/search.module';
 import { RoutineTasksModule } from './routine-tasks/routine-tasks.module';
 import { PrismaModule }    from './prisma/prisma.module';
@@ -32,9 +32,11 @@ import { SettingsModule }  from './settings/settings.module';
 import { NotificationModule } from './notifications/notification.module';
 import { KnowledgeModule } from './knowledge/knowledge.module';
 import { JwtAuthGuard }    from './auth/guards/index';
+import { SidebarModule } from './sidebar/sidebar.module';
 
 @Module({
   imports: [
+    SidebarModule,
     ThrottlerModule.forRoot([{
       name: 'default',
       ttl: 60000,
@@ -68,6 +70,7 @@ import { JwtAuthGuard }    from './auth/guards/index';
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
 })
 export class AppModule {}

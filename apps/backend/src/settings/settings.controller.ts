@@ -1,8 +1,10 @@
-import { Controller, Get, Put, Post, Body, HttpCode } from '@nestjs/common';
+import { Controller, Get, Put, Post, Body, HttpCode, UseGuards} from '@nestjs/common';
 import { SettingsService } from './settings.service';
 import { CurrentUser, RequirePermissions } from '../auth/decorators/index';
+import { RbacGuard } from '../auth/guards/index';
 
 @Controller('api/v1/settings')
+@UseGuards(RbacGuard)
 export class SettingsController {
   constructor(private readonly settings: SettingsService) {}
 

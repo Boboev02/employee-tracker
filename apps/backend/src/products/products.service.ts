@@ -160,7 +160,7 @@ export class ProductsService {
   }
 
   async getProduct(orgId: string, id: string) {
-    return this.prisma.product.findFirst({
+    const product = await this.prisma.product.findFirst({
       where: { id, orgId },
       include: {
         tasks: {
@@ -168,8 +168,128 @@ export class ProductsService {
           include: { assignee: { select: { id: true, name: true, avatarUrl: true } } },
           orderBy: { createdAt: 'desc' },
         },
+        trademarks: { orderBy: { createdAt: 'asc' } },
+        kits:       { orderBy: { createdAt: 'asc' } },
+        versions:   { orderBy: { createdAt: 'desc' }, take: 50 },
       },
     });
+    if (!product) throw new BadRequestException('Карточка не найдена');
+
+    const values = await this.prisma.customFieldValue.findMany({
+      where: { productId: id },
+      include: { field: { include: { group: true } } },
+    });
+
+    return { ...product, fieldValues: values.map(v => this.serializeValue(v)) };
+  }
+
+  private serializeValue(v: any) {
+    const t = v.field?.type;
+    let value: any = v.strVal;
+    if (t === 'NUMBER' || t === 'PERCENT' || t === 'MONEY') value = v.numVal;
+    else if (t === 'CHECKBOX' || t === 'TOGGLE') value = v.boolVal;
+    else if (t === 'DATE' || t === 'DATETIME') value = v.dateVal;
+    else if (t === 'MULTISELECT') value = v.jsonVal;
+    const link = (v.jsonVal && typeof v.jsonVal === 'object' && !Array.isArray(v.jsonVal)) ? (v.jsonVal as any).link ?? null : null;
+    return { fieldId: v.fieldId, value, link, field: v.field };
+  }
+
+  async getProductFields(orgId: string, productId: string) {
+    const product = await this.prisma.product.findFirst({ where: { id: productId, orgId } });
+    if (!product) throw new BadRequestException('Карточка не найдена');
+    const values = await this.prisma.customFieldValue.findMany({
+      where: { productId }, include: { field: true },
+    });
+    return values.map(v => this.serializeValue(v));
+  }
+
+  async setProductField(orgId: string, productId: string, userId: string, dto: { fieldId: string; value: any; link?: string }) {
+    const product = await this.prisma.product.findFirst({ where: { id: productId, orgId } });
+    if (!product) throw new BadRequestException('Карточка не найдена');
+    const field = await this.prisma.customField.findFirst({ where: { id: dto.fieldId, orgId } });
+    if (!field) throw new BadRequestException('Поле не найдено');
+
+    const data: any = { strVal: null, numVal: null, boolVal: null, dateVal: null, jsonVal: null };
+    const t = field.type;
+    const v = dto.value;
+    if (v === null || v === undefined || v === '') {
+      // очистка
+    } else if (t === 'NUMBER' || t === 'PERCENT' || t === 'MONEY') {
+      data.numVal = Number(v);
+    } else if (t === 'CHECKBOX' || t === 'TOGGLE') {
+      data.boolVal = Boolean(v);
+    } else if (t === 'DATE' || t === 'DATETIME') {
+      data.dateVal = new Date(v);
+    } else if (t === 'MULTISELECT') {
+      data.jsonVal = v;
+    } else {
+      data.strVal = String(v);
+    }
+    if (dto.link) data.jsonVal = { link: dto.link };
+
+    const prev = await this.prisma.customFieldValue.findFirst({ where: { productId, fieldId: dto.fieldId } });
+
+    const saved = await this.prisma.customFieldValue.upsert({
+      where: { productId_fieldId: { productId, fieldId: dto.fieldId } },
+      update: data,
+      create: { orgId, productId, fieldId: dto.fieldId, ...data },
+      include: { field: true },
+    });
+
+    const oldTxt = prev ? (prev.strVal ?? prev.numVal ?? prev.boolVal ?? prev.dateVal ?? '') : '';
+    const newTxt = v ?? '';
+    await this.logVersion(productId, userId, prev
+      ? `Изменено «${field.name}»: ${this.trunc(String(oldTxt))} → ${this.trunc(String(newTxt))}`
+      : `Заполнено «${field.name}»: ${this.trunc(String(newTxt))}`);
+
+    return this.serializeValue(saved);
+  }
+
+  private trunc(s: string) { return s.length > 28 ? s.slice(0, 28) + '…' : s; }
+
+  private async logVersion(productId: string, userId: string, change: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } }).catch(() => null);
+    await this.prisma.productVersion.create({
+      data: {
+        productId,
+        date: new Date().toISOString().slice(0, 10),
+        who: user?.name ?? 'система',
+        change,
+      },
+    }).catch(() => {});
+  }
+
+  async createProduct(orgId: string, userId: string, dto: any) {
+    const product = await this.prisma.product.create({
+      data: {
+        orgId,
+        marketplace: dto.marketplace ?? 'WB',
+        articleId:   dto.articleId ?? ('SKU-' + Date.now().toString().slice(-6)),
+        name:        dto.name,
+        brand:       dto.brand,
+        model:       dto.model,
+        categoryName: dto.categoryName,
+        tnved:       dto.tnved,
+        okpd:        dto.okpd,
+        declaration: dto.declaration,
+        url:         dto.url,
+        ozonUrl:     dto.ozonUrl,
+        gtdNumber:   dto.gtdNumber,
+        gtdUrl:      dto.gtdUrl,
+        photoUrl:    dto.photoUrl,
+        status:      dto.status ?? 'Черновик',
+      },
+    });
+    await this.logVersion(product.id, userId, 'Создан товар');
+    return product;
+  }
+
+  async deleteProduct(orgId: string, id: string) {
+    const product = await this.prisma.product.findFirst({ where: { id, orgId } });
+    if (!product) throw new BadRequestException('Карточка не найдена');
+    await this.prisma.task.updateMany({ where: { productId: id }, data: { productId: null } });
+    await this.prisma.product.delete({ where: { id } });
+    return { success: true };
   }
 
   async createTask(orgId: string, userId: string, productId: string, dto: any) {
@@ -185,4 +305,68 @@ export class ProductsService {
       },
     });
   }
+
+  async updateProduct(orgId: string, id: string, userId: string, dto: any) {
+    const product = await this.prisma.product.findFirst({ where: { id, orgId } });
+    if (!product) throw new BadRequestException('Карточка не найдена');
+
+    const allowed = [
+      'name','brand','model','categoryName','articleId','marketplace',
+      'tnved','okpd','declaration','gtdNumber','gtdUrl',
+      'url','ozonUrl','photoUrl','status','barcode',
+      'descriptionWb','descriptionOzon','notes','stageId',
+    ];
+    const data: any = {};
+    const changes: string[] = [];
+    for (const key of allowed) {
+      if (dto[key] === undefined) continue;
+      const next = dto[key] === '' ? null : dto[key];
+      if ((product as any)[key] !== next) {
+        data[key] = next;
+        changes.push(key);
+      }
+    }
+    if (!Object.keys(data).length) return product;
+
+    const updated = await this.prisma.product.update({ where: { id }, data });
+    await this.logVersion(id, userId, 'Обновлены реквизиты: ' + changes.join(', '));
+    return updated;
+  }
+
+  async addTrademark(orgId: string, productId: string, dto: { name: string; status?: string }) {
+    const product = await this.prisma.product.findFirst({ where: { id: productId, orgId } });
+    if (!product) throw new BadRequestException('Карточка не найдена');
+    return this.prisma.productTrademark.create({
+      data: { productId, name: dto.name, status: dto.status ?? null },
+    });
+  }
+
+  async deleteTrademark(orgId: string, productId: string, tmId: string) {
+    const product = await this.prisma.product.findFirst({ where: { id: productId, orgId } });
+    if (!product) throw new BadRequestException('Карточка не найдена');
+    await this.prisma.productTrademark.deleteMany({ where: { id: tmId, productId } });
+    return { success: true };
+  }
+
+  async addKit(orgId: string, productId: string, kitName: string) {
+    const product = await this.prisma.product.findFirst({ where: { id: productId, orgId } });
+    if (!product) throw new BadRequestException('Карточка не найдена');
+    return this.prisma.productKit.create({ data: { productId, kitName } });
+  }
+
+  async deleteKit(orgId: string, productId: string, kitId: string) {
+    const product = await this.prisma.product.findFirst({ where: { id: productId, orgId } });
+    if (!product) throw new BadRequestException('Карточка не найдена');
+    await this.prisma.productKit.deleteMany({ where: { id: kitId, productId } });
+    return { success: true };
+  }
+
+  async getVersions(orgId: string, productId: string) {
+    const product = await this.prisma.product.findFirst({ where: { id: productId, orgId } });
+    if (!product) throw new BadRequestException('Карточка не найдена');
+    return this.prisma.productVersion.findMany({
+      where: { productId }, orderBy: { createdAt: 'desc' }, take: 100,
+    });
+  }
+
 }

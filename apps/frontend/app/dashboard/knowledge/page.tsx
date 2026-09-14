@@ -2,8 +2,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePermissions } from '@/lib/usePermissions';
+import ProductsKnowledge from '@/components/knowledge/ProductsKnowledge';
 
-const API = '/api/v1/knowledge';
+const API = 'https://employee-tracker.ru/api/v1/knowledge';
 const ICONS = ['📁','📋','📄','📚','📝','🗂️','📌','💡','🔧','⚙️','🎯','📊'];
 const COLORS = ['#7F77DD','#2563EB','#16A34A','#D97706','#DC2626','#0891B2','#7C3AED','#D97706'];
 
@@ -23,6 +24,8 @@ function FilePreviewIcon({ type }: { type: string }) {
   );
 }
 
+
+
 export default function KnowledgePage() {
   const router = useRouter();
   const perms  = usePermissions();
@@ -38,6 +41,7 @@ export default function KnowledgePage() {
   const [newCat, setNewCat]         = useState({ name:'', description:'', icon:'📁', color:'#7F77DD' });
   const [loading, setLoading]       = useState(false);
   const [uploading, setUploading]   = useState(false);
+  const [activeTab, setActiveTab]   = useState<'articles'|'products'>('articles');
 
   useEffect(() => {
     const t = localStorage.getItem('access_token');
@@ -85,7 +89,7 @@ export default function KnowledgePage() {
     const t = localStorage.getItem('access_token')||token;
     const fd=new FormData(); fd.append('file',file);
     try {
-      const r=await fetch('/api/v1/upload/file',{method:'POST',headers:{Authorization:'Bearer '+t},body:fd});
+      const r=await fetch('https://employee-tracker.ru/api/v1/upload/file',{method:'POST',headers:{Authorization:'Bearer '+t},body:fd});
       const d=await r.json();
       if(d.url) setEditArticle((prev:any)=>({...prev,fileUrl:d.url,fileName:d.fileName,fileType:d.fileType}));
     } catch(e){}
@@ -108,9 +112,20 @@ export default function KnowledgePage() {
         )}
         <div style={{flex:1}}>
           <h1 style={{fontSize:'18px',fontWeight:800,color:'#1a1040',margin:0,letterSpacing:'-0.5px'}}>
-            {view==='categories'?'База знаний':view==='editor'?(editArticle?.id?'Редактировать':'Новая статья'):view==='viewer'&&viewingArticle?viewingArticle.title:catObj?`${catObj.icon} ${catObj.name}`:'Поиск'}
+            {activeTab==='products'?'База знаний — Товары':view==='categories'?'База знаний':view==='editor'?(editArticle?.id?'Редактировать':'Новая статья'):view==='viewer'&&viewingArticle?viewingArticle.title:catObj?`${catObj.icon} ${catObj.name}`:'Поиск'}
           </h1>
-          {view==='categories' && <p style={{fontSize:'11px',color:'#9B97CC',margin:'2px 0 0'}}>{categories.length} категорий · документы и инструкции</p>}
+          {view==='categories' && activeTab==='articles' && <p style={{fontSize:'11px',color:'#9B97CC',margin:'2px 0 0'}}>{categories.length} категорий · документы и инструкции</p>}
+        </div>
+        {/* Tab switcher */}
+        <div style={{display:'flex',background:'#F8F7FF',borderRadius:'10px',padding:'3px',border:'1px solid #EDE9FE'}}>
+          <button onClick={()=>setActiveTab('articles')}
+            style={{background:activeTab==='articles'?'white':'transparent',border:'none',borderRadius:'8px',padding:'6px 14px',fontSize:'12px',fontWeight:700,cursor:'pointer',color:activeTab==='articles'?'#7F77DD':'#9B97CC',boxShadow:activeTab==='articles'?'0 1px 4px rgba(0,0,0,0.1)':'none'}}>
+            📚 Статьи
+          </button>
+          <button onClick={()=>setActiveTab('products')}
+            style={{background:activeTab==='products'?'white':'transparent',border:'none',borderRadius:'8px',padding:'6px 14px',fontSize:'12px',fontWeight:700,cursor:'pointer',color:activeTab==='products'?'#7F77DD':'#9B97CC',boxShadow:activeTab==='products'?'0 1px 4px rgba(0,0,0,0.1)':'none'}}>
+            📦 Товары
+          </button>
         </div>
         <div style={{position:'relative',flexShrink:0}}>
           <i className="ti ti-search" style={{position:'absolute',left:'12px',top:'50%',transform:'translateY(-50%)',fontSize:'13px',color:'#9B97CC'}} aria-hidden="true"/>
@@ -144,6 +159,12 @@ export default function KnowledgePage() {
       </div>
 
       <div style={{padding:'20px 28px'}}>
+
+        {/* PRODUCTS TAB */}
+        {activeTab==='products' && <ProductsKnowledge token={token} canEdit={perms.isAdmin || perms.isManager} />}
+
+        {/* ARTICLES TAB */}
+        {activeTab==='articles' && <>
 
         {/* CATEGORIES */}
         {view==='categories' && (
@@ -354,6 +375,7 @@ export default function KnowledgePage() {
             </div>
           </div>
         )}
+        </>}
       </div>
 
       {/* Category Modal */}

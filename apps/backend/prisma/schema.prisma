@@ -398,30 +398,75 @@ model ErrorLog {
 }
 
 model Product {
-  id          String    @id @default(uuid())
-  orgId       String
-  marketplace String    // "WB" или "OZON"
-  articleId   String    // Артикул на маркетплейсе
-  nmId        String?   // WB nmId
-  name        String
-  photoUrl    String?   // URL главного фото
-  price       Float?
-  rating      Float?
-  reviewCount Int?
-  stockCount  Int?
-  barcode     String?
+  id           String    @id @default(uuid())
+  orgId        String
+  marketplace  String    // "WB" или "OZON"
+  articleId    String    // Артикул на маркетплейсе
+  nmId         String?   // WB nmId
+  name         String
+  photoUrl     String?   // URL главного фото
+  price        Float?
+  rating       Float?
+  reviewCount  Int?
+  stockCount   Int?
+  barcode      String?
   categoryName String?
-  brand       String?
-  url         String?   // Ссылка на карточку на маркетплейсе
-  stageId     String?   // Стадия жизненного цикла карточки
-  syncedAt    DateTime  @default(now())
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  tasks       Task[]
-  stage       CardStage? @relation(fields: [stageId], references: [id])
+  brand        String?
+  model        String?   // Модель товара
+  url          String?   // Ссылка на карточку на маркетплейсе
+  ozonUrl      String?   // Ссылка на Ozon
+  stageId      String?   // Стадия жизненного цикла карточки
+  status       String?   @default("Активный") // Активный | Черновик | Архив
+  tnved        String?   // Код ТН ВЭД
+  okpd         String?   // ОКПД 2
+  declaration  String?   // Декларация ЕАЭС
+  gtdNumber    String?   // Номер ГТД
+  gtdUrl       String?   // Ссылка на ГТД (PDF)
+  descriptionWb   String? @db.Text // Описание для WB
+  descriptionOzon String? @db.Text // Описание для Ozon
+  notes        String?   @db.Text  // Внутренние заметки
+  syncedAt     DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  tasks        Task[]
+  stage        CardStage?       @relation(fields: [stageId], references: [id])
+  trademarks   ProductTrademark[]
+  kits         ProductKit[]
+  versions     ProductVersion[]
+  customFieldValues CustomFieldValue[]
 
   @@unique([orgId, marketplace, articleId])
   @@index([orgId, marketplace])
+}
+
+model ProductTrademark {
+  id        String   @id @default(uuid())
+  productId String
+  name      String
+  status    String?
+  createdAt DateTime @default(now())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  @@index([productId])
+}
+
+model ProductKit {
+  id        String   @id @default(uuid())
+  productId String
+  kitName   String
+  createdAt DateTime @default(now())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  @@index([productId])
+}
+
+model ProductVersion {
+  id        String   @id @default(uuid())
+  productId String
+  date      String
+  who       String
+  change    String   @db.Text
+  createdAt DateTime @default(now())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  @@index([productId])
 }
 
 // ===== СПРАВОЧНИКИ =====
@@ -692,7 +737,8 @@ model FieldCondition {
 model CustomFieldValue {
   id        String   @id @default(uuid())
   orgId     String
-  taskId    String
+  taskId    String?
+  productId String?
   fieldId   String
   strVal    String?  @db.Text
   numVal    Float?
@@ -701,10 +747,13 @@ model CustomFieldValue {
   jsonVal   Json?
   updatedAt DateTime @updatedAt
 
-  task  Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  field CustomField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  task    Task?       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  product Product?    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  field   CustomField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
 
   @@unique([taskId, fieldId])
+  @@unique([productId, fieldId])
+  @@index([productId])
   @@index([orgId, fieldId, strVal])
   @@index([orgId, fieldId, numVal])
   @@index([orgId, fieldId, dateVal])
@@ -1198,12 +1247,4 @@ model SubscriberIntegration {
   updatedAt    DateTime  @updatedAt
 
   @@unique([orgId, name])
-}
-
-model RateLimit {
-  key       String   @id
-  count     Int      @default(1)
-  expiresAt DateTime
-
-  @@index([expiresAt])
 }

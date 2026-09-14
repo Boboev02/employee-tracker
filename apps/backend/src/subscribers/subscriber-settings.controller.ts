@@ -1,8 +1,10 @@
-import { Controller, Get, Post, Delete, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Param, UseGuards} from '@nestjs/common';
 import { CurrentUser, RequirePermissions } from '../auth/decorators/index';
+import { RbacGuard } from '../auth/guards/index';
 import { SubscriberSettingsService } from './subscriber-settings.service';
 
 @Controller('api/v1/subscriber-settings')
+@UseGuards(RbacGuard)
 export class SubscriberSettingsController {
   constructor(private readonly settings: SubscriberSettingsService) {}
 

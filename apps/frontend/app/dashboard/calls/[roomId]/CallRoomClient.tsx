@@ -371,7 +371,7 @@ export default function CallRoomClient() {
   };
 
   const connectSocket = (token: string, userId: string, userName: string) => {
-    const socket = io('http://localhost:3001/realtime', {
+    const socket = io(window.location.origin + '/realtime', {
       auth: { token },
       transports: ['websocket', 'polling'],
     });
