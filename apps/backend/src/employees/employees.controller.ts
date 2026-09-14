@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, HttpCode, UseGuards } from '@nestjs/common';
+import { ForbiddenException, Controller, Get, Post, Patch, Delete, Body, Param, Query, HttpCode, UseGuards } from '@nestjs/common';
 import { EmployeesService } from './employees.service';
 import { CurrentUser, RequirePermissions } from '../auth/decorators/index';
 import { RbacGuard } from '../auth/guards/index';
@@ -39,9 +39,15 @@ export class EmployeesController {
     return this.employees.updateProfile(id, user.orgId, body);
   }
 
+  // Свой пароль меняет любой сотрудник, чужой — только с правом role:assign.
+  // Раньше здесь стояло @RequirePermissions('role:assign') на оба случая,
+  // из-за чего 12 ролей из 15 не могли сменить пароль даже себе.
   @Patch(':id/reset-password')
-  @RequirePermissions('role:assign')
   resetPassword(@Param('id') id: string, @CurrentUser() user: any, @Body() body: { password: string }) {
+    const self = (user.id ?? user.sub) === id;
+    if (!self && !user.permissions?.has('role:assign')) {
+      throw new ForbiddenException('Недостаточно прав для смены чужого пароля');
+    }
     return this.employees.resetPassword(id, user.orgId, body.password);
   }
 

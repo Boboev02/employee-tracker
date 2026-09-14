@@ -17,7 +17,7 @@ export default function RegisterPage() {
     setError('');
     if (!form.name.trim()||!form.email.trim()||!form.password||!form.orgName.trim()) { setError('Заполните все поля'); return; }
     if (form.password !== form.confirm) { setError('Пароли не совпадают'); return; }
-    if (form.password.length < 6) { setError('Пароль минимум 6 символов'); return; }
+    if (form.password.length < 8) { setError('Пароль минимум 8 символов'); return; }
     setLoading(true);
     try {
       const res = await fetch(`${API}/auth/register`, {

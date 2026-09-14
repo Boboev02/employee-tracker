@@ -111,7 +111,7 @@ export default function EmployeesPage() {
   };
 
   const handleResetPassword = async () => {
-    if (!newPassword || newPassword.length < 6) { setResetError('Минимум 6 символов'); return; }
+    if (!newPassword || newPassword.length < 8) { setResetError('Минимум 8 символов'); return; }
     const t = localStorage.getItem('access_token');
     if (!t) return;
     try {

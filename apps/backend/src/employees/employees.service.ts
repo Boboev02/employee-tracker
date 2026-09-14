@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 
@@ -204,7 +204,9 @@ export class EmployeesService {
   }
 
   async resetPassword(id: string, orgId: string, newPassword: string) {
-    if (!newPassword || newPassword.length < 6) throw new Error('Min 6 chars');
+    if (!newPassword || newPassword.length < 8) {
+      throw new BadRequestException('Пароль должен содержать минимум 8 символов');
+    }
     const hash = await bcrypt.hash(newPassword, 12);
     return this.prisma.user.update({
       where: { id },

@@ -59,7 +59,7 @@ export default function ProfilePage() {
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPassErr(''); setPassDone(false);
-    if (newPass.length < 6) { setPassErr('Минимум 6 символов'); return; }
+    if (newPass.length < 8) { setPassErr('Минимум 8 символов'); return; }
     if (newPass !== confPass) { setPassErr('Пароли не совпадают'); return; }
     setSaving(true);
     try {

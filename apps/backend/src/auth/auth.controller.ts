@@ -5,6 +5,7 @@ import { AuthService }   from './auth.service';
 import { TokenService }  from './token.service';
 import { Public, CurrentUser } from './decorators/index';
 import { AuditService } from '../audit/audit.service';
+import { RegisterDto, LoginDto } from './dto/auth.dto';
 
 @Controller('api/v1/auth')
 export class AuthController {
@@ -18,7 +19,7 @@ export class AuthController {
   @Public()
   @Throttle({ auth: { limit: 5, ttl: 3600000 } }) // 5 registrations per hour
   @Post('register')
-  register(@Body() body: { email: string; password: string; name: string; orgName?: string }) {
+  register(@Body() body: RegisterDto) {
     return this.auth.register(body);
   }
 
@@ -26,7 +27,7 @@ export class AuthController {
   @Throttle({ auth: { limit: 10, ttl: 900000 } }) // 10 login attempts per 15 min
   @Post('login')
   @HttpCode(200)
-  async login(@Body() body: { email: string; password: string }, @Req() req: Request, @Res() res: Response) {
+  async login(@Body() body: LoginDto, @Req() req: Request, @Res() res: Response) {
     try {
       const result = await this.auth.login(body.email, body.password, req.ip, req.headers['user-agent']);
       this.audit.log({
