@@ -62,6 +62,7 @@ export class RelationsService {
     const relations = await this.prisma.entityRelation.findMany({
       where,
       orderBy: { createdAt: 'desc' },
+      take: 200,  // потолок: ниже идёт N+1 по каждой связи
     });
 
     // Enrich with entity data
@@ -111,6 +112,7 @@ export class RelationsService {
         ],
       },
       orderBy: { createdAt: 'desc' },
+      take: 200,
     });
 
     const ids = relations.map(r =>

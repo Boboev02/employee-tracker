@@ -144,17 +144,19 @@ export class ProjectsService {
   }
 
   async getStats(orgId: string, id: string) {
-    const tasks = await this.prisma.task.findMany({
-      where: { projectId: id, deletedAt: null },
-      select: { status: true, dueDate: true },
-    });
-
-    const total = tasks.length;
-    const done = tasks.filter(t => t.status === 'DONE').length;
-    const inProgress = tasks.filter(t => t.status === 'IN_PROGRESS').length;
-    const overdue = tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'DONE').length;
+    // Считаем в БД, а не в памяти: раньше грузились все задачи проекта
+    // целиком только ради .length и .filter(). На крупном проекте это
+    // десятки тысяч строк в память на каждое открытие страницы.
+    const base = { projectId: id, deletedAt: null };
+    const [total, done, inProgress, overdue] = await Promise.all([
+      this.prisma.task.count({ where: base }),
+      this.prisma.task.count({ where: { ...base, status: 'DONE' } }),
+      this.prisma.task.count({ where: { ...base, status: 'IN_PROGRESS' } }),
+      this.prisma.task.count({
+        where: { ...base, status: { not: 'DONE' }, dueDate: { lt: new Date() } },
+      }),
+    ]);
     const progress = total ? Math.round((done * 100) / total) : 0;
-
     return { total, done, inProgress, overdue, progress };
   }
 

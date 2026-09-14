@@ -127,22 +127,20 @@ export class RoutineTasksService {
   async getStats(orgId: string, days = 7) {
     const from = new Date();
     from.setDate(from.getDate() - days);
+    const now = new Date();
 
-    const templates = await this.prisma.routineTask.findMany({
-      where: { orgId, deletedAt: null },
-      include: { assignee: { select: { id: true, name: true } } },
-    });
+    // Считаем в БД, а не в памяти: раньше грузились все задачи за период
+    // вместе с include: assignee, хотя нужны были только счётчики.
+    const [templates, total, done, overdue] = await Promise.all([
+      this.prisma.routineTask.count({ where: { orgId, deletedAt: null } }),
+      this.prisma.task.count({ where: { orgId, createdAt: { gte: from } } }),
+      this.prisma.task.count({ where: { orgId, createdAt: { gte: from }, status: 'DONE' } }),
+      this.prisma.task.count({
+        where: { orgId, createdAt: { gte: from }, status: { not: 'DONE' }, dueDate: { lt: now } },
+      }),
+    ]);
+    const pct = total > 0 ? Math.round(done / total * 100) : 0;
 
-    const tasks = await this.prisma.task.findMany({
-      where: { orgId, createdAt: { gte: from } },
-      include: { assignee: { select: { id: true, name: true } } },
-    });
-
-    const total     = tasks.length;
-    const done      = tasks.filter((t: any) => t.status === 'DONE').length;
-    const overdue   = tasks.filter((t: any) => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'DONE').length;
-    const pct       = total > 0 ? Math.round(done / total * 100) : 0;
-
-    return { templates: templates.length, total, done, overdue, pct };
+    return { templates, total, done, overdue, pct };
   }
 }
