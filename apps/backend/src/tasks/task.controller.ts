@@ -2,6 +2,10 @@ import { Controller, Req, Get, Post, Patch, Delete, Body, Param, Query, HttpCode
 import { TaskService } from './task.service';
 import { CurrentUser, RequirePermissions } from '../auth/decorators/index';
 import { RbacGuard } from '../auth/guards/index';
+import {
+  CreateTaskDto, UpdateTaskDto, MoveTaskDto, AddCommentDto,
+  AddChecklistDto, UpdateChecklistDto, AddParticipantDto,
+} from './dto/task.dto';
 
 @Controller('api/v1/tasks')
 @UseGuards(RbacGuard)
@@ -28,19 +32,19 @@ export class TaskController {
 
   @Post()
   @RequirePermissions('task:create')
-  create(@CurrentUser() user: any, @Body() body: any) {
+  create(@CurrentUser() user: any, @Body() body: CreateTaskDto) {
     return this.tasks.create(user.orgId, user.id, body);
   }
 
   @Patch(':id')
   @RequirePermissions('task:update:any', 'task:update:self')
-  update(@CurrentUser() user: any, @Param('id') id: string, @Body() body: any) {
+  update(@CurrentUser() user: any, @Param('id') id: string, @Body() body: UpdateTaskDto) {
     return this.tasks.update(id, user.orgId, user.id, body, user.permissions);
   }
 
   @Patch(':id/move')
   @RequirePermissions('task:update:any', 'task:update:self')
-  move(@CurrentUser() user: any, @Param('id') id: string, @Body() body: { status: string }) {
+  move(@CurrentUser() user: any, @Param('id') id: string, @Body() body: MoveTaskDto) {
     return this.tasks.move(id, user.orgId, user.id, body.status, user.permissions);
   }
 
@@ -60,7 +64,7 @@ export class TaskController {
 
   @Post(':id/comments')
   @RequirePermissions('task:read:all', 'task:read:team', 'task:read:self')
-  addComment(@CurrentUser() user: any, @Param('id') id: string, @Body() body: { content: string }) {
+  addComment(@CurrentUser() user: any, @Param('id') id: string, @Body() body: AddCommentDto) {
     return this.tasks.addComment(id, user.orgId, user.id, body.content);
   }
 
@@ -73,13 +77,13 @@ export class TaskController {
 
   @Post(':id/checklists')
   @RequirePermissions('task:update:any', 'task:update:self')
-  addChecklist(@CurrentUser() user: any, @Param('id') id: string, @Body() body: { text: string; assigneeId?: string }) {
+  addChecklist(@CurrentUser() user: any, @Param('id') id: string, @Body() body: AddChecklistDto) {
     return this.tasks.addChecklist(id, user.orgId, user.id, body, user.permissions);
   }
 
   @Patch(':id/checklists/:checkId')
   @RequirePermissions('task:update:any', 'task:update:self')
-  updateChecklist(@CurrentUser() user: any, @Param('id') id: string, @Param('checkId') checkId: string, @Body() body: { text?: string; isDone?: boolean; assigneeId?: string }) {
+  updateChecklist(@CurrentUser() user: any, @Param('id') id: string, @Param('checkId') checkId: string, @Body() body: UpdateChecklistDto) {
     return this.tasks.updateChecklist(id, checkId, user.orgId, user.id, body, user.permissions);
   }
 
@@ -99,7 +103,7 @@ export class TaskController {
 
   @Post(':id/participants')
   @RequirePermissions('task:update:any', 'task:update:self')
-  addParticipant(@CurrentUser() user: any, @Param('id') id: string, @Body() body: { userId: string; role: 'co_executor' | 'observer' | 'reviewer' | 'approver' }) {
+  addParticipant(@CurrentUser() user: any, @Param('id') id: string, @Body() body: AddParticipantDto) {
     return this.tasks.addParticipant(id, user.orgId, user.id, body, user.permissions);
   }
 
