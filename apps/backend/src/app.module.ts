@@ -37,14 +37,14 @@ import { SidebarModule } from './sidebar/sidebar.module';
 @Module({
   imports: [
     SidebarModule,
+    // Один глобальный лимитер. Несколько именованных лимитеров в forRoot
+    // применяются ВСЕ и ко ВСЕМ маршрутам — из-за этого лимит для auth
+    // (20 запросов / 15 мин) действовал на весь API и давал 429.
+    // Жёсткие лимиты для login/register заданы декораторами на самих маршрутах.
     ThrottlerModule.forRoot([{
       name: 'default',
       ttl: 60000,
-      limit: 99999, // effectively disabled for authenticated users
-    }, {
-      name: 'auth',
-      ttl: 900000,
-      limit: 20,
+      limit: 600, // щадящий потолок: интерфейс не упирается, ботов тормозит
     }]),
     NotesModule,
     PrismaModule,

@@ -17,14 +17,14 @@ export class AuthController {
   ) {}
 
   @Public()
-  @Throttle({ auth: { limit: 5, ttl: 3600000 } }) // 5 registrations per hour
+  @Throttle({ default: { limit: 5, ttl: 3600000 } }) // 5 registrations per hour
   @Post('register')
   register(@Body() body: RegisterDto) {
     return this.auth.register(body);
   }
 
   @Public()
-  @Throttle({ auth: { limit: 10, ttl: 900000 } }) // 10 login attempts per 15 min
+  @Throttle({ default: { limit: 10, ttl: 900000 } }) // 10 login attempts per 15 min
   @Post('login')
   @HttpCode(200)
   async login(@Body() body: LoginDto, @Req() req: Request, @Res() res: Response) {

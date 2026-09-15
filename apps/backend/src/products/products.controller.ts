@@ -2,6 +2,10 @@ import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Ht
 import { ProductsService } from './products.service';
 import { CurrentUser, RequirePermissions } from '../auth/decorators/index';
 import { RbacGuard } from '../auth/guards/index';
+import {
+  CreateProductDto, UpdateProductDto, SetProductFieldDto, CreateProductTaskDto,
+  AddTrademarkDto, AddKitDto, SetOzonTokenDto,
+} from './dto/product.dto';
 
 @Controller('api/v1/products')
 @UseGuards(RbacGuard)
@@ -24,7 +28,7 @@ export class ProductsController {
   // Токен Ozon
   @Post('settings/ozon-token')
   @RequirePermissions('org:update')
-  setOzonToken(@CurrentUser() user: any, @Body() body: { token: string; clientId: string }) {
+  setOzonToken(@CurrentUser() user: any, @Body() body: SetOzonTokenDto) {
     return this.products.setOzonToken(user.orgId, body.token, body.clientId);
   }
 
@@ -55,14 +59,14 @@ export class ProductsController {
   // Создание задачи внутри карточки
   @Post(':id/tasks')
   @RequirePermissions('task:create')
-  createTask(@CurrentUser() user: any, @Param('id') id: string, @Body() body: any) {
+  createTask(@CurrentUser() user: any, @Param('id') id: string, @Body() body: CreateProductTaskDto) {
     return this.products.createTask(user.orgId, user.id ?? user.sub, id, body);
   }
 
   // Создание карточки вручную
   @Post()
   @RequirePermissions('org:update', 'task:create')
-  createProduct(@CurrentUser() user: any, @Body() body: any) {
+  createProduct(@CurrentUser() user: any, @Body() body: CreateProductDto) {
     return this.products.createProduct(user.orgId, user.id ?? user.sub, body);
   }
 
@@ -75,7 +79,7 @@ export class ProductsController {
 
   @Patch(':id/fields')
   @RequirePermissions('org:update', 'task:update:any')
-  setProductField(@CurrentUser() user: any, @Param('id') id: string, @Body() body: { fieldId: string; value: any }) {
+  setProductField(@CurrentUser() user: any, @Param('id') id: string, @Body() body: SetProductFieldDto) {
     return this.products.setProductField(user.orgId, id, user.id ?? user.sub, body);
   }
 
@@ -90,14 +94,14 @@ export class ProductsController {
   // Обновление карточки товара
   @Patch(':id')
   @RequirePermissions('org:update', 'task:update:any')
-  updateProduct(@CurrentUser() user: any, @Param('id') id: string, @Body() body: any) {
+  updateProduct(@CurrentUser() user: any, @Param('id') id: string, @Body() body: UpdateProductDto) {
     return this.products.updateProduct(user.orgId, id, user.id ?? user.sub, body);
   }
 
   // Товарные знаки
   @Post(':id/trademarks')
   @RequirePermissions('org:update', 'task:update:any')
-  addTrademark(@CurrentUser() user: any, @Param('id') id: string, @Body() body: { name: string; status?: string }) {
+  addTrademark(@CurrentUser() user: any, @Param('id') id: string, @Body() body: AddTrademarkDto) {
     return this.products.addTrademark(user.orgId, id, body);
   }
 
@@ -111,7 +115,7 @@ export class ProductsController {
   // Наборы
   @Post(':id/kits')
   @RequirePermissions('org:update', 'task:update:any')
-  addKit(@CurrentUser() user: any, @Param('id') id: string, @Body() body: { kitName: string }) {
+  addKit(@CurrentUser() user: any, @Param('id') id: string, @Body() body: AddKitDto) {
     return this.products.addKit(user.orgId, id, body.kitName);
   }
 

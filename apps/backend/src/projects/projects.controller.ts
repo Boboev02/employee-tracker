@@ -2,6 +2,9 @@ import { Controller, Get, Post, Patch, Delete, Body, Param, Query, HttpCode, Use
 import { ProjectsService } from './projects.service';
 import { CurrentUser, RequirePermissions } from '../auth/decorators/index';
 import { RbacGuard } from '../auth/guards/index';
+import {
+  CreateProjectDto, UpdateProjectDto, AddProjectMemberDto, AddProjectCommentDto,
+} from './dto/project.dto';
 
 @Controller('api/v1/projects')
 @UseGuards(RbacGuard)
@@ -28,13 +31,13 @@ export class ProjectsController {
 
   @Post()
   @RequirePermissions('task:create')
-  create(@CurrentUser() user: any, @Body() body: any) {
+  create(@CurrentUser() user: any, @Body() body: CreateProjectDto) {
     return this.projects.create(user.orgId, user.id ?? user.sub, body);
   }
 
   @Patch(':id')
   @RequirePermissions('task:update:any', 'task:update:self')
-  update(@CurrentUser() user: any, @Param('id') id: string, @Body() body: any) {
+  update(@CurrentUser() user: any, @Param('id') id: string, @Body() body: UpdateProjectDto) {
     return this.projects.update(user.orgId, id, user.id ?? user.sub, body);
   }
 
@@ -46,7 +49,7 @@ export class ProjectsController {
 
   @Post(':id/members')
   @RequirePermissions('task:update:any')
-  addMember(@CurrentUser() user: any, @Param('id') id: string, @Body() body: { userId: string; role?: string }) {
+  addMember(@CurrentUser() user: any, @Param('id') id: string, @Body() body: AddProjectMemberDto) {
     return this.projects.addMember(user.orgId, id, user.id ?? user.sub, body.userId, body.role);
   }
 
@@ -59,7 +62,7 @@ export class ProjectsController {
 
   @Post(':id/comments')
   @RequirePermissions('task:read:self')
-  addComment(@CurrentUser() user: any, @Param('id') id: string, @Body() body: { content: string }) {
+  addComment(@CurrentUser() user: any, @Param('id') id: string, @Body() body: AddProjectCommentDto) {
     return this.projects.addComment(id, user.id ?? user.sub, body.content);
   }
 }
