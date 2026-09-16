@@ -33,9 +33,11 @@ import { NotificationModule } from './notifications/notification.module';
 import { KnowledgeModule } from './knowledge/knowledge.module';
 import { JwtAuthGuard }    from './auth/guards/index';
 import { SidebarModule } from './sidebar/sidebar.module';
+import { CommandCenterModule } from './command-center/command-center.module';
 
 @Module({
   imports: [
+    CommandCenterModule,
     SidebarModule,
     // Один глобальный лимитер. Несколько именованных лимитеров в forRoot
     // применяются ВСЕ и ко ВСЕМ маршрутам — из-за этого лимит для auth
