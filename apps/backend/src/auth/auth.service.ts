@@ -179,11 +179,14 @@ export class AuthService {
     try {
       const payload = this.tokens.verifyAccessTokenIgnoreExpiry(expiredToken);
       if (!payload?.sub) throw new Error('Invalid');
+      // refresh-extension: max 7 days after expiry
+      const expMs = (payload as any).exp ? (payload as any).exp * 1000 : 0;
+      if (!expMs || Date.now() - expMs > 7 * 24 * 3600 * 1000) throw new Error('Too old');
       const user = await this.prisma.user.findUnique({
         where: { id: payload.sub },
         include: { userRoles: { include: { role: true } } },
       });
-      if (!user || user.deletedAt) throw new Error('Not found');
+      if (!user || user.deletedAt || user.status === 'SUSPENDED') throw new Error('Not allowed');
       const roles = user.userRoles.map((ur: any) => ur.role.name);
       const accessToken = this.tokens.generateAccessToken({
         sub: user.id, email: user.email, orgId: user.orgId, roles,

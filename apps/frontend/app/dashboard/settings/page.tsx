@@ -36,8 +36,18 @@ export default function SettingsPage() {
     if (!confirm('Удалить все данные активности? Это необратимо!')) return;
     const t = localStorage.getItem('access_token');
     if (!t) return;
-    await fetch('/api/v1/analytics/reset', { method:'POST', headers:{ Authorization:'Bearer '+t } });
-    alert('Данные очищены');
+    // Правильный маршрут: DELETE /api/v1/reset/analytics.
+    // Раньше звали POST /api/v1/analytics/reset — такого нет, приходил 404,
+    // но результат не проверялся и пользователь всё равно видел «Данные очищены».
+    const res = await fetch('/api/v1/reset/analytics', {
+      method: 'DELETE', headers: { Authorization: 'Bearer ' + t },
+    });
+    if (res.ok) {
+      alert('Данные активности очищены');
+    } else {
+      const msg = await res.text().catch(() => '');
+      alert('Не удалось очистить данные' + (msg ? ': ' + msg.slice(0, 200) : ''));
+    }
   };
 
   const toggleDay = (d: number) => {

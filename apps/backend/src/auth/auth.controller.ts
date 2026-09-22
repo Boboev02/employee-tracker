@@ -68,7 +68,7 @@ export class AuthController {
     const accessToken = this.tokens.generateAccessToken({
       sub: user.id ?? user.sub, email: user.email, orgId: user.orgId, roles: user.roles,
     });
-    return { accessToken, expiresIn: 900 };
+    return { accessToken, expiresIn: 86400 };
   }
 
   @Post('logout')

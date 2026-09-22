@@ -22,7 +22,7 @@ export function WorkSessionWidget({ token, compact = false }: Props) {
   const load = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await fetch(API + '/api/v1/work-session/me', {
+      const res = await fetch(API + '/work-session/me', {
         headers: { Authorization: 'Bearer ' + token },
       });
       if (res.ok) {
@@ -54,7 +54,7 @@ export function WorkSessionWidget({ token, compact = false }: Props) {
   const action = async (endpoint: string) => {
     setLoading(true); setError('');
     try {
-      const res = await fetch(API + '/api/v1/work-session/' + endpoint, {
+      const res = await fetch(API + '/work-session/' + endpoint, {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + token },
       });

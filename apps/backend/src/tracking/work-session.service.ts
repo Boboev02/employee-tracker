@@ -68,6 +68,10 @@ export class WorkSessionService {
   async finishWork(userId: string, orgId: string): Promise<WorkSession> {
     const session = await this.getSession(userId);
     if (!session.startedAt) return session;
+    // Смена уже закрыта — выходим. Без этой проверки второе нажатие
+    // перезаписывало finishedAt и создавало ещё одну запись
+    // work_session_summary, завышая отработанное время в табеле.
+    if (session.status === 'finished') return session;
     session.status     = 'finished';
     session.finishedAt = Date.now();
     if (session.breakAt) {
@@ -78,7 +82,10 @@ export class WorkSessionService {
     await this.logEvent(userId, orgId, 'work_end');
 
     // Save history to DB
-    const workMs = session.finishedAt - session.startedAt - session.totalBreakMs;
+    // Math.max на случай сдвига системного времени назад: иначе
+    // в табель попадёт отрицательная продолжительность смены.
+    const workMs = Math.max(0, session.finishedAt - session.startedAt - session.totalBreakMs);
+    const totalMs = Math.max(0, session.finishedAt - session.startedAt);
     await this.prisma.activityEvent.create({
       data: {
         eventId: require('crypto').randomUUID(),
@@ -92,7 +99,7 @@ export class WorkSessionService {
           finishedAt:   session.finishedAt,
           workMinutes:  Math.round(workMs / 60000),
           breakMinutes: Math.round(session.totalBreakMs / 60000),
-          totalMinutes: Math.round((session.finishedAt - session.startedAt) / 60000),
+          totalMinutes: Math.round(totalMs / 60000),
         },
       },
     });

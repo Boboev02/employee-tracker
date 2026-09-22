@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { api } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import { usePermissions } from '@/lib/usePermissions';
 
@@ -28,8 +29,8 @@ export default function TeamsPage() {
   const loadAll = async (t: string) => {
     setLoading(true);
     const [tr, er] = await Promise.all([
-      fetch('/api/v1/teams',     { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
-      fetch('/api/v1/employees', { headers:{ Authorization:'Bearer '+t } }).then(r=>r.json()),
+      api.get('/teams'),
+      api.get('/employees'),
     ]);
     setTeams(Array.isArray(tr)?tr:[]); setEmployees(Array.isArray(er)?er:[]);
     setLoading(false);
@@ -37,23 +38,27 @@ export default function TeamsPage() {
 
   const createTeam = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true);
-    await fetch('/api/v1/teams', { method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token }, body:JSON.stringify({ name:teamName }) });
+    const created = await api.post('/teams', { name: teamName }, { success: 'Команда создана' });
+    if (!created) { setSaving(false); return; }
     setTeamName(''); setShowForm(false); loadAll(token); setSaving(false);
   };
 
   const deleteTeam = async (id: string) => {
     if (!confirm('Удалить команду?')) return;
-    await fetch('/api/v1/teams/'+id, { method:'DELETE', headers:{ Authorization:'Bearer '+token } });
+    const res = await api.delete('/teams/' + id, { success: 'Команда удалена' });
+    if (!res) return;
     loadAll(token);
   };
 
   const addMember = async (teamId: string, userId: string) => {
-    await fetch('/api/v1/teams/'+teamId+'/members', { method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token }, body:JSON.stringify({ userId }) });
+    const res = await api.post('/teams/' + teamId + '/members', { userId });
+    if (!res) return;
     loadAll(token);
   };
 
   const removeMember = async (teamId: string, userId: string) => {
-    await fetch('/api/v1/teams/'+teamId+'/members/'+userId, { method:'DELETE', headers:{ Authorization:'Bearer '+token } });
+    const res = await api.delete('/teams/' + teamId + '/members/' + userId);
+    if (!res) return;
     loadAll(token);
   };
 
