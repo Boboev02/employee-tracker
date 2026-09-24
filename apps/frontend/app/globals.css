@@ -486,3 +486,47 @@ input:focus, select:focus, textarea:focus {
   border-radius: var(--radius);
 }
 .row-hover:hover { background: var(--bg-hover); transform: translateX(2px); }
+
+/* ═══════ FX-3D ═══════ */
+.fx-tilt {
+  transform-style: preserve-3d;
+  transition: transform 280ms cubic-bezier(0.2,0.7,0.3,1), box-shadow 280ms ease;
+  will-change: transform;
+}
+.fx-tilt-glare {
+  position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  opacity: var(--fx-glare, 0); transition: opacity 280ms ease; z-index: 1;
+  background: radial-gradient(240px circle at var(--fx-gx,50%) var(--fx-gy,50%),
+              rgba(255,255,255,0.75), transparent 62%);
+}
+.fx-lift { transform: translateZ(22px); }
+
+@keyframes fx-ring-spin { to { transform: rotateX(62deg) rotateZ(360deg); } }
+.fx-ring { transform: rotateX(62deg); }
+.fx-ring.fx-ring-on { animation: fx-ring-spin 9s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-tilt { transition: none !important; transform: none !important; }
+  .fx-tilt-glare { display: none; }
+  .fx-lift { transform: none; }
+  .fx-ring.fx-ring-on { animation: none; }
+}
+
+/* ═══════ FX-3D, часть 2 ═══════ */
+.fx-flip-inner { transition: transform 620ms cubic-bezier(0.4,0.1,0.2,1); }
+
+.cc-floor {
+  position: absolute; inset: -30%;
+  background-image: linear-gradient(rgba(123,134,255,0.13) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(123,134,255,0.13) 1px, transparent 1px);
+  background-size: 44px 44px;
+  transform: rotateX(60deg) scale(1.9) translateY(6%);
+  transform-origin: center 70%;
+  transition: transform 220ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-flip-inner { transition: none; }
+  .fx-iso { transition: none !important; }
+  .cc-floor { transition: none; }
+}

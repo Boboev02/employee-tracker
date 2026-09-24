@@ -6,6 +6,8 @@ import { usePermissions } from '@/lib/usePermissions';
 import { useSocket } from '@/lib/useSocket';
 import { DeleteSectionButton } from '@/components/admin/DeleteSectionButton';
 import { AnimatedNumber } from '@/components/AnimatedNumber';
+import { EmployeeFlipCard } from '@/components/fx/EmployeeFlipCard';
+import { TiltCard } from '@/components/fx/TiltCard';
 
 const AVATAR_COLORS = ['#7F77DD','#2563EB','#16A34A','#D97706','#DC2626','#0891B2','#7C3AED'];
 const avatarColor = (name: string) => AVATAR_COLORS[(name?.charCodeAt(0)??0) % AVATAR_COLORS.length];
@@ -55,6 +57,7 @@ export default function EmployeesPage() {
   const [wsToken, setWsToken]     = useState<string|null>(null);
   const { presence: wsPresence }  = useSocket(wsToken);
   const [search, setSearch]       = useState('');
+  const [view, setView]           = useState<'table'|'cards'>('table');
   const [loading, setLoading]     = useState(true);
   const [showInvite, setShowInvite] = useState(false);
   const [invite, setInvite]       = useState({ name:'', email:'', password:'', role:'EMPLOYEE' });
@@ -159,6 +162,16 @@ export default function EmployeesPage() {
           <p style={{ fontSize:'11px', color:'#9B97CC', margin:'2px 0 0' }}>{employees.length} всего · {onlineCount} онлайн</p>
         </div>
         <div style={{ display:'flex', gap:'10px', alignItems:'center' }}>
+          <div style={{ display:'flex', background:'#F8F7FF', border:'1px solid #EDE9FE', borderRadius:'20px', padding:'3px' }}>
+            {([['table','ti-list','Таблица'],['cards','ti-layout-grid','Карточки']] as const).map(([v,icon,label]) => (
+              <button key={v} onClick={()=>setView(v)} title={label}
+                style={{ border:'none', cursor:'pointer', borderRadius:'18px', padding:'5px 12px', fontSize:'12px', fontWeight:600,
+                         background: view===v ? '#7F77DD' : 'transparent', color: view===v ? 'white' : '#9B97CC',
+                         display:'flex', alignItems:'center', gap:'5px' }}>
+                <i className={'ti '+icon} style={{ fontSize:'14px' }} aria-hidden="true"/>{label}
+              </button>
+            ))}
+          </div>
           <div style={{ position:'relative' }}>
             <i className="ti ti-search" style={{ position:'absolute', left:'12px', top:'50%', transform:'translateY(-50%)', fontSize:'14px', color:'#9B97CC' }} aria-hidden="true"/>
             <input placeholder="Поиск..." value={search} onChange={e=>setSearch(e.target.value)} style={{ ...inp, width:'220px', paddingLeft:'34px' }}/>
@@ -183,19 +196,36 @@ export default function EmployeesPage() {
             { l:'Онлайн сейчас',     v:onlineCount,       icon:'ti-circle-check', accent:'#16A34A', accBg:'#DCFCE7', badge:'● активны', badgeC:'#16A34A', badgeBg:'#DCFCE7' },
             { l:'Активных',          v:employees.filter(e=>e.status==='ACTIVE').length, icon:'ti-user-check', accent:'#2563EB', accBg:'#DBEAFE', badge:'из '+employees.length, badgeC:'#2563EB', badgeBg:'#DBEAFE' },
           ].map((k,i) => (
-            <div key={i} className="float-in hover-lift" style={{ ...card, position:'relative', overflow:'hidden', animationDelay:(i*0.07)+'s' }}>
+            <TiltCard key={i} className="float-in" style={{ ...card, position:'relative', overflow:'hidden', animationDelay:(i*0.07)+'s' }}>
               <div style={{ position:'absolute', top:'12px', right:'12px', fontSize:'10px', fontWeight:700, color:k.badgeC, background:k.badgeBg, padding:'2px 8px', borderRadius:'10px' }}>{k.badge}</div>
               <div className="icon-pop" style={{ width:'40px', height:'40px', borderRadius:'12px', background:k.accBg, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:'12px' }}>
                 <i className={'ti '+k.icon} style={{ fontSize:'20px', color:k.accent }} aria-hidden="true"/>
               </div>
               <p style={{ fontSize:'10px', color:'#9B97CC', margin:'0 0 3px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.5px' }}>{k.l}</p>
-              <p style={{ fontSize:'28px', fontWeight:800, color:'#1a1040', margin:0, letterSpacing:'-1px' }}><AnimatedNumber value={k.v} /></p>
-            </div>
+              <p className="fx-lift" style={{ fontSize:'28px', fontWeight:800, color:'#1a1040', margin:0, letterSpacing:'-1px' }}><AnimatedNumber value={k.v} /></p>
+            </TiltCard>
           ))}
         </div>
 
+        {view === 'cards' && (
+          <div style={{ display:'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(auto-fill,minmax(228px,1fr))', gap:'14px' }}>
+            {filtered.length === 0 ? (
+              <p style={{ color:'#9B97CC', fontSize:'13px' }}>Никого не найдено</p>
+            ) : filtered.map((emp:any) => {
+              const pres = mergedPresence[emp.id] ?? mergedPresence[emp.userId];
+              return (
+                <EmployeeFlipCard key={emp.id} emp={emp}
+                  isOnline={Boolean(pres?.isOnline || pres?.status === 'ONLINE')}
+                  avatarBg={avatarColor(emp.name)}
+                  statusStyle={STATUS_STYLES[emp.status] ?? STATUS_STYLES.ACTIVE}
+                  onOpen={()=>router.push('/dashboard/employees/'+emp.id)} />
+              );
+            })}
+          </div>
+        )}
+
         {/* Table */}
-        <div style={card}>
+        <div style={{ ...card, display: view === 'table' ? undefined : 'none' }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'16px' }}>
             <h2 style={{ fontSize:'15px', fontWeight:700, color:'#1a1040', margin:0 }}>Список сотрудников</h2>
             <span style={{ fontSize:'11px', color:'#9B97CC' }}>{filtered.length} записей</span>

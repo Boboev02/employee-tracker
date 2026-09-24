@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { WorkSessionWidget } from '@/components/WorkSessionWidget';
 import { AnimatedNumber } from '@/components/AnimatedNumber';
+import { TiltCard } from '@/components/fx/TiltCard';
 
 const SECTION_LABELS: Record<string,string> = {
   orders:'Заказы', feedbacks:'Отзывы', reviews:'Отзывы', questions:'Вопросы',
@@ -224,7 +225,7 @@ export default function DashboardPage() {
                 { label:'Задач всего', value:stats?.totalTasks??0, sub:overdueTasks.length>0?overdueTasks.length+' просрочено':'все в срок', subColor:overdueTasks.length>0?'#DC2626':'#16A34A', icon:'ti-checkbox', accent:'#16A34A', accBg:'#DCFCE7', badge:overdueTasks.length>0?'-'+overdueTasks.length:'✓', badgeColor:overdueTasks.length>0?'#DC2626':'#16A34A', badgeBg:overdueTasks.length>0?'#FEE2E2':'#DCFCE7' },
                 { label:'Выполнено', value:stats?.completionRate??0, suffix:'%', sub:(stats?.completedTasks??0)+' из '+(stats?.totalTasks??0), subColor:'#9B97CC', icon:'ti-chart-pie', accent:'#7C3AED', accBg:'#EDE9FE', badge:'+5%', badgeColor:'#7C3AED', badgeBg:'#EDE9FE' },
               ].map((k,i) => (
-                <div key={i} className="float-in hover-lift" style={{ ...cardStyle, position:'relative', overflow:'hidden', paddingTop:'14px', animationDelay:(0.05+i*0.07)+'s' }}>
+                <TiltCard key={i} className="float-in" style={{ ...cardStyle, position:'relative', overflow:'hidden', paddingTop:'14px', animationDelay:(0.05+i*0.07)+'s' }}>
                   {/* % badge top right */}
                   <div style={{ position:'absolute', top:'12px', right:'12px', fontSize:'10px', fontWeight:700, color:k.badgeColor, background:k.badgeBg, padding:'2px 7px', borderRadius:'10px' }}>{k.badge}</div>
                   {/* Icon */}
@@ -232,11 +233,11 @@ export default function DashboardPage() {
                     <i className={'ti '+k.icon} style={{ fontSize:'18px', color:k.accent }} aria-hidden="true" />
                   </div>
                   <p style={{ fontSize:'10px', color:'#9B97CC', margin:'0 0 4px', fontWeight:500, textTransform:'uppercase', letterSpacing:'0.5px' }}>{k.label}</p>
-                  <p style={{ fontSize:'26px', fontWeight:800, color:'#1a1040', margin:'0 0 4px', letterSpacing:'-1px', lineHeight:1 }}>
+                  <p className="fx-lift" style={{ fontSize:'26px', fontWeight:800, color:'#1a1040', margin:'0 0 4px', letterSpacing:'-1px', lineHeight:1 }}>
                     {typeof k.value === 'number' ? <AnimatedNumber value={k.value} suffix={k.suffix} /> : k.value}
                   </p>
                   <p style={{ fontSize:'11px', color:k.subColor, margin:0, fontWeight:500 }}>{k.sub}</p>
-                </div>
+                </TiltCard>
               ))}
             </div>
           )}

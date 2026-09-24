@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
+import { ShiftRing } from '@/components/fx/ShiftRing';
 
 interface Props { token: string; compact?: boolean; }
 
@@ -97,10 +98,11 @@ export function WorkSessionWidget({ token, compact = false }: Props) {
     <div style={{ background:'white', borderRadius:'20px', padding:'16px 20px', display:'flex', alignItems:'center', gap:'16px', flexWrap:'wrap', boxShadow:'0 4px 16px rgba(127,119,221,0.08)' }}>
       {/* Иконка + статус */}
       <div style={{ display:'flex', alignItems:'center', gap:'10px', flex:1, minWidth:'200px' }}>
-        <div style={{ width:'36px', height:'36px', borderRadius:'50%', background: status === 'working' ? '#DCFCE7' : status === 'break' ? '#FEF3C7' : '#F8F7FF', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+        <ShiftRing color={statusColor} spinning={status === 'working'}
+          bg={status === 'working' ? '#DCFCE7' : status === 'break' ? '#FEF3C7' : '#F8F7FF'}>
           <i className={'ti ' + (status === 'working' ? 'ti-player-play' : status === 'break' ? 'ti-player-pause' : status === 'finished' ? 'ti-check' : 'ti-clock')}
             style={{ fontSize:'16px', color:statusColor }} aria-hidden="true" />
-        </div>
+        </ShiftRing>
         <div>
           <p style={{ fontSize:'13px', fontWeight:500, color:'#1a1040', margin:'0 0 2px' }}>{statusLabel}</p>
           <p style={{ fontSize:'11px', color:'#9B97CC', margin:0 }}>

@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { LoginBackdrop } from '@/components/fx/LoginBackdrop';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -38,6 +39,7 @@ export default function LoginPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#ECEAF8', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+      <LoginBackdrop />
       {/* Background decoration */}
       <div style={{ position: 'fixed', top: '-120px', right: '-120px', width: '400px', height: '400px', borderRadius: '50%', background: 'rgba(127,119,221,0.08)', pointerEvents: 'none' }}/>
       <div style={{ position: 'fixed', bottom: '-80px', left: '-80px', width: '300px', height: '300px', borderRadius: '50%', background: 'rgba(127,119,221,0.06)', pointerEvents: 'none' }}/>

@@ -3,6 +3,7 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { IsoBars } from '@/components/fx/IsoBars';
 import { AnimatedNumber } from '@/components/AnimatedNumber';
 
 const PLATFORM_COLORS: Record<string,string> = { WILDBERRIES:'#7F77DD', OZON:'#2563EB', OTHER:'#9B97CC' };
@@ -208,17 +209,12 @@ export default function AnalyticsPage() {
               <div style={card}>
                 <p style={{ fontSize:'14px', fontWeight:700, color:'#1a1040', margin:'0 0 16px' }}>По статусам</p>
                 {byStatus.length===0 ? <p style={{ color:'#9B97CC', fontSize:'13px', textAlign:'center', padding:'20px' }}>Нет данных</p> : (
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={byStatus.map(d=>({ name:STATUS_LABELS[d.status]??d.status, count:d.count, status:d.status }))} margin={{ top:0, right:10, left:-20, bottom:0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F0FF"/>
-                      <XAxis dataKey="name" tick={{ fontSize:11, fill:'#9B97CC' }}/>
-                      <YAxis tick={{ fontSize:11, fill:'#9B97CC' }} allowDecimals={false}/>
-                      <Tooltip contentStyle={tooltipStyle}/>
-                      <Bar dataKey="count" radius={[6,6,0,0]}>
-                        {byStatus.map((e:any,i:number)=><Cell key={i} fill={STATUS_COLORS[e.status]??'#EDE9FE'}/>)}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <IsoBars height={200}
+                    data={byStatus.map((d:any)=>({
+                      label: STATUS_LABELS[d.status] ?? d.status,
+                      value: d.count,
+                      color: STATUS_COLORS[d.status] ?? '#EDE9FE',
+                    }))} />
                 )}
               </div>
               <div style={card}>
