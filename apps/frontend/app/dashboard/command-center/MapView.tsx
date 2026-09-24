@@ -496,10 +496,6 @@ export default function MapView() {
     setLoading(false);
   };
 
-  const floorRef = useRef<HTMLDivElement>(null);
-  const prefersReducedMotion = () =>
-    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
   // ── SVG interactions ──────────────────────────────────────────────────────────
   const svgToWorld = (ex: number, ey: number) => {
     const rect = svgRef.current!.getBoundingClientRect();
@@ -513,13 +509,6 @@ export default function MapView() {
   };
 
   const onMouseMove = (e: React.MouseEvent) => {
-    if (floorRef.current && !prefersReducedMotion()) {
-      const fr = (e.currentTarget as HTMLElement).getBoundingClientRect();
-      const fx = (e.clientX - fr.left) / fr.width, fy = (e.clientY - fr.top) / fr.height;
-      floorRef.current.style.transform =
-        'rotateX(' + (60 + (fy - 0.5) * 6).toFixed(2) + 'deg) rotateZ(' +
-        ((fx - 0.5) * 4).toFixed(2) + 'deg) scale(1.9) translateY(6%)';
-    }
     if (isPanning) setPan({ x: panStart.current.px + e.clientX - panStart.current.x, y: panStart.current.py + e.clientY - panStart.current.y });
     if (dragging) {
       const wp = svgToWorld(e.clientX, e.clientY);
@@ -677,26 +666,18 @@ export default function MapView() {
             </div>
           )}
 
-          <div style={{ position:'absolute', inset:0, overflow:'hidden', perspective:'700px',
-                        pointerEvents:'none', background:'#0d0f14' }} aria-hidden="true">
-            <div ref={floorRef} className="cc-floor" />
-          </div>
-
           <svg ref={svgRef} width="100%" height="100%"
             onMouseDown={onBgDown} onMouseMove={onMouseMove}
             onMouseUp={onMouseUp} onMouseLeave={onMouseUp}
             style={{ cursor: isPanning ? 'grabbing' : dragging ? 'grabbing' : 'grab' }}>
 
-            <rect width="100%" height="100%" fill="rgba(13,15,20,0.72)" />
+            <rect width="100%" height="100%" fill="#0d0f14" />
             <pattern id="dots" x={pan.x%(20*zoom)} y={pan.y%(20*zoom)} width={20*zoom} height={20*zoom} patternUnits="userSpaceOnUse">
               <circle cx={1} cy={1} r={0.6} fill="rgba(255,255,255,0.05)" />
             </pattern>
             <rect width="100%" height="100%" fill="url(#dots)" />
 
             <defs>
-              <filter id="fx-depth" x="-40%" y="-40%" width="180%" height="180%">
-                <feDropShadow dx="0" dy="6" stdDeviation="7" floodColor="#000" floodOpacity="0.55" />
-              </filter>
               <marker id="arr" viewBox="0 0 8 8" refX={7} refY={4} markerWidth={5} markerHeight={5} orient="auto">
                 <path d="M1 1L7 4L1 7" fill="none" stroke="#555" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
               </marker>
@@ -755,13 +736,11 @@ export default function MapView() {
                 const hasAppeared = appearedIds.has(node.id);
                 const state = nodeState(node);
                 const stateColor = state && state !== 'done' ? STATE_COLOR[state] : null;
-                const depthScale = state === 'overdue' ? 1.06 : state === 'blocked' ? 1.03 : state === 'done' ? 0.97 : 1;
-                const hoverScale = (isHovered ? 1.045 : 1) * depthScale;
+                const hoverScale = isHovered ? 1.045 : 1;
 
                 return (
                   <g key={node.id} data-node="true"
                     transform={`translate(${node.x-NODE_W/2},${node.y-NODE_H/2}) scale(${hasAppeared ? hoverScale : 0.4})`}
-                    filter={state === 'overdue' || state === 'blocked' ? 'url(#fx-depth)' : undefined}
                     style={{
                       cursor:'pointer',
                       opacity: hasAppeared ? (dim?0.18:1) : 0,
